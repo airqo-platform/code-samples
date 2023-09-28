@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Air Quality Map</title>
+    <!-- Include the Google Maps JavaScript API -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=visualization"></script>
+    <style>
+        /* Style the map container */
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Air Quality Map</h1>
+    <!-- Create a container for the map -->
+    <div id="map"></div>
+
+    <script>
+        // Replace 'YOUR_GOOGLE_MAPS_API_KEY' with your actual Google Maps API key
+        const googleMapsApiKey = 'YOUR_GOOGLE_MAPS_API_KEY';
+
+        // Create a map centered at a specific location
+        const map = new google.maps.Map(document.getElementById('map'), {
+            center: { lat: -0.091702, lng: 34.767956 }, // Kisumu County, Kenya
+            zoom: 10, // Adjust the zoom level as needed
+        });
+
+        // Fetch air quality data from the AirQo API with the access token as a query parameter
+        fetch('https://api.airqo.net/api/v2/devices/measurements/airqlouds/{AIRQLOUD_ID}?token=YOUR_ACCESS_TOKEN', {
+            method: 'GET',
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Extract and format air quality data from the API response
+            const airQualityData = data.measurements.map(measurement => {
+                return {
+                    location: {
+                        lat: measurement.siteDetails.approximate_latitude,
+                        lng: measurement.siteDetails.approximate_longitude,
+                    },
+                    pm2_5: measurement.pm2_5.value,
+                };
+            });
+
+            // Iterate through the air quality data and create markers on the map
+            airQualityData.forEach(data => {
+                const marker = new google.maps.Marker({
+                    position: data.location,
+                    map: map,
+                    title: `PM2.5: ${data.pm2_5} µg/m³`,
+                });
+
+                // Customize marker icons, labels, or other properties as needed
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching air quality data:', error);
+        });
+    </script>
+</body>
+</html>
