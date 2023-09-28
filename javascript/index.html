@@ -27,6 +27,28 @@
             zoom: 10, // Adjust the zoom level as needed
         });
 
+            // Sample coordinates defining the boundary of Kisumu County (replace with actual coordinates)
+            const kisumuBoundaryCoordinates = [
+            { lat: -0.05, lng: 34.75 },
+            { lat: -0.05, lng: 34.8 },
+            { lat: -0.1, lng: 34.8 },
+            { lat: -0.1, lng: 34.75 },
+        ];
+
+        // Create a polygon representing the Kisumu County boundary
+        const kisumuBoundaryPolygon = new google.maps.Polygon({
+            paths: kisumuBoundaryCoordinates,
+        });
+
+        // Calculate the bounds of the polygon
+        const bounds = new google.maps.LatLngBounds();
+        kisumuBoundaryCoordinates.forEach(coord => {
+            bounds.extend(coord);
+        });
+
+        // Set the map's viewport to the calculated bounds
+        map.fitBounds(bounds);
+
         // Fetch air quality data from the AirQo API with the access token as a query parameter
         fetch('https://api.airqo.net/api/v2/devices/measurements/airqlouds/{AIRQLOUD_ID}?token=YOUR_ACCESS_TOKEN', {
             method: 'GET',
@@ -41,15 +63,64 @@
                         lng: measurement.siteDetails.approximate_longitude,
                     },
                     pm2_5: measurement.pm2_5.value,
+                    aqiColorName: measurement.aqi_color_name,
+                    lastRefreshed: new Date(measurement.time).toLocaleString(),
+                    formattedName: measurement.siteDetails.formatted_name,
                 };
             });
 
             // Iterate through the air quality data and create markers on the map
             airQualityData.forEach(data => {
+                // Set the marker color based on the AQI color name
+                let markerColor;
+                switch (data.aqiColorName) {
+                    case 'Green':
+                        markerColor = 'green';
+                        break;
+                    case 'Yellow':
+                        markerColor = 'yellow';
+                        break;
+                    case 'Red':
+                        markerColor = 'red';
+                        break;
+                    case 'Purple':
+                        markerColor = 'purple';
+                        break;
+                    case 'Maroon':
+                        markerColor = 'maroon';
+                        break;
+                    default:
+                        markerColor = 'yellow'; // Default color for unknown or unhandled cases
+                }
+
+                // Create a marker with the specified color
                 const marker = new google.maps.Marker({
                     position: data.location,
                     map: map,
                     title: `PM2.5: ${data.pm2_5} µg/m³`,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        fillColor: markerColor,
+                        fillOpacity: 1,
+                        strokeWeight: 0,
+                        scale: 10, // Adjust the scale as needed
+                    },
+                });
+
+                // Create an info window to display the details
+                const infoWindow = new google.maps.InfoWindow({
+                    content: `
+                        <div>
+                            <strong>PM2.5:</strong> ${data.pm2_5} µg/m³<br>
+                            <strong>Last Refreshed:</strong> ${data.lastRefreshed}<br>
+                            <strong>Location:</strong> ${data.formattedName}
+                        </div>
+                    `,
+                });
+
+                // Add event listener to show the info window when the marker is clicked
+                marker.addListener('click', () => {
+                    infoWindow.open(map, marker);
                 });
 
                 // Customize marker icons, labels, or other properties as needed
