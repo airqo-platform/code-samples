@@ -8,7 +8,7 @@ This monorepo is organized into subfolders, each containing code samples for a s
 
 1. **javascript**: Code samples for accessing the Air Quality API using JavaScript.
 
-2. **mobile**: Code samples for integrating air quality data into mobile applications using Dart.
+2. **dart**: Code samples for integrating air quality data into mobile applications using Dart.
 
 3. **php**: Code samples demonstrating how to access the Air Quality API with PHP.
 
@@ -21,7 +21,7 @@ To get started with any of the code samples, navigate to the respective subfolde
 ## Code Samples
 
 - [**javascript**](./javascript): Explore code samples for JavaScript.
-- [**mobile**](./mobile): Get code examples for building mobile apps with Dart.
+- [**dart**](./mobile): Get code examples for building mobile apps with Dart.
 - [**php**](./php): Find PHP code samples for accessing air quality data from the API.
 - [**python**](./python): Discover code samples for Python applications 
 
