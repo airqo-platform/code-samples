@@ -21,7 +21,7 @@ To get started with any of the code samples, navigate to the respective subfolde
 ## Code Samples
 
 - [**javascript**](./javascript): Explore code samples for JavaScript.
-- [**dart**](./mobile): Get code examples for building mobile apps with Dart.
+- [**dart**](./dart): Get code examples for building mobile apps with Dart.
 - [**php**](./php): Find PHP code samples for accessing air quality data from the API.
 - [**python**](./python): Discover code samples for Python applications 
 
