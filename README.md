@@ -6,13 +6,13 @@ Welcome to the Air Quality API code samples repository! In this monorepo, you'll
 
 This monorepo is organized into subfolders, each containing code samples for a specific programming language or framework:
 
-1. **javascript-react-js**: Code samples for accessing the Air Quality API using JavaScript and React JS.
+1. **javascript**: Code samples for accessing the Air Quality API using JavaScript.
 
-2. **mobile-flutter-dart**: Code samples for integrating air quality data into mobile applications using Flutter and Dart.
+2. **mobile**: Code samples for integrating air quality data into mobile applications using Dart.
 
 3. **php**: Code samples demonstrating how to access the Air Quality API with PHP.
 
-4. **python-django**: Code samples for Python applications, specifically using the Django web framework.
+4. **python**: Code samples for Python applications
 
 ## Getting Started
 
@@ -20,10 +20,10 @@ To get started with any of the code samples, navigate to the respective subfolde
 
 ## Code Samples
 
-- [**javascript-react-js**](./javascript): Explore code samples for JavaScript and React JS integration.
-- [**mobile-flutter-dart**](./mobile): Get code examples for building mobile apps with Flutter and Dart.
+- [**javascript**](./javascript): Explore code samples for JavaScript.
+- [**mobile**](./mobile): Get code examples for building mobile apps with Dart.
 - [**php**](./php): Find PHP code samples for accessing air quality data from the API.
-- [**python-django**](./python): Discover code samples for Python applications using Django.
+- [**python**](./python): Discover code samples for Python applications 
 
 Feel free to explore, use, and adapt these code samples to integrate air quality data into your own projects. If you have any questions or need further assistance, please don't hesitate to reach out.
 
