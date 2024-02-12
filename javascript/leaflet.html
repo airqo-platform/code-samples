@@ -42,7 +42,7 @@
     var lat = measurement.siteDetails.approximate_latitude;
     var lon = measurement.siteDetails.approximate_longitude;
     var pm25Value = Math.round(measurement.pm2_5.value); // Round off pm2_5 value
-    var siteName = measurement.siteDetails.formatted_name;
+    var siteName = measurement.siteDetails.description;
     var aqiCategory = measurement.aqi_category;
     var aqiColor = measurement.aqi_color;
 
