@@ -4,66 +4,154 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Air Quality Map</title>
-    <!-- Include Leaflet CSS and JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <!-- Include jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
     <style>
         #map {
             height: 400px;
         }
+        .legend {
+        padding: 6px 8px;
+        font: 14px/16px Arial, Helvetica, sans-serif;
+        background: white;
+        background: rgba(255,255,255,0.8);
+        box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        border-radius: 5px;
+    }
+    .legend .legend-title {
+        text-align: left;
+        margin-bottom: 5px;
+        font-weight: bold;
+        font-size: 18px; /* Increase font size */
+        line-height: 24px; /* Adjust line height for better readability */
+        color: #777;
+    }
+    .legend .legend-scale ul {
+        margin: 0;
+        margin-bottom: 5px;
+        padding: 0;
+        float: left;
+        list-style: none;
+    }
+    .legend .legend-scale ul li {
+        font-size: 14px; /* Increase font size */
+        list-style: none;
+        margin-bottom: 2px;
+        padding-left: 5px;
+        padding-right: 5px;
+        color: #777;
+    }
+    .legend .legend-scale ul li span {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-right: 5px;
+    }
+        .leaflet-control-attribution {
+            font-size: 16px; /* Increase font size */
+            line-height: 24px; /* Increase line height for better readability */
+            font-weight: bold; /* Make text bold */
+        }
+ 
     </style>
 </head>
 <body>
     <div id="map"></div>
-
     <script>
-        // Initialize Leaflet map
-        var map = L.map('map').setView([0.3136, 32.5810], 11); // Set initial view to Kampala, Uganda
-
-        // Add OpenStreetMap as the base layer
+         var map = L.map('map', {attributionControl: false}).setView([0.3136, 32.5810], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: ''
         }).addTo(map);
 
-        // Sample API endpoint and access token
+        // Create a custom attribution control
+        L.control.attribution({
+            prefix: '<a href="https://airqo.net/" target="_blank">Powered by AirQo</a>', // Set your custom attribution text
+            position: 'bottomright' // Position the control
+        }).addTo(map);
+       
+       
         var apiEndpoint = 'https://api.airqo.net/api/v2/devices/measurements/grids/{GRID_ID}';
-        var accessToken = "your-secret-access-token";
+        var accessToken = "your-access-token";
+        var gridId = 'your-grid-id'
 
-        // Make API request
         $.ajax({
-            url: apiEndpoint.replace('{GRID_ID}', 'your-grid-id').concat('?token=' + accessToken),
+            url: apiEndpoint.replace('{GRID_ID}', gridId).concat('?token=' + accessToken),
             method: 'GET',
             success: function(apiResponse) {
-                console.log("apiResponse",apiResponse)
-                // Loop through measurements and add markers to the map
                 apiResponse.measurements.forEach(function(measurement) {
-    var lat = measurement.siteDetails.approximate_latitude;
-    var lon = measurement.siteDetails.approximate_longitude;
-    var pm25Value = Math.round(measurement.pm2_5.value); // Round off pm2_5 value
-    var siteName = measurement.siteDetails.description;
-    var aqiCategory = measurement.aqi_category;
-    var aqiColor = measurement.aqi_color;
+                    var lat = measurement.siteDetails.approximate_latitude;
+                    var lon = measurement.siteDetails.approximate_longitude;
+                    var pm25Value = Math.round(measurement.pm2_5.value);
+                    var siteName = measurement.siteDetails.description;
+                    var aqi = measurement.pm2_5.value;
 
-    // Create a marker with different colors based on AQI category
-    var marker = L.marker([lat, lon], {
-        icon: L.divIcon({
-            className: 'custom-marker',
-            iconSize: [20, 20],
-            iconAnchor: [10, 10],
-            popupAnchor: [0, -30],
-            html: '<div style="background-color: #' + aqiColor + '; width: 30px; height: 30px; border-radius: 50%; text-align: center; line-height: 30px; color: black;">' + pm25Value + '</div>'
-
-        })
-    }).addTo(map)
-        .bindPopup('<b>' + siteName + '</b><br>PM2.5 Value: ' + pm25Value + '<br>AQI Category: ' + aqiCategory);
-});
+                    createMarker(lat, lon, aqi, pm25Value, siteName);
+                });
+                addLegend();
             },
             error: function(error) {
                 console.error('Error fetching data:', error);
             }
         });
+
+        function getAqiColor(aqi) {
+            if (aqi >= 0 && aqi <= 12) return 'green';
+            if (aqi > 12 && aqi <= 35.4) return 'yellow';
+            if (aqi > 35.4 && aqi <= 55.4) return 'orange';
+            if (aqi > 55.4 && aqi <= 150.4) return 'red';
+            if (aqi > 150.4 && aqi <= 250.4) return 'purple';
+            if (aqi > 250.4 && aqi <= 500) return 'maroon';
+            return 'unknown'; // Fallback for values outside the expected range
+        }
+
+        function createMarker(lat, lon, aqi, pm25Value, siteName) {
+            var aqiColor = getAqiColor(aqi);
+            var marker = L.marker([lat, lon], {
+                icon: L.divIcon({
+                    className: 'custom-marker',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10],
+                    popupAnchor: [0, -30],
+                    html: '<div style="background-color: ' + aqiColor + '; width: 30px; height: 30px; border-radius: 50%; text-align: center; line-height: 30px; color: black;">' + pm25Value + '</div>'
+                })
+            }).addTo(map)
+            .bindPopup('<b>' + siteName + '</b><br>PM2.5 Value: ' + pm25Value + '<br>AQI: ' + aqi);
+        }
+
+        // Define AQI index colors
+        var AQI_INDEX_COLORS = {
+            good: 'green',
+            moderate: 'yellow',
+            u4sg: 'orange',
+            unhealthy: 'red',
+            very_unhealthy: 'purple',
+            hazardous: 'maroon'
+        };
+
+        function addLegend() {
+            // Custom legend control
+        var legend = L.control({position: 'bottomleft'});
+
+        legend.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'legend');
+            div.innerHTML = '<div class="legend-title">AQI Index</div>' +
+                '<div class="legend-scale">' +
+                '<ul>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.good + '"></span>Good (0-12)</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.moderate + '"></span>Moderate (12.1-35.4)</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.u4sg + '"></span>Unhealthy for Sensitive Groups (35.5-55.4)</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.unhealthy + '"></span>Unhealthy (55.5-150.4)</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.very_unhealthy + '"></span>Very Unhealthy (150.5-250.4)</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.hazardous + '"></span>Hazardous (250.5-500)</li>' +
+                '</ul>' +
+                '</div>';
+            return div;
+        };
+        
+        legend.addTo(map);
+
+        }
     </script>
 </body>
 </html>
