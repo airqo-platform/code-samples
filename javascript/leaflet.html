@@ -11,17 +11,57 @@
         #map {
             height: 400px;
         }
+        .legend {
+        padding: 6px 8px;
+        font: 14px/16px Arial, Helvetica, sans-serif;
+        background: white;
+        background: rgba(255,255,255,0.8);
+        box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        border-radius: 5px;
+    }
+    .legend .legend-title {
+        text-align: left;
+        margin-bottom: 5px;
+        font-weight: bold;
+        font-size: 18px; /* Increase font size */
+        line-height: 24px; /* Adjust line height for better readability */
+        color: #777;
+    }
+    .legend .legend-scale ul {
+        margin: 0;
+        margin-bottom: 5px;
+        padding: 0;
+        float: left;
+        list-style: none;
+    }
+    .legend .legend-scale ul li {
+        font-size: 14px; /* Increase font size */
+        list-style: none;
+        margin-bottom: 2px;
+        padding-left: 5px;
+        padding-right: 5px;
+        color: #777;
+    }
+    .legend .legend-scale ul li span {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-right: 5px;
+    }
+        .leaflet-control-attribution {
+            font-size: 16px; /* Increase font size */
+            line-height: 24px; /* Increase line height for better readability */
+            font-weight: bold; /* Make text bold */
+        }
  
     </style>
 </head>
 <body>
     <div id="map"></div>
-   
-
     <script>
          var map = L.map('map', {attributionControl: false}).setView([0.3136, 32.5810], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: ''
         }).addTo(map);
 
         // Create a custom attribution control
@@ -79,32 +119,38 @@
             .bindPopup('<b>' + siteName + '</b><br>PM2.5 Value: ' + pm25Value + '<br>AQI: ' + aqi);
         }
 
+        // Define AQI index colors
+        var AQI_INDEX_COLORS = {
+            good: 'green',
+            moderate: 'yellow',
+            u4sg: 'orange',
+            unhealthy: 'red',
+            very_unhealthy: 'purple',
+            hazardous: 'maroon'
+        };
+
         function addLegend() {
-            var legend = L.control({position: 'bottomleft'});
+            // Custom legend control
+        var legend = L.control({position: 'bottomleft'});
 
-            legend.onAdd = function (map) {
-                var div = L.DomUtil.create('div', 'info legend'),
-                aqiIndex = {
-                    good: [0, 12],
-                    moderate: [12.1, 35.4],
-                    u4sg: [35.5, 55.4],
-                    unhealthy: [55.5, 150.4],
-                    very_unhealthy: [150.5, 250.4],
-                    hazardous: [250.5, 500]
-                },
-                labels = [];
+        legend.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'legend');
+            div.innerHTML = '<div class="legend-title">AQI Index</div>' +
+                '<div class="legend-scale">' +
+                '<ul>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.good + '"></span>Good (0-12)</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.moderate + '"></span>Moderate (12.1-35.4)</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.u4sg + '"></span>Unhealthy for Sensitive Groups (35.5-55.4)</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.unhealthy + '"></span>Unhealthy (55.5-150.4)</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.very_unhealthy + '"></span>Very Unhealthy (150.5-250.4)</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.hazardous + '"></span>Hazardous (250.5-500)</li>' +
+                '</ul>' +
+                '</div>';
+            return div;
+        };
+        
+        legend.addTo(map);
 
-                for (var category in aqiIndex) {
-                    var color = getAqiColor(aqiIndex[category][0]);
-                    div.innerHTML +=
-                        '<i style="background:' + color + '"></i> ' +
-                        aqiIndex[category][0] + ' - ' + aqiIndex[category][1] + ': ' + category + '<br>';
-                }
-
-                return div;
-            };
-
-            legend.addTo(map);
         }
     </script>
 </body>
