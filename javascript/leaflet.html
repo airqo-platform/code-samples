@@ -85,8 +85,10 @@
                     var pm25Value = Math.round(measurement.pm2_5.value);
                     var siteName = measurement.siteDetails.description;
                     var aqi = measurement.pm2_5.value;
+                    var aqiCategory = measurement.aqi_category;
+                    var aqiColor = measurement.aqi_color_name;
 
-                    createMarker(lat, lon, aqi, pm25Value, siteName);
+                    createMarker(lat, lon, aqiColor, aqiCategory, pm25Value, siteName);
                 });
                 addLegend();
             },
@@ -95,18 +97,8 @@
             }
         });
 
-        function getAqiColor(aqi) {
-            if (aqi >= 0 && aqi <= 12) return 'green';
-            if (aqi > 12 && aqi <= 35.4) return 'yellow';
-            if (aqi > 35.4 && aqi <= 55.4) return 'orange';
-            if (aqi > 55.4 && aqi <= 150.4) return 'red';
-            if (aqi > 150.4 && aqi <= 250.4) return 'purple';
-            if (aqi > 250.4 && aqi <= 500) return 'maroon';
-            return 'unknown'; // Fallback for values outside the expected range
-        }
 
-        function createMarker(lat, lon, aqi, pm25Value, siteName) {
-            var aqiColor = getAqiColor(aqi);
+        function createMarker(lat, lon, aqiColor, aqiCategory, pm25Value, siteName) {
             var marker = L.marker([lat, lon], {
                 icon: L.divIcon({
                     className: 'custom-marker',
@@ -116,7 +108,7 @@
                     html: '<div style="background-color: ' + aqiColor + '; width: 30px; height: 30px; border-radius: 50%; text-align: center; line-height: 30px; color: black;">' + pm25Value + '</div>'
                 })
             }).addTo(map)
-            .bindPopup('<b>' + siteName + '</b><br>PM2.5 Value: ' + pm25Value + '<br>AQI: ' + aqi);
+            .bindPopup('<b>' + siteName + '</b><br>PM2.5 Value: ' + pm25Value + '<br>AQI Category: ' + aqiCategory);
         }
 
         // Define AQI index colors
@@ -138,12 +130,12 @@
             div.innerHTML = '<div class="legend-title">AQI Index</div>' +
                 '<div class="legend-scale">' +
                 '<ul>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.good + '"></span>Good (0-12)</li>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.moderate + '"></span>Moderate (12.1-35.4)</li>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.u4sg + '"></span>Unhealthy for Sensitive Groups (35.5-55.4)</li>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.unhealthy + '"></span>Unhealthy (55.5-150.4)</li>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.very_unhealthy + '"></span>Very Unhealthy (150.5-250.4)</li>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.hazardous + '"></span>Hazardous (250.5-500)</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.good + '"></span>Good</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.moderate + '"></span>Moderate</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.u4sg + '"></span>Unhealthy for Sensitive Groups</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.unhealthy + '"></span>Unhealthy</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.very_unhealthy + '"></span>Very Unhealthy</li>' +
+                '<li><span style="background:' + AQI_INDEX_COLORS.hazardous + '"></span>Hazardous</li>' +
                 '</ul>' +
                 '</div>';
             return div;
