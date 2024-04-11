@@ -12,74 +12,120 @@
             height: 400px;
         }
         .legend {
-        padding: 6px 8px;
-        font: 14px/16px Arial, Helvetica, sans-serif;
-        background: white;
-        background: rgba(255,255,255,0.8);
-        box-shadow: 0 0 15px rgba(0,0,0,0.2);
-        border-radius: 5px;
-    }
-    .legend .legend-title {
-        text-align: left;
-        margin-bottom: 5px;
-        font-weight: bold;
-        font-size: 18px; /* Increase font size */
-        line-height: 24px; /* Adjust line height for better readability */
-        color: #777;
-    }
-    .legend .legend-scale ul {
-        margin: 0;
-        margin-bottom: 5px;
-        padding: 0;
-        float: left;
-        list-style: none;
-    }
-    .legend .legend-scale ul li {
-        font-size: 14px; /* Increase font size */
-        list-style: none;
-        margin-bottom: 2px;
-        padding-left: 5px;
-        padding-right: 5px;
-        color: #777;
-    }
-    .legend .legend-scale ul li span {
-        display: inline-block;
-        width: 12px;
-        height: 12px;
-        margin-right: 5px;
-    }
-        .leaflet-control-attribution {
-            font-size: 16px; /* Increase font size */
-            line-height: 24px; /* Increase line height for better readability */
-            font-weight: bold; /* Make text bold */
+            padding: 6px 8px;
+            font: 14px/16px Arial, Helvetica, sans-serif;
+            background: white;
+            background: rgba(255,255,255,0.8);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
         }
- 
+        .legend .legend-title {
+            text-align: left;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 18px;
+            line-height: 24px;
+            color: #777;
+        }
+        .legend .legend-scale ul {
+            margin: 0;
+            margin-bottom: 5px;
+            padding: 0;
+            float: left;
+            list-style: none;
+        }
+        .legend .legend-scale ul li {
+            font-size: 14px;
+            list-style: none;
+            margin-bottom: 2px;
+            padding-left: 5px;
+            padding-right: 5px;
+            color: #777;
+        }
+        .legend .legend-scale ul li span {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            margin-right: 5px;
+        }
+        .leaflet-control-attribution {
+            font-size: 16px;
+            line-height: 24px;
+            font-weight: bold;
+        }
+        /* Custom search bar styling */
+        .search-bar {
+            position: absolute;
+            top: 10px;
+            right: 10px; /* Moved to the right */
+            z-index: 1000; /* Ensure it's above the map */
+        }
+        .search-bar input {
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .search-bar button {
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            background-color: #f8f8f8;
+            cursor: pointer;
+        }
+        /* Container for search results */
+        #search-results {
+            position: absolute;
+            top: 60px; /* Position it below the search bar */
+            right: 10px; /* Moved to the right */
+            width: 200px; /* Adjust as needed */
+            height: 300px; /* Adjust as needed */
+            overflow-y: auto; /* Enable scrolling if content overflows */
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            z-index: 1000; /* Ensure it's above the map */
+            display: none; /* Hide by default */
+        }
+        .search-result {
+            padding: 5px;
+            border-bottom: 1px solid #ccc;
+            cursor: pointer;
+        }
+        .search-result:hover {
+            background-color: #f8f8f8;
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
+    <div class="search-bar">
+        <input type="text" id="search-input" placeholder="Search for a place...">
+        <button id="search-button">Search</button>
+    </div>
+    <div id="search-results"></div> <!-- Container for search results -->
     <script>
-         var map = L.map('map', {attributionControl: false}).setView([0.3136, 32.5810], 11);
+        var map = L.map('map', {attributionControl: false}).setView([0.3136, 32.5810], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: ''
         }).addTo(map);
 
-        // Create a custom attribution control
         L.control.attribution({
-            prefix: '<a href="https://airqo.net/" target="_blank">Powered by AirQo</a>', // Set your custom attribution text
-            position: 'bottomright' // Position the control
+            prefix: '<a href="https://airqo.net/" target="_blank">Powered by AirQo</a>',
+            position: 'bottomright'
         }).addTo(map);
-       
-       
+
         var apiEndpoint = 'https://api.airqo.net/api/v2/devices/measurements/grids/{GRID_ID}';
         var accessToken = "your-access-token";
-        var gridId = 'your-grid-id'
+        var gridId = 'your-grid-id';
+
+        var apiResponse; // Declare a global variable to store the API response
 
         $.ajax({
             url: apiEndpoint.replace('{GRID_ID}', gridId).concat('?token=' + accessToken),
             method: 'GET',
-            success: function(apiResponse) {
-                apiResponse.measurements.forEach(function(measurement) {
+            success: function(response) {
+                apiResponse = response; // Store the API response
+                response.measurements.forEach(function(measurement) {
                     var lat = measurement.siteDetails.approximate_latitude;
                     var lon = measurement.siteDetails.approximate_longitude;
                     var pm25Value = Math.round(measurement.pm2_5.value);
@@ -97,7 +143,6 @@
             }
         });
 
-
         function createMarker(lat, lon, aqiColor, aqiCategory, pm25Value, siteName) {
             var marker = L.marker([lat, lon], {
                 icon: L.divIcon({
@@ -111,7 +156,6 @@
             .bindPopup('<b>' + siteName + '</b><br>PM2.5 Value: ' + pm25Value + '<br>AQI Category: ' + aqiCategory);
         }
 
-        // Define AQI index colors
         var AQI_INDEX_COLORS = {
             good: 'green',
             moderate: 'yellow',
@@ -122,28 +166,68 @@
         };
 
         function addLegend() {
-            // Custom legend control
-        var legend = L.control({position: 'bottomleft'});
+            var legend = L.control({position: 'bottomleft'});
 
-        legend.onAdd = function (map) {
-            var div = L.DomUtil.create('div', 'legend');
-            div.innerHTML = '<div class="legend-title">AQI Index</div>' +
-                '<div class="legend-scale">' +
-                '<ul>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.good + '"></span>Good</li>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.moderate + '"></span>Moderate</li>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.u4sg + '"></span>Unhealthy for Sensitive Groups</li>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.unhealthy + '"></span>Unhealthy</li>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.very_unhealthy + '"></span>Very Unhealthy</li>' +
-                '<li><span style="background:' + AQI_INDEX_COLORS.hazardous + '"></span>Hazardous</li>' +
-                '</ul>' +
-                '</div>';
-            return div;
-        };
-        
-        legend.addTo(map);
+            legend.onAdd = function (map) {
+                var div = L.DomUtil.create('div', 'legend');
+                div.innerHTML = '<div class="legend-title">AQI Index</div>' +
+                    '<div class="legend-scale">' +
+                    '<ul>' +
+                    '<li><span style="background:' + AQI_INDEX_COLORS.good + '"></span>Good</li>' +
+                    '<li><span style="background:' + AQI_INDEX_COLORS.moderate + '"></span>Moderate</li>' +
+                    '<li><span style="background:' + AQI_INDEX_COLORS.u4sg + '"></span>Unhealthy for Sensitive Groups</li>' +
+                    '<li><span style="background:' + AQI_INDEX_COLORS.unhealthy + '"></span>Unhealthy</li>' +
+                    '<li><span style="background:' + AQI_INDEX_COLORS.very_unhealthy + '"></span>Very Unhealthy</li>' +
+                    '<li><span style="background:' + AQI_INDEX_COLORS.hazardous + '"></span>Hazardous</li>' +
+                    '</ul>' +
+                    '</div>';
+                return div;
+            };
 
+            legend.addTo(map);
         }
+
+        $('#search-button').click(function() {
+            var searchQuery = $('#search-input').val().toLowerCase();
+            var matchingResults = apiResponse.measurements.filter(function(measurement) {
+                return measurement.siteDetails.description.toLowerCase().includes(searchQuery);
+            });
+
+            displaySearchResults(matchingResults);
+        });
+
+        function displaySearchResults(results) {
+            var resultsContainer = $('#search-results');
+            resultsContainer.empty();
+
+            results.forEach(function(result) {
+                var resultElement = $('<div class="search-result"></div>');
+                resultElement.text(result.siteDetails.description);
+                resultElement.click(function() {
+                    zoomToLocation(result.siteDetails.approximate_latitude, result.siteDetails.approximate_longitude);
+                    resultsContainer.hide(); // Hide the search results overlay
+                });
+                resultsContainer.append(resultElement);
+            });
+            resultsContainer.show(); // Show the search results overlay
+        }
+
+        function zoomToLocation(lat, lon) {
+            map.setView([lat, lon], 14);
+        }
+
+        // Initially hide the search results container
+        $('#search-results').hide();
+
+        // Show the search results container when the search button is clicked
+        $('#search-button').click(function() {
+            $('#search-results').show();
+        });
+
+        // Hide the search results container when a search result is clicked
+        $(document).on('click', '.search-result', function() {
+            $('#search-results').hide();
+        });
     </script>
 </body>
 </html>
