@@ -4,14 +4,14 @@ const AirQualityData = () => {
   const [data, setData] = useState([]);
   const [token, setToken] = useState(""); // Input field for the access token
 
-  const airQloudId = "your_airqloud_id"; // Replace with the AirQloud ID for City X
+  const gridId = "your_grid_id"; // Replace with the grid ID for City X
 
   useEffect(() => {
     // Make the API request
     const fetchData = async () => {
       try {
         const response = await fetch(
-          `https://api.airqo.net/api/v2/devices/measurements/airqlouds/${airQloudId}?token=${token}`
+          `https://api.airqo.net/api/v2/devices/measurements/grids/${gridId}?token=${token}`
         );
         if (response.ok) {
           const result = await response.json();
@@ -24,10 +24,10 @@ const AirQualityData = () => {
       }
     };
 
-    if (token && airQloudId) {
+    if (token && gridId) {
       fetchData();
     }
-  }, [token, airQloudId]);
+  }, [token, gridId]);
 
   return (
     <div>
