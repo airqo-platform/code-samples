@@ -1,8 +1,8 @@
 <?php
-$airqloudId = 'your_airqloud_id'; // Replace with the AirQloud ID for City X
+$gridId = 'your_grid_id'; // Replace with the grid ID for City X
 $accessToken = 'your_access_token'; // Replace with your access token
 
-$apiUrl = "https://api.airqo.net/api/v2/devices/measurements/airqlouds/$airqloudId?token=$accessToken";
+$apiUrl = "https://api.airqo.net/api/v2/devices/measurements/grids/$gridId?token=$accessToken";
 
 $ch = curl_init($apiUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
