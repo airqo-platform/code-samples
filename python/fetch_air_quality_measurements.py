@@ -2,7 +2,7 @@
 import requests
 
 API_KEY = 'YOUR_API_KEY_HERE'  # Replace YOUR_API_KEY_HERE with your actual API key
-DEVICE_ID = '6422a47a9e4cbc001edc4e8a'
+DEVICE_ID = '6422a4e8a'
 BASE_URL = f'https://api.airqo.net/api/v2/devices/measurements/devices/{DEVICE_ID}/recent/?token={API_KEY}'
 
 try:
