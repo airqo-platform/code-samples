@@ -1,3 +1,9 @@
+import MapPage from "./map/page";
+
 export default function Home() {
-  return <div>This is the new test frontend app for DS team</div>;
+  return (
+    <div>
+      <MapPage />
+    </div>
+  );
 }

@@ -1,6 +1,8 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import "leaflet/dist/leaflet.css";
+@import "leaflet-geosearch/dist/geosearch.css";
 
 :root {
   --background: #ffffff;
@@ -19,3 +21,5 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Map styles */
