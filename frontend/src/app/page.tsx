@@ -3,7 +3,6 @@ import React from "react";
 import dynamic from "next/dynamic";
 import Loading from "./Loading";
 
-// Dynamically import LeafletMap with SSR disabled
 const LeafletMap = dynamic(() => import("../components/map/LeafletMap"), {
   ssr: false,
   loading: () => <Loading />,
