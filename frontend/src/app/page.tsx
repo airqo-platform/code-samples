@@ -1,4 +1,20 @@
+"use client";
 import React from "react";
-export default function Home() {
-  return <div>This is the new test frontend app for DS team</div>;
-}
+import dynamic from "next/dynamic";
+import Loading from "./Loading";
+
+// Dynamically import LeafletMap with SSR disabled
+const LeafletMap = dynamic(() => import("../components/map/LeafletMap"), {
+  ssr: false,
+  loading: () => <Loading />,
+});
+
+const Home: React.FC = () => {
+  return (
+    <div>
+      <LeafletMap />
+    </div>
+  );
+};
+
+export default Home;
