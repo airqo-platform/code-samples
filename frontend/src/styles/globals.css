@@ -21,3 +21,18 @@ body {
 }
 
 /* Map styles */
+
+/* Add these styles for the custom popup */
+.custom-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0.5rem;
+}
+
+.custom-popup .leaflet-popup-content {
+  margin: 0;
+}
+
+.custom-popup .leaflet-popup-tip {
+  display: none;
+}
