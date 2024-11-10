@@ -250,11 +250,14 @@ const SearchControl: React.FC<{
         root.render(
           <LoadingPopupContent 
             label={label} 
-            onClose={() => marker.closePopup()} 
+            onClose={() => {
+              marker.closePopup();
+              root.unmount();
+            }} 
           />
         );
 
-        marker.bindPopup(container, customPopupOptions).openPopup();
+        marker.bindPopup(container, { ...customPopupOptions, offset: [0, 0] }).openPopup();
 
         try {
           const response = await getSatelliteData({
