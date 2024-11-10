@@ -25,14 +25,20 @@ body {
 /* Add these styles for the custom popup */
 .custom-popup .leaflet-popup-content-wrapper {
   padding: 0;
-  overflow: hidden;
-  border-radius: 0.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background: transparent;
 }
 
 .custom-popup .leaflet-popup-content {
   margin: 0;
+  background: transparent;
 }
 
-.custom-popup .leaflet-popup-tip {
+.custom-popup .leaflet-popup-tip-container {
+  display: none;
+}
+
+.custom-popup .leaflet-popup-close-button {
   display: none;
 }

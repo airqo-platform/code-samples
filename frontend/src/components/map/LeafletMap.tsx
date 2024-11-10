@@ -1,12 +1,23 @@
 import "leaflet/dist/leaflet.css";
 import React, { useEffect, useRef } from "react";
+import ReactDOM from 'react-dom/client';
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import Image from "next/image";
 import L from "leaflet";
 import { GeoSearchControl, OpenStreetMapProvider } from "leaflet-geosearch";
 import "leaflet-geosearch/dist/geosearch.css";
 import markerIconUrl from "leaflet/dist/images/marker-icon.png";
 import markerShadowUrl from "leaflet/dist/images/marker-shadow.png";
 import { getSatelliteData } from "@/services/apiService";
+
+// Import air quality images
+import GoodAir from "@public/images/GoodAir.png";
+import Moderate from "@public/images/Moderate.png";
+import UnhealthySG from "@public/images/UnhealthySG.png";
+import Unhealthy from "@public/images/Unhealthy.png";
+import VeryUnhealthy from "@public/images/VeryUnhealthy.png";
+import Hazardous from "@public/images/Hazardous.png";
+import Invalid from "@public/images/Invalid.png";
 
 // Set default icon for markers
 const DefaultIcon = L.icon({
@@ -28,14 +39,120 @@ interface SatelliteData {
   timestamp: string;
 }
 
-// Add this function to determine air quality level and emoji
+// Update the air quality info function to include image sources
 const getAirQualityInfo = (pm25: number) => {
-  if (pm25 <= 12) return { level: 'Good', emoji: '😊', color: 'bg-green-100 border-green-200' };
-  if (pm25 <= 35.4) return { level: 'Moderate', emoji: '🙂', color: 'bg-yellow-100 border-yellow-200' };
-  if (pm25 <= 55.4) return { level: 'Unhealthy for Sensitive Groups', emoji: '😐', color: 'bg-orange-100 border-orange-200' };
-  if (pm25 <= 150.4) return { level: 'Unhealthy', emoji: '😷', color: 'bg-red-100 border-red-200' };
-  if (pm25 <= 250.4) return { level: 'Very Unhealthy', emoji: '🤢', color: 'bg-purple-100 border-purple-200' };
-  return { level: 'Hazardous', emoji: '⚠️', color: 'bg-red-200 border-red-300' };
+  if (pm25 <= 12) return { level: 'Good', image: GoodAir, color: 'bg-white border-green-200' };
+  if (pm25 <= 35.4) return { level: 'Moderate', image: Moderate, color: 'bg-white border-yellow-200' };
+  if (pm25 <= 55.4) return { level: 'Unhealthy for Sensitive Groups', image: UnhealthySG, color: 'bg-white border-orange-200' };
+  if (pm25 <= 150.4) return { level: 'Unhealthy', image: Unhealthy, color: 'bg-white border-red-200' };
+  if (pm25 <= 250.4) return { level: 'Very Unhealthy', image: VeryUnhealthy, color: 'bg-white border-purple-200' };
+  return { level: 'Hazardous', image: Hazardous, color: 'bg-white border-red-300' };
+};
+
+// Create a component for the popup content
+const PopupContent: React.FC<{
+  label: string;
+  data: SatelliteData;
+  onClose: () => void;
+}> = ({ label, data, onClose }) => {
+  const { level, image, color } = getAirQualityInfo(data.pm2_5_prediction);
+  const timestamp = new Date(data.timestamp).toLocaleString();
+
+  return (
+    <div className={`min-w-[200px] p-3 rounded-lg ${color} border`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="w-8 h-8">
+          <Image
+            src={image}
+            alt={level}
+            width={32}
+            height={32}
+            className="w-full h-full object-contain"
+          />
+        </div>
+        <button 
+          className="text-gray-500 hover:text-gray-700"
+          onClick={onClose}
+        >
+          ✕
+        </button>
+      </div>
+      <div className="text-sm font-medium mb-2">{label}</div>
+      <div className="text-lg font-semibold mb-1">
+        {level}
+      </div>
+      <div className="text-sm text-gray-700">
+        PM2.5: {data.pm2_5_prediction.toFixed(1)} µg/m³
+      </div>
+      <div className="text-xs text-gray-500 mt-2">
+        Updated {timestamp}
+      </div>
+    </div>
+  );
+};
+
+// Create a loading popup component
+const LoadingPopupContent: React.FC<{
+  label: string;
+  onClose: () => void;
+}> = ({ label, onClose }) => (
+  <div className="min-w-[200px] p-3 rounded-lg bg-white border">
+    <div className="flex items-center justify-between mb-2">
+      <div className="w-8 h-8">
+        <div className="animate-pulse bg-gray-200 h-full w-full rounded-full" />
+      </div>
+      <button 
+        className="text-gray-500 hover:text-gray-700"
+        onClick={onClose}
+      >
+        ✕
+      </button>
+    </div>
+    <div className="text-sm font-medium mb-2">{label}</div>
+    <div className="animate-pulse space-y-2">
+      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+    </div>
+  </div>
+);
+
+// Create an error popup component
+const ErrorPopupContent: React.FC<{
+  label: string;
+  onClose: () => void;
+}> = ({ label, onClose }) => (
+  <div className="min-w-[200px] p-3 rounded-lg bg-gray-100 border border-gray-200">
+    <div className="flex items-center justify-between mb-2">
+      <div className="w-8 h-8">
+        <Image
+          src={Invalid}
+          alt="Error"
+          width={32}
+          height={32}
+          className="w-full h-full object-contain"
+        />
+      </div>
+      <button 
+        className="text-gray-500 hover:text-gray-700"
+        onClick={onClose}
+      >
+        ✕
+      </button>
+    </div>
+    <div className="text-sm font-medium mb-2">{label}</div>
+    <div className="text-sm text-gray-700">
+      Error loading air quality data
+    </div>
+  </div>
+);
+
+// Add this CSS class to override default Leaflet popup styles
+const customPopupOptions = {
+  className: 'custom-popup',
+  closeButton: false,
+  maxWidth: 300,
+  minWidth: 200,
+  offset: [0, -20],
 };
 
 // Component to add the search control to the map
@@ -87,38 +204,25 @@ const SearchControl: React.FC<{
     map.on("geosearch/showlocation", async (result: any) => {
       const { x, y, label } = result.location;
       
-      // Clear existing markers
       markersRef.current.forEach((marker) => marker.remove());
       markersRef.current = [];
 
-      // Add marker immediately with loading state
-      const loadingPopupContent = `
-        <div class="min-w-[200px] p-3 rounded-lg bg-white border">
-          <div class="flex items-center justify-between mb-2">
-            <div class="animate-pulse bg-gray-200 h-8 w-8 rounded-full"></div>
-            <button class="text-gray-500 hover:text-gray-700" onclick="this.parentElement.parentElement.remove()">
-              ✕
-            </button>
-          </div>
-          <div class="text-sm font-medium mb-2">${label}</div>
-          <div class="animate-pulse space-y-2">
-            <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-          </div>
-        </div>
-      `;
-
-      const marker = L.marker([y, x], { icon: DefaultIcon })
-        .bindPopup(loadingPopupContent, {
-          className: 'custom-popup',
-          closeButton: false,
-          maxWidth: 300,
-          minWidth: 200,
-        })
-        .addTo(map);
-      
-      marker.openPopup();
+      const marker = L.marker([y, x], { icon: DefaultIcon }).addTo(map);
       markersRef.current.push(marker);
+
+      // Create a container div for the popup
+      const container = document.createElement('div');
+      
+      // Render loading state
+      const root = ReactDOM.createRoot(container);
+      root.render(
+        <LoadingPopupContent 
+          label={label} 
+          onClose={() => marker.closePopup()} 
+        />
+      );
+
+      marker.bindPopup(container, { ...customPopupOptions, offset: [0, 0] }).openPopup();
 
       try {
         const data = await getSatelliteData({
@@ -126,54 +230,24 @@ const SearchControl: React.FC<{
           longitude: x,
         }) as SatelliteData;
 
-        const { level, emoji, color } = getAirQualityInfo(data.pm2_5_prediction);
-        const timestamp = new Date(data.timestamp).toLocaleString();
-
-        const popupContent = `
-          <div class="min-w-[200px] p-3 rounded-lg ${color} border">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-2xl">${emoji}</span>
-              <button class="text-gray-500 hover:text-gray-700" onclick="this.parentElement.parentElement.remove()">
-                ✕
-              </button>
-            </div>
-            <div class="text-sm font-medium mb-2">${label}</div>
-            <div class="text-lg font-semibold mb-1">
-              ${level}
-            </div>
-            <div class="text-sm text-gray-700">
-              PM2.5: ${data.pm2_5_prediction.toFixed(1)} µg/m³
-            </div>
-            <div class="text-xs text-gray-500 mt-2">
-              Updated ${timestamp}
-            </div>
-          </div>
-        `;
-
-        // Update the existing marker's popup content
-        marker.setPopupContent(popupContent);
-        marker.openPopup();
+        // Update with actual data
+        root.render(
+          <PopupContent 
+            label={label}
+            data={data}
+            onClose={() => marker.closePopup()}
+          />
+        );
 
       } catch (error) {
         console.error('Error fetching air quality data:', error);
-        const errorPopupContent = `
-          <div class="min-w-[200px] p-3 rounded-lg bg-gray-100 border border-gray-200">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-2xl">❌</span>
-              <button class="text-gray-500 hover:text-gray-700" onclick="this.parentElement.parentElement.remove()">
-                ✕
-              </button>
-            </div>
-            <div class="text-sm font-medium mb-2">${label}</div>
-            <div class="text-sm text-gray-700">
-              Error loading air quality data
-            </div>
-          </div>
-        `;
-        
-        // Update the existing marker's popup content
-        marker.setPopupContent(errorPopupContent);
-        marker.openPopup();
+        // Show error state
+        root.render(
+          <ErrorPopupContent 
+            label={label}
+            onClose={() => marker.closePopup()}
+          />
+        );
       }
     });
 
