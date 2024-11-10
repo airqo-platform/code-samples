@@ -39,8 +39,28 @@ interface SatelliteData {
   timestamp: string;
 }
 
-// Update the air quality info function to include image sources
-const getAirQualityInfo = (pm25: number) => {
+// Add type guard for API response
+const isSatelliteData = (data: any): data is SatelliteData => {
+  return (
+    data &&
+    typeof data.latitude === 'number' &&
+    typeof data.longitude === 'number' &&
+    typeof data.pm2_5_prediction === 'number' &&
+    typeof data.timestamp === 'string'
+  );
+};
+
+// Update the air quality info function to handle invalid values
+const getAirQualityInfo = (pm25: number | null) => {
+  // Handle invalid or null PM2.5 values
+  if (pm25 === null || isNaN(pm25)) {
+    return { 
+      level: 'Invalid Data', 
+      image: Invalid, 
+      color: 'bg-white border-gray-200' 
+    };
+  }
+
   if (pm25 <= 12) return { level: 'Good', image: GoodAir, color: 'bg-white border-green-200' };
   if (pm25 <= 35.4) return { level: 'Moderate', image: Moderate, color: 'bg-white border-yellow-200' };
   if (pm25 <= 55.4) return { level: 'Unhealthy for Sensitive Groups', image: UnhealthySG, color: 'bg-white border-orange-200' };
@@ -52,11 +72,13 @@ const getAirQualityInfo = (pm25: number) => {
 // Create a component for the popup content
 const PopupContent: React.FC<{
   label: string;
-  data: SatelliteData;
+  data: Partial<SatelliteData>;
   onClose: () => void;
 }> = ({ label, data, onClose }) => {
-  const { level, image, color } = getAirQualityInfo(data.pm2_5_prediction);
-  const timestamp = new Date(data.timestamp).toLocaleString();
+  const { level, image, color } = getAirQualityInfo(data.pm2_5_prediction ?? null);
+  
+  // Safely format timestamp
+  const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown';
 
   return (
     <div className={`min-w-[200px] p-3 rounded-lg ${color} border`}>
@@ -84,7 +106,7 @@ const PopupContent: React.FC<{
         {level}
       </div>
       <div className="text-sm text-gray-700">
-        PM2.5: {data.pm2_5_prediction.toFixed(1)} µg/m³
+        PM2.5: {data.pm2_5_prediction?.toFixed(1) ?? 'N/A'} µg/m³
       </div>
       <div className="text-xs text-gray-500 mt-2">
         Updated {timestamp}
@@ -122,7 +144,8 @@ const LoadingPopupContent: React.FC<{
 const ErrorPopupContent: React.FC<{
   label: string;
   onClose: () => void;
-}> = ({ label, onClose }) => (
+  errorMessage?: string;
+}> = ({ label, onClose, errorMessage = 'Error loading air quality data' }) => (
   <div className="min-w-[200px] p-3 rounded-lg bg-gray-100 border border-gray-200">
     <div className="flex items-center justify-between mb-2">
       <div className="w-12 h-12 relative">
@@ -145,7 +168,7 @@ const ErrorPopupContent: React.FC<{
     </div>
     <div className="text-sm font-medium mb-2">{label}</div>
     <div className="text-sm text-gray-700">
-      Error loading air quality data
+      {errorMessage}
     </div>
   </div>
 );
@@ -206,50 +229,74 @@ const SearchControl: React.FC<{
 
     // Event listener for when a location is found
     map.on("geosearch/showlocation", async (result: any) => {
-      const { x, y, label } = result.location;
-      
-      markersRef.current.forEach((marker) => marker.remove());
-      markersRef.current = [];
-
-      const marker = L.marker([y, x], { icon: DefaultIcon }).addTo(map);
-      markersRef.current.push(marker);
-
-      // Create a container div for the popup
-      const container = document.createElement('div');
-      
-      // Render loading state
-      const root = ReactDOM.createRoot(container);
-      root.render(
-        <LoadingPopupContent 
-          label={label} 
-          onClose={() => marker.closePopup()} 
-        />
-      );
-
-      marker.bindPopup(container, { ...customPopupOptions, offset: [0, 0] }).openPopup();
-
       try {
-        const data = await getSatelliteData({
-          latitude: y,
-          longitude: x,
-        }) as SatelliteData;
+        const { x, y, label } = result.location;
+        
+        if (typeof x !== 'number' || typeof y !== 'number' || !label) {
+          throw new Error('Invalid location data');
+        }
+        
+        markersRef.current.forEach((marker) => marker.remove());
+        markersRef.current = [];
 
-        // Update with actual data
+        const marker = L.marker([y, x], { icon: DefaultIcon }).addTo(map);
+        markersRef.current.push(marker);
+
+        // Create a container div for the popup
+        const container = document.createElement('div');
+        
+        // Render loading state
+        const root = ReactDOM.createRoot(container);
         root.render(
-          <PopupContent 
-            label={label}
-            data={data}
-            onClose={() => marker.closePopup()}
+          <LoadingPopupContent 
+            label={label} 
+            onClose={() => marker.closePopup()} 
           />
         );
 
+        marker.bindPopup(container, customPopupOptions).openPopup();
+
+        try {
+          const response = await getSatelliteData({
+            latitude: y,
+            longitude: x,
+          });
+
+          // Validate API response
+          if (!response || !isSatelliteData(response)) {
+            throw new Error('Invalid API response format');
+          }
+
+          // Update with actual data
+          root.render(
+            <PopupContent 
+              label={label}
+              data={response}
+              onClose={() => marker.closePopup()}
+            />
+          );
+
+        } catch (error) {
+          console.error('Error fetching air quality data:', error);
+          // Show error state with specific error message
+          root.render(
+            <ErrorPopupContent 
+              label={label}
+              onClose={() => marker.closePopup()}
+              errorMessage={error instanceof Error ? error.message : 'Failed to load air quality data'}
+            />
+          );
+        }
       } catch (error) {
-        console.error('Error fetching air quality data:', error);
-        // Show error state
-        root.render(
+        console.error('Error handling location:', error);
+        // Handle location processing errors
+        const errorContainer = document.createElement('div');
+        const errorRoot = ReactDOM.createRoot(errorContainer);
+        errorRoot.render(
           <ErrorPopupContent 
-            label={label}
-            onClose={() => marker.closePopup()}
+            label="Location Error"
+            onClose={() => {}}
+            errorMessage="Invalid location data received"
           />
         );
       }
