@@ -61,13 +61,15 @@ const PopupContent: React.FC<{
   return (
     <div className={`min-w-[200px] p-3 rounded-lg ${color} border`}>
       <div className="flex items-center justify-between mb-2">
-        <div className="w-8 h-8">
+        <div className="w-12 h-12 relative">
           <Image
             src={image}
             alt={level}
-            width={32}
-            height={32}
-            className="w-full h-full object-contain"
+            width={48}
+            height={48}
+            className="w-full h-full"
+            quality={100}
+            priority
           />
         </div>
         <button 
@@ -123,13 +125,15 @@ const ErrorPopupContent: React.FC<{
 }> = ({ label, onClose }) => (
   <div className="min-w-[200px] p-3 rounded-lg bg-gray-100 border border-gray-200">
     <div className="flex items-center justify-between mb-2">
-      <div className="w-8 h-8">
+      <div className="w-12 h-12 relative">
         <Image
           src={Invalid}
           alt="Error"
-          width={32}
-          height={32}
-          className="w-full h-full object-contain"
+          width={48}
+          height={48}
+          className="w-full h-full"
+          quality={100}
+          priority
         />
       </div>
       <button 
