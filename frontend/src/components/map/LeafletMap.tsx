@@ -1,5 +1,5 @@
 import "leaflet/dist/leaflet.css";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import ReactDOM from 'react-dom/client';
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import Image from "next/image";
@@ -547,7 +547,75 @@ const MapNodes: React.FC<{ onLoadingChange: (state: LoadingState) => void }> = (
   return null;
 };
 
-// Update the LeafletMap component
+// Update the Legend component with better tooltip styling
+const Legend: React.FC = () => {
+  const pollutantLevels = useMemo(
+    () => [
+      {
+        range: '0.0µg/m³ - 12.0µg/m³',
+        label: 'Air Quality is Good',
+        image: GoodAir,
+      },
+      {
+        range: '12.1µg/m³ - 35.4µg/m³',
+        label: 'Air Quality is Moderate',
+        image: Moderate,
+      },
+      {
+        range: '35.5µg/m³ - 55.4µg/m³',
+        label: 'Air Quality is Unhealthy for Sensitive Groups',
+        image: UnhealthySG,
+      },
+      {
+        range: '55.5µg/m³ - 150.4µg/m³',
+        label: 'Air Quality is Unhealthy',
+        image: Unhealthy,
+      },
+      {
+        range: '150.5µg/m³ - 250.4µg/m³',
+        label: 'Air Quality is Very Unhealthy',
+        image: VeryUnhealthy,
+      },
+      {
+        range: '250.5µg/m³ +',
+        label: 'Air Quality is Hazardous',
+        image: Hazardous,
+      },
+    ],
+    []
+  );
+
+  return (
+    <div className="leaflet-bottom leaflet-left z-[1000] m-4">
+      <div className="leaflet-control bg-white p-2 rounded-full shadow-md">
+        <div className="flex flex-col gap-2">
+          {pollutantLevels.map((level, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-2 group relative"
+            >
+              <div className="w-8 h-8 relative cursor-pointer">
+                <Image
+                  src={level.image}
+                  alt={level.label}
+                  fill
+                  className="object-contain"
+                />
+                <div className="opacity-0 group-hover:opacity-100 absolute left-full ml-2 bg-white text-gray-800 text-xs rounded-lg px-3 py-2 whitespace-nowrap transition-opacity duration-200 shadow-lg border border-gray-200 min-w-[200px]">
+                  <div className="font-semibold mb-1">{level.label}</div>
+                  <div className="text-gray-600">{level.range}</div>
+                  <div className="absolute w-2 h-2 left-0 top-1/2 -ml-1 -mt-1 bg-white border-l border-t border-gray-200 transform -rotate-45"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Update the LeafletMap component to include the Legend
 const LeafletMap: React.FC = () => {
   const defaultCenter: [number, number] = [1.5, 17.5];
   const defaultZoom = 4;
@@ -573,6 +641,7 @@ const LeafletMap: React.FC = () => {
         />
         <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
         <MapNodes onLoadingChange={setLoadingState} />
+        <Legend />
       </MapContainer>
     </div>
   );
