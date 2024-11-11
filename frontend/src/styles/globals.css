@@ -42,3 +42,14 @@ body {
 .custom-popup .leaflet-popup-close-button {
   display: none;
 }
+
+/* Add these styles for the loading indicator */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
