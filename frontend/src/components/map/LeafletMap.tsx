@@ -593,9 +593,9 @@ const getCustomIcon = (aqiCategory: string) => {
 
   return L.icon({
     iconUrl: typeof imageSrc === 'string' ? imageSrc : imageSrc.src,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-    popupAnchor: [0, -16],
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
   });
 };
 
