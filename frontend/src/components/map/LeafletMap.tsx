@@ -236,6 +236,12 @@ const SearchControl: React.FC<{
           throw new Error('Invalid location data');
         }
         
+        // Center the map on the selected location with animation
+        map.setView([y, x], 13, {
+          animate: true,
+          duration: 1
+        });
+        
         markersRef.current.forEach((marker) => marker.remove());
         markersRef.current = [];
 
@@ -513,9 +519,16 @@ const MapNodes: React.FC<{ onLoadingChange: (state: LoadingState) => void }> = (
             offset: L.point(0, -20)
           });
 
-          // Add hover event listeners
-          marker.on('mouseover', () => marker.openPopup());
-          marker.on('mouseout', () => marker.closePopup());
+          // Only add mouseover event - remove mouseout event
+          marker.on('mouseover', () => {
+            // Close other popups before opening this one
+            markersRef.current.forEach(m => {
+              if (m !== marker) {
+                m.closePopup();
+              }
+            });
+            marker.openPopup();
+          });
 
           markersRef.current.push(marker);
         } catch (error) {
