@@ -1,5 +1,5 @@
 import "leaflet/dist/leaflet.css";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from 'react-dom/client';
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import Image from "next/image";
@@ -8,7 +8,7 @@ import { GeoSearchControl, OpenStreetMapProvider } from "leaflet-geosearch";
 import "leaflet-geosearch/dist/geosearch.css";
 import markerIconUrl from "leaflet/dist/images/marker-icon.png";
 import markerShadowUrl from "leaflet/dist/images/marker-shadow.png";
-import { getSatelliteData } from "@/services/apiService";
+import { getSatelliteData, getMapNodes } from "@/services/apiService";
 
 // Import air quality images
 import GoodAir from "@public/images/GoodAir.png";
@@ -236,6 +236,12 @@ const SearchControl: React.FC<{
           throw new Error('Invalid location data');
         }
         
+        // Center the map on the selected location with animation
+        map.setView([y, x], 13, {
+          animate: true,
+          duration: 1
+        });
+        
         markersRef.current.forEach((marker) => marker.remove());
         markersRef.current = [];
 
@@ -327,23 +333,283 @@ const SearchControl: React.FC<{
   return null;
 };
 
+// Add interface for map nodes
+interface MapNode {
+  _id: string;
+  site_id: string;
+  time: string;
+  aqi_category: string;
+  aqi_color: string;
+  pm2_5: { value: number | null };
+  siteDetails: {
+    location_name?: string;
+    name?: string;
+    approximate_latitude: number;
+    approximate_longitude: number;
+    formatted_name?: string;
+  };
+}
+
+// Add loading state interface
+interface LoadingState {
+  isLoading: boolean;
+  error: string | null;
+}
+
+// Create a loading indicator component
+const LoadingIndicator: React.FC<LoadingState> = ({ isLoading, error }) => {
+  if (!isLoading && !error) return null;
+
+  return (
+    <div className="absolute top-4 right-4 z-[1000] bg-white rounded-lg shadow-md p-3">
+      {isLoading ? (
+        <div className="flex items-center space-x-2">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-blue-600"></div>
+          <span className="text-sm text-gray-600">Loading map data...</span>
+        </div>
+      ) : error ? (
+        <div className="flex items-center space-x-2 text-red-500">
+          <span className="text-sm">{error}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+// Add a utility function for delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Create a function to fetch with retries
+const fetchWithRetry = async (
+  fetchFn: () => Promise<any>, 
+  retries = 3, 
+  initialDelay = 2000, // Start with 2 second delay
+  backoffFactor = 1.5  // Increase delay by 1.5x each retry
+) => {
+  let currentDelay = initialDelay;
+  
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        await delay(currentDelay);
+      }
+      const result = await fetchFn();
+      if (result) return result;
+    } catch (error) {
+      console.log(`Attempt ${attempt + 1} failed, retrying...`);
+      currentDelay *= backoffFactor;
+      if (attempt === retries - 1) throw error;
+    }
+  }
+  return null;
+};
+
+// Create a component for the map nodes
+const MapNodes: React.FC<{ onLoadingChange: (state: LoadingState) => void }> = ({ onLoadingChange }) => {
+  const map = useMap();
+  const [nodes, setNodes] = useState<MapNode[]>([]);
+  const markersRef = useRef<L.Marker[]>([]);
+
+  // Validate node data
+  const isValidNode = (node: MapNode): boolean => {
+    return !!(
+      node &&
+      node.siteDetails?.approximate_latitude &&
+      node.siteDetails?.approximate_longitude &&
+      node.siteDetails?.name &&
+      node.pm2_5?.value !== undefined
+    );
+  };
+
+  useEffect(() => {
+    const fetchNodes = async () => {
+      try {
+        onLoadingChange({ isLoading: true, error: null });
+        
+        const data = await fetchWithRetry(
+          getMapNodes,
+          3,    // Number of retries
+          2000, // Initial delay of 2 seconds
+          1.5   // Increase delay by 1.5x each retry
+        );
+
+        if (data) {
+          // Filter out invalid nodes
+          const validNodes = data.filter(isValidNode);
+          if (validNodes.length === 0) {
+            onLoadingChange({ isLoading: false, error: 'No valid data points found' });
+            return;
+          }
+          setNodes(validNodes);
+          onLoadingChange({ isLoading: false, error: null });
+        } else {
+          onLoadingChange({ isLoading: false, error: 'Failed to load map data' });
+        }
+      } catch (error) {
+        console.error('Error fetching nodes:', error);
+        onLoadingChange({ 
+          isLoading: false, 
+          error: 'Error loading map data' 
+        });
+      }
+    };
+
+    fetchNodes();
+
+    return () => {
+      markersRef.current.forEach(marker => marker.remove());
+    };
+  }, [map, onLoadingChange]);
+
+  useEffect(() => {
+    if (!nodes.length) return; // Don't proceed if no nodes
+
+    try {
+      // Clear existing markers
+      markersRef.current.forEach(marker => marker.remove());
+      markersRef.current = [];
+
+      // Create new markers for each node
+      nodes.forEach(node => {
+        try {
+          // Safely access properties with optional chaining and nullish coalescing
+          const latitude = node?.siteDetails?.approximate_latitude;
+          const longitude = node?.siteDetails?.approximate_longitude;
+          const siteName = node?.siteDetails?.name || node?.siteDetails?.formatted_name || node?.siteDetails?.location_name || 'Unknown Location';
+          const pm25Value = node?.pm2_5?.value;
+          const timestamp = node?.time;
+          const aqiCategory = node?.aqi_category ?? 'Unknown';
+          
+          // Skip if essential data is missing
+          if (!latitude || !longitude || pm25Value === undefined) {
+            console.warn('Skipping node due to missing data:', node._id);
+            return;
+          }
+
+          // Create container for popup
+          const container = document.createElement('div');
+          const root = ReactDOM.createRoot(container);
+
+          // Create marker with custom icon based on AQI category
+          const marker = L.marker(
+            [latitude, longitude],
+            { 
+              icon: getCustomIcon(aqiCategory)
+            }
+          ).addTo(map);
+
+          // Render popup content
+          root.render(
+            <PopupContent 
+              label={siteName}
+              data={{
+                pm2_5_prediction: pm25Value ?? undefined,
+                timestamp: timestamp ?? undefined,
+              }}
+              onClose={() => {
+                marker.closePopup();
+                root.unmount(); // Clean up React root when popup closes
+              }}
+            />
+          );
+
+          // Bind popup to marker with custom options
+          marker.bindPopup(container, {
+            ...customPopupOptions,
+            offset: L.point(0, -20)
+          });
+
+          // Only add mouseover event - remove mouseout event
+          marker.on('mouseover', () => {
+            // Close other popups before opening this one
+            markersRef.current.forEach(m => {
+              if (m !== marker) {
+                m.closePopup();
+              }
+            });
+            marker.openPopup();
+          });
+
+          markersRef.current.push(marker);
+        } catch (error) {
+          console.error('Error creating marker for node:', node._id, error);
+        }
+      });
+    } catch (error) {
+      console.error('Error updating markers:', error);
+      onLoadingChange({ 
+        isLoading: false, 
+        error: 'Error displaying map markers' 
+      });
+    }
+  }, [nodes, map]);
+
+  return null;
+};
+
+// Update the LeafletMap component
 const LeafletMap: React.FC = () => {
   const defaultCenter: [number, number] = [1.5, 17.5];
   const defaultZoom = 4;
+  const [loadingState, setLoadingState] = useState<LoadingState>({
+    isLoading: false,
+    error: null
+  });
 
   return (
-    <MapContainer
-      center={defaultCenter}
-      zoom={defaultZoom}
-      style={{ height: "100vh", width: "100%" }}
-    >
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    <div className="relative w-full h-full">
+      <LoadingIndicator 
+        isLoading={loadingState.isLoading} 
+        error={loadingState.error} 
       />
-      <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
-    </MapContainer>
+      <MapContainer
+        center={defaultCenter}
+        zoom={defaultZoom}
+        style={{ height: "100vh", width: "100%" }}
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
+        <MapNodes onLoadingChange={setLoadingState} />
+      </MapContainer>
+    </div>
   );
+};
+
+// Create a custom icon based on AQI category
+const getCustomIcon = (aqiCategory: string) => {
+  let imageSrc;
+  switch (aqiCategory.toLowerCase()) {
+    case 'good':
+      imageSrc = GoodAir;
+      break;
+    case 'moderate':
+      imageSrc = Moderate;
+      break;
+    case 'unhealthy for sensitive groups':
+      imageSrc = UnhealthySG;
+      break;
+    case 'unhealthy':
+      imageSrc = Unhealthy;
+      break;
+    case 'very unhealthy':
+      imageSrc = VeryUnhealthy;
+      break;
+    case 'hazardous':
+      imageSrc = Hazardous;
+      break;
+    default:
+      imageSrc = Invalid;
+  }
+
+  return L.icon({
+    iconUrl: typeof imageSrc === 'string' ? imageSrc : imageSrc.src,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
+  });
 };
 
 export default LeafletMap;
