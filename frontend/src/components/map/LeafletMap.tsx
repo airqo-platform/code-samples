@@ -61,11 +61,11 @@ const getAirQualityInfo = (pm25: number | null) => {
     };
   }
 
-  if (pm25 <= 12) return { level: 'Good', image: GoodAir, color: 'bg-white border-green-200' };
+  if (pm25 <= 9) return { level: 'Good', image: GoodAir, color: 'bg-white border-green-200' };
   if (pm25 <= 35.4) return { level: 'Moderate', image: Moderate, color: 'bg-white border-yellow-200' };
   if (pm25 <= 55.4) return { level: 'Unhealthy for Sensitive Groups', image: UnhealthySG, color: 'bg-white border-orange-200' };
-  if (pm25 <= 150.4) return { level: 'Unhealthy', image: Unhealthy, color: 'bg-white border-red-200' };
-  if (pm25 <= 250.4) return { level: 'Very Unhealthy', image: VeryUnhealthy, color: 'bg-white border-purple-200' };
+  if (pm25 <= 125.4) return { level: 'Unhealthy', image: Unhealthy, color: 'bg-white border-red-200' };
+  if (pm25 <= 225.4) return { level: 'Very Unhealthy', image: VeryUnhealthy, color: 'bg-white border-purple-200' };
   return { level: 'Hazardous', image: Hazardous, color: 'bg-white border-red-300' };
 };
 
@@ -201,7 +201,7 @@ const SearchControl: React.FC<{
 
     map.addControl(searchControl);
 
-    // Apply custom TailwindCSS styles to the search bar
+    // Apply custom TailwindCSS styles to the search bar and add search icon
     const searchBar = document.querySelector(".leaflet-control-geosearch form");
     if (searchBar) {
       searchBar.classList.add(
@@ -209,8 +209,35 @@ const SearchControl: React.FC<{
         "text-black",
         "border",
         "border-gray-400",
-        "rounded-md"
+        "rounded-md",
+        "relative"
       );
+
+      // Create and add the search icon
+      const searchIcon = document.createElement('div');
+      searchIcon.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      `;
+      searchIcon.className = 'absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none';
+      searchBar.appendChild(searchIcon);
+
+      // Adjust the search input padding to accommodate the icon
+      const searchInput = searchBar.querySelector('input');
+      if (searchInput) {
+        searchInput.style.paddingLeft = '2.5rem';
+        // Add some additional styling to the input
+        searchInput.classList.add(
+          'w-full',
+          'pl-10',
+          'pr-4',
+          'py-2',
+          'rounded-md',
+          'focus:outline-none',
+          'focus:border-transparent'
+        );
+      }
     }
 
     const searchResults = document.querySelector(
@@ -552,12 +579,12 @@ const Legend: React.FC = () => {
   const pollutantLevels = useMemo(
     () => [
       {
-        range: '0.0µg/m³ - 12.0µg/m³',
+        range: '0.0µg/m³ - 9.0µg/m³',
         label: 'Air Quality is Good',
         image: GoodAir,
       },
       {
-        range: '12.1µg/m³ - 35.4µg/m³',
+        range: '9.1µg/m³ - 35.4µg/m³',
         label: 'Air Quality is Moderate',
         image: Moderate,
       },
@@ -567,17 +594,17 @@ const Legend: React.FC = () => {
         image: UnhealthySG,
       },
       {
-        range: '55.5µg/m³ - 150.4µg/m³',
+        range: '55.5µg/m³ - 125.4µg/m³',
         label: 'Air Quality is Unhealthy',
         image: Unhealthy,
       },
       {
-        range: '150.5µg/m³ - 250.4µg/m³',
+        range: '125.5µg/m³ - 225.4µg/m³',
         label: 'Air Quality is Very Unhealthy',
         image: VeryUnhealthy,
       },
       {
-        range: '250.5µg/m³ +',
+        range: '225.5+ µg/m³',
         label: 'Air Quality is Hazardous',
         image: Hazardous,
       },
@@ -636,8 +663,8 @@ const LeafletMap: React.FC = () => {
         style={{ height: "100vh", width: "100%" }}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+          attribution='Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
         />
         <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
         <MapNodes onLoadingChange={setLoadingState} />
