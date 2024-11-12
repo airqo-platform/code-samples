@@ -61,11 +61,11 @@ const getAirQualityInfo = (pm25: number | null) => {
     };
   }
 
-  if (pm25 <= 12) return { level: 'Good', image: GoodAir, color: 'bg-white border-green-200' };
+  if (pm25 <= 9) return { level: 'Good', image: GoodAir, color: 'bg-white border-green-200' };
   if (pm25 <= 35.4) return { level: 'Moderate', image: Moderate, color: 'bg-white border-yellow-200' };
   if (pm25 <= 55.4) return { level: 'Unhealthy for Sensitive Groups', image: UnhealthySG, color: 'bg-white border-orange-200' };
-  if (pm25 <= 150.4) return { level: 'Unhealthy', image: Unhealthy, color: 'bg-white border-red-200' };
-  if (pm25 <= 250.4) return { level: 'Very Unhealthy', image: VeryUnhealthy, color: 'bg-white border-purple-200' };
+  if (pm25 <= 125.4) return { level: 'Unhealthy', image: Unhealthy, color: 'bg-white border-red-200' };
+  if (pm25 <= 225.4) return { level: 'Very Unhealthy', image: VeryUnhealthy, color: 'bg-white border-purple-200' };
   return { level: 'Hazardous', image: Hazardous, color: 'bg-white border-red-300' };
 };
 
@@ -579,12 +579,12 @@ const Legend: React.FC = () => {
   const pollutantLevels = useMemo(
     () => [
       {
-        range: '0.0µg/m³ - 12.0µg/m³',
+        range: '0.0µg/m³ - 9.0µg/m³',
         label: 'Air Quality is Good',
         image: GoodAir,
       },
       {
-        range: '12.1µg/m³ - 35.4µg/m³',
+        range: '9.1µg/m³ - 35.4µg/m³',
         label: 'Air Quality is Moderate',
         image: Moderate,
       },
@@ -594,17 +594,17 @@ const Legend: React.FC = () => {
         image: UnhealthySG,
       },
       {
-        range: '55.5µg/m³ - 150.4µg/m³',
+        range: '55.5µg/m³ - 125.4µg/m³',
         label: 'Air Quality is Unhealthy',
         image: Unhealthy,
       },
       {
-        range: '150.5µg/m³ - 250.4µg/m³',
+        range: '125.5µg/m³ - 225.4µg/m³',
         label: 'Air Quality is Very Unhealthy',
         image: VeryUnhealthy,
       },
       {
-        range: '250.5µg/m³ +',
+        range: '225.5+ µg/m³',
         label: 'Air Quality is Hazardous',
         image: Hazardous,
       },
