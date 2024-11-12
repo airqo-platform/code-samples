@@ -201,7 +201,7 @@ const SearchControl: React.FC<{
 
     map.addControl(searchControl);
 
-    // Apply custom TailwindCSS styles to the search bar
+    // Apply custom TailwindCSS styles to the search bar and add search icon
     const searchBar = document.querySelector(".leaflet-control-geosearch form");
     if (searchBar) {
       searchBar.classList.add(
@@ -209,8 +209,35 @@ const SearchControl: React.FC<{
         "text-black",
         "border",
         "border-gray-400",
-        "rounded-md"
+        "rounded-md",
+        "relative"
       );
+
+      // Create and add the search icon
+      const searchIcon = document.createElement('div');
+      searchIcon.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      `;
+      searchIcon.className = 'absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none';
+      searchBar.appendChild(searchIcon);
+
+      // Adjust the search input padding to accommodate the icon
+      const searchInput = searchBar.querySelector('input');
+      if (searchInput) {
+        searchInput.style.paddingLeft = '2.5rem';
+        // Add some additional styling to the input
+        searchInput.classList.add(
+          'w-full',
+          'pl-10',
+          'pr-4',
+          'py-2',
+          'rounded-md',
+          'focus:outline-none',
+          'focus:border-transparent'
+        );
+      }
     }
 
     const searchResults = document.querySelector(
