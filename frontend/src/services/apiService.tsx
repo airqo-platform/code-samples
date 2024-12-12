@@ -3,10 +3,18 @@ import axios from "axios";
 
 const apiToken = process.env.NEXT_PUBLIC_API_TOKEN;
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+const PREDICTION_API_URL = process.env.NEXT_PUBLIC_API_URL_DIGITAL_OCEAN || '';
 
 // Axios instance with a base URL and default headers
 const apiService = axios.create({
   baseURL: removeTrailingSlash(BASE_URL),
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+const predictionApiService = axios.create({
+  baseURL: removeTrailingSlash(PREDICTION_API_URL),
   headers: {
     "Content-Type": "application/json",
   },
