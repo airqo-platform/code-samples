@@ -19,6 +19,17 @@ const PUBLIC_SATELLITE_DATA_API_URL = process.env.NEXT_PUBLIC_SATELLITE_DATA_API
 const PUBLIC_DEVICE_DATA_API_URL = process.env.NEXT_PUBLIC_DEVICE_DATA_API_URL;
 const PUBLIC_GRID_SUMMARY_API_URL = process.env.NEXT_PUBLIC_GRID_SUMMARY_API_URL;
 
+const requiredEnvVars = {
+  API_TOKEN: process.env.NEXT_PUBLIC_API_TOKEN,
+  BASE_URL: process.env.NEXT_PUBLIC_API_URL,
+  LOCATE_API_URL: process.env.NEXT_PUBLIC_LOCATE_API_URL,
+  // ... add other required variables as needed
+};
+
+Object.entries(requiredEnvVars).forEach(([key, value]) => {
+  if (!value) throw new Error(`Missing required environment variable: ${key}`);
+});
+
 
 export async function submitLocations(payload: SiteLocatorPayload): Promise<SiteLocatorResponse> {
     try {
@@ -107,10 +118,15 @@ export async function submitLocations(payload: SiteLocatorPayload): Promise<Site
   
   
   export async function fetchGrids(): Promise<Grid[]> { 
-    const response = await fetch(`${PUBLIC_GRID_SUMMARY_API_URL}`);
-    if (!response.ok) { 
-      throw new Error('Failed to fetch grids');
+    try {
+      const response = await fetch(`${PUBLIC_GRID_SUMMARY_API_URL}?token=${API_TOKEN}`);
+      if (!response.ok) { 
+        throw new Error(`Failed to fetch grids: ${response.status} ${response.statusText}`);
+      }
+      const data = await response.json();
+      return data.grids;
+    } catch (error) {
+      console.error('Error fetching grids:', error);
+      throw new Error('Failed to fetch grids: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
-    const data = await response.json();
-    return data.grids;
   }
