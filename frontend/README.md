@@ -2,18 +2,19 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-+First install dependencies:
-+```bash
-+npm install
-+```
-
-Have the .env file ready.
-`.env` file.
-
- See the example at 
-`.env.example`.
+First install dependencies:
+```bash
+npm install
 ```
-NEXT_PUBLIC_API_TOKEN=YOUR_TOKEN (get toke from airqo)
+
+ 
+Required environment variables:
+
+```.env
+# Your AirQo API token (obtain from AirQo dashboard)
+NEXT_PUBLIC_API_TOKEN=YOUR_TOKEN
+
+# AirQo API endpoint
 NEXT_PUBLIC_API_URL=https://analytics.airqo.net/api/v2/
 ```
 First, run the development server:
