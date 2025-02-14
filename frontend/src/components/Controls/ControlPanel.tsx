@@ -51,16 +51,21 @@ export function ControlPanel({
   const handleSubmit = async () => {
     if (!validateInputs()) return;
 
-    const payload = {
+    const payload: any = {
       polygon: {
         coordinates: [
           [...polygon.map((loc) => [loc.lng, loc.lat]), [polygon[0].lng, polygon[0].lat]], // Close the polygon
         ],
       },
       must_have_locations: mustHaveLocations.length > 0 ? mustHaveLocations.map((loc) => [loc.lat, loc.lng]) : [],
-      min_distance_km: parseFloat(minDistance) || undefined, // Optional field
       num_sensors: parseInt(numSensors, 10),
     };
+
+    // Ensure min_distance_km is only included if valid
+    const minDistanceValue = parseFloat(minDistance);
+    if (!isNaN(minDistanceValue)) {
+      payload.min_distance_km = minDistanceValue;
+    }
 
     setIsLoading(true);
     try {
@@ -153,7 +158,7 @@ export function ControlPanel({
         />
       </div>
 
-      {/*Add Number of Sensors */}
+      {/* Number of Sensors */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Number of Sensors (Required)</label>
         <Input
