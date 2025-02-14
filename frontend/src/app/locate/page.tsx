@@ -1,7 +1,7 @@
-"use client"
+'use client'; // Add this at the top of the file
 
 import { useState } from 'react';
-import { MapComponent } from '@components/map/MapComponent';
+import { MapComponent } from '@/components/map/MapComponent';
 import { ControlPanel } from '@/components/Controls/ControlPanel';
 import { Location, SiteLocatorPayload } from '@/lib/types';
 import { submitLocations } from '@/lib/api';
@@ -108,7 +108,7 @@ export default function Index() {
   return (
     <div className="flex flex-col h-screen">
       <Navigation />
-      <div className="flex-1 mt-16">
+      <div className="relative flex-1">
         <MapComponent
           polygon={polygon}
           mustHaveLocations={mustHaveLocations}
@@ -116,24 +116,43 @@ export default function Index() {
           onPolygonChange={setPolygon}
           onLocationClick={handleLocationClick}
         />
-        <ControlPanel
-          onSubmit={handleSubmit}
-          polygon={polygon}
-          mustHaveLocations={mustHaveLocations}
-          onMustHaveLocationsChange={setMustHaveLocations}
-          onBoundaryFound={setPolygon}
-        />
-        <div className="absolute bottom-4 right-4 flex gap-2">
-          <Button onClick={handleExportCSV} className="flex items-center gap-2 shadow-lg">
-            <Download className="h-4 w-4" />
+
+        {/* Control Panel */}
+        <div className="absolute right-4 top-4 z-[1000]">
+          <ControlPanel
+            onSubmit={handleSubmit}
+            polygon={polygon}
+            mustHaveLocations={mustHaveLocations}
+            onMustHaveLocationsChange={setMustHaveLocations}
+            onBoundaryFound={setPolygon}
+          />
+        </div>
+
+        {/* Action Buttons */}
+        <div className="absolute bottom-4 right-4 z-[1000] flex gap-2">
+          <Button onClick={handleExportCSV} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
-          <Button onClick={handleSaveMap} className="flex items-center gap-2 shadow-lg">
-            <Camera className="h-4 w-4" />
+          <Button onClick={handleSaveMap} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Camera className="h-4 w-4 mr-2" />
             Save Map
+          </Button>
+        </div>
+
+        {/* Draw Polygon Button */}
+        <div className="absolute bottom-4 right-1/2 transform translate-x-1/2 z-[1000]">
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={() => {
+              /* Toggle drawing mode */
+            }}
+          >
+            Draw Polygon
           </Button>
         </div>
       </div>
     </div>
-  );
+  )
 }
+
