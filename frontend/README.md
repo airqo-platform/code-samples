@@ -1,7 +1,18 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
+First intall 
+'npm install'
 
+Have the .env file ready.
+`.env` file.
+
+ See the example at 
+`.env.example`.
+```
+NEXT_PUBLIC_API_TOKEN=YOUR_TOKEN (get toke from airqo)
+NEXT_PUBLIC_API_URL=https://analytics.airqo.net/api/v2/
+```
 First, run the development server:
 
 ```bash
