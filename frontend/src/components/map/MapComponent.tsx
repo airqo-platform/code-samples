@@ -1,78 +1,80 @@
-'use client';
+"use client"
 
-import { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, useMap, Marker, Polygon } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import { Location } from '@/lib/types';
-import { NavigationControls } from './NavigationControls';
-import { Button } from '@/ui/button';
-import { Map as MapIcon } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
+import { useEffect, useRef, useState } from "react"
+import { MapContainer, TileLayer, useMap, Marker, Polygon } from "react-leaflet"
+import L from "leaflet"
+import "leaflet/dist/leaflet.css"
+import type { Location } from "@/lib/types"
+import { NavigationControls } from "./NavigationControls"
+import { Button } from "@/ui/button"
+import { MapIcon } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover"
 
 // Fix for default markers
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as any)._getIconUrl
 
 // Create custom icons for different marker types
 const blueIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
   shadowSize: [41, 41],
-});
+})
 
 const greenIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
   shadowSize: [41, 41],
-});
+})
 
 const mapStyles = {
   streets: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
   satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-};
+}
 
-type MapStyle = keyof typeof mapStyles;
+type MapStyle = keyof typeof mapStyles
 
 interface MapComponentProps {
-  polygon: Location[];
-  mustHaveLocations: Location[];
-  suggestedLocations: Location[];
-  onPolygonChange: (locations: Location[]) => void;
-  onLocationClick: (location: Location) => void;
+  polygon: Location[]
+  mustHaveLocations: Location[]
+  suggestedLocations: Location[]
+  onPolygonChange: (locations: Location[]) => void
+  onLocationClick: (location: Location) => void
+  isDrawing: boolean
 }
 
 // Add map instance to window for global access
 declare global {
   interface Window {
-    map: L.Map;
+    map: L.Map
   }
 }
 
 function MapStyleControl() {
-  const map = useMap();
-  const [currentStyle, setCurrentStyle] = useState<MapStyle>('streets');
+  const map = useMap()
+  const [currentStyle, setCurrentStyle] = useState<MapStyle>("streets")
 
   const changeStyle = (style: MapStyle) => {
-    setCurrentStyle(style);
+    setCurrentStyle(style)
     // Find and remove the existing tile layer
     map.eachLayer((layer) => {
       if (layer instanceof L.TileLayer) {
-        map.removeLayer(layer);
+        map.removeLayer(layer)
       }
-    });
+    })
     // Add the new tile layer
     L.tileLayer(mapStyles[style], {
-      attribution: style === 'satellite' 
-        ? '&copy; <a href="https://www.arcgis.com/">ESRI</a>'
-        : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
-  };
+      attribution:
+        style === "satellite"
+          ? '&copy; <a href="https://www.arcgis.com/">ESRI</a>'
+          : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map)
+  }
 
   return (
     <div className="absolute top-4 right-4 z-[1000]">
@@ -96,48 +98,48 @@ function MapStyleControl() {
         </PopoverContent>
       </Popover>
     </div>
-  );
+  )
 }
 
 function MapController() {
-  const map = useMap();
+  const map = useMap()
   useEffect(() => {
-    window.map = map;
-  }, [map]);
-  return null;
+    window.map = map
+  }, [map])
+  return null
 }
 
 function DrawControl({
   onPolygonChange,
 }: {
-  onPolygonChange: (locations: Location[]) => void;
+  onPolygonChange: (locations: Location[]) => void
 }) {
-  const map = useMap();
-  const drawingRef = useRef<L.Polyline>();
-  const locationsRef = useRef<Location[]>([]);
+  const map = useMap()
+  const drawingRef = useRef<L.Polyline>()
+  const locationsRef = useRef<Location[]>([])
 
   useEffect(() => {
     const handleClick = (e: L.LeafletMouseEvent) => {
-      const newLocation = { lat: e.latlng.lat, lng: e.latlng.lng };
-      locationsRef.current = [...locationsRef.current, newLocation];
+      const newLocation = { lat: e.latlng.lat, lng: e.latlng.lng }
+      locationsRef.current = [...locationsRef.current, newLocation]
 
       if (!drawingRef.current) {
-        drawingRef.current = L.polyline([], { color: 'blue' }).addTo(map);
+        drawingRef.current = L.polyline([], { color: "blue" }).addTo(map)
       }
 
-      drawingRef.current.setLatLngs(locationsRef.current);
-      onPolygonChange(locationsRef.current);
-    };
+      drawingRef.current.setLatLngs(locationsRef.current)
+      onPolygonChange(locationsRef.current)
+    }
 
-    map.on('click', handleClick);
+    map.on("click", handleClick)
 
     return () => {
-      map.off('click', handleClick);
-      drawingRef.current?.remove();
-    };
-  }, [map, onPolygonChange]);
+      map.off("click", handleClick)
+      drawingRef.current?.remove()
+    }
+  }, [map, onPolygonChange])
 
-  return null;
+  return null
 }
 
 export function MapComponent({
@@ -146,9 +148,8 @@ export function MapComponent({
   suggestedLocations,
   onPolygonChange,
   onLocationClick,
+  isDrawing,
 }: MapComponentProps) {
-  const [isDrawing, setIsDrawing] = useState(false);
-
   return (
     <div className="relative pr-[420px]">
       <MapContainer
@@ -166,10 +167,7 @@ export function MapComponent({
         {isDrawing && <DrawControl onPolygonChange={onPolygonChange} />}
 
         {polygon.length > 2 && (
-          <Polygon
-            positions={polygon.map((loc) => [loc.lat, loc.lng])}
-            pathOptions={{ color: 'blue' }}
-          />
+          <Polygon positions={polygon.map((loc) => [loc.lat, loc.lng])} pathOptions={{ color: "blue" }} />
         )}
 
         {mustHaveLocations.map((location, index) => (
@@ -188,11 +186,9 @@ export function MapComponent({
           />
         ))}
       </MapContainer>
-      
-      <NavigationControls
-        isDrawing={isDrawing}
-        onDrawingToggle={() => setIsDrawing(!isDrawing)}
-      />
+
+      <NavigationControls isDrawing={isDrawing} onDrawingToggle={() => {}} />
     </div>
-  );
+  )
 }
+
