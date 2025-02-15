@@ -109,7 +109,7 @@ export function SearchBar({ onSearch, onBoundaryFound }: SearchBarProps) {
             <X className="h-4 w-4" />
           </Button>
         )}
-        <Button type="submit" size="icon" disabled={isLoading}>
+        <Button type="submit" size="icon" disabled={isLoading || !query.trim()} className="bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center">
           <Search className="h-4 w-4" />
         </Button>
       </form>
