@@ -3,60 +3,50 @@ import { Button } from '@/ui/button';
 import { Upload } from 'lucide-react';
 import Papa from 'papaparse';
 import { useToast } from '@/ui/use-toast';
+import type {Location, FileUploadProps} from "@/lib/types"
 
-interface Location {
-  lat: number;
-  lng: number;
-}
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_FILE_TYPE = 'text/csv';
 
-interface FileUploadProps {
-  onUpload: (locations: Location[]) => void;
-}
+const normalizeColumnName = (name: string): string =>
+  name.trim().toLowerCase().replace(/\s+/g, '');
+
+const latitudeAliases = new Set(['lat', 'latitude']);
+const longitudeAliases = new Set(['lng', 'lon', 'longitude']);
 
 export function FileUpload({ onUpload }: FileUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
-  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-  const ACCEPTED_FILE_TYPE = 'text/csv';
-
-  const normalizeColumnName = (name: string): string =>
-    name.trim().toLowerCase().replace(/\s+/g, '');
-
-  const latitudeAliases = new Set(['lat', 'latitude']);
-  const longitudeAliases = new Set(['lng', 'lon', 'longitude']);
-
   const parseCSV = (file: File) => {
     setIsLoading(true);
 
-    Papa.parse(file, {
+    Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
+      complete: ({ data, meta }) => {
         setIsLoading(false);
+
         try {
-          const headers = results.meta.fields || [];
+          const headers = meta.fields?.map(normalizeColumnName) || [];
           if (!headers.length) throw new Error('CSV file has no headers.');
 
-          const normalizedHeaders = headers.map(normalizeColumnName);
-          const latIndex = normalizedHeaders.findIndex((h) => latitudeAliases.has(h));
-          const lngIndex = normalizedHeaders.findIndex((h) => longitudeAliases.has(h));
+          const latIndex = headers.findIndex((h) => latitudeAliases.has(h));
+          const lngIndex = headers.findIndex((h) => longitudeAliases.has(h));
 
           if (latIndex === -1 || lngIndex === -1) {
             throw new Error('Missing latitude and/or longitude columns.');
           }
 
-          const locations = results.data
-            .map((row: any) => ({
-              lat: parseFloat(row[headers[latIndex]]),
-              lng: parseFloat(row[headers[lngIndex]]),
+          const locations: Location[] = data
+            .map((row) => ({
+              lat: parseFloat(row[meta.fields![latIndex]] || ''),
+              lng: parseFloat(row[meta.fields![lngIndex]] || ''),
             }))
             .filter(({ lat, lng }) => !isNaN(lat) && !isNaN(lng));
 
-          if (locations.length === 0) {
-            throw new Error('No valid latitude/longitude pairs found.');
-          }
+          if (!locations.length) throw new Error('No valid latitude/longitude pairs found.');
 
           onUpload(locations);
           toast({ title: 'Success', description: `Imported ${locations.length} locations.` });
@@ -94,16 +84,10 @@ export function FileUpload({ onUpload }: FileUploadProps) {
 
   return (
     <div>
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        accept=".csv"
-        className="hidden"
-      />
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".csv" className="hidden" />
       <Button
         variant="outline"
-        className="w-full"
+        className="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white"
         onClick={() => fileInputRef.current?.click()}
         disabled={isLoading}
         aria-label="Upload CSV file"

@@ -2,8 +2,11 @@ export interface Location {
     lat: number;
     lng: number;
   }
+export  interface FileUploadProps {
+    onUpload: (locations: Location[]) => void;
+  }
   
-  export interface SiteLocatorPayload {
+export interface SiteLocatorPayload {
     polygon: {
       coordinates: number[][][]; // 3D array for the polygon coordinates
     };
@@ -12,7 +15,7 @@ export interface Location {
     num_sensors: number; // Number of sensors to deploy
   }
   
-  export interface SiteInformation {
+export interface SiteInformation {
     category_counts: {
       [key: string]: number; // Counts of categories
     };
