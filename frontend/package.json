@@ -19,6 +19,7 @@
     "date-fns": "^4.1.0",
     "html2canvas": "^1.4.1",
     "leaflet": "^1.9.4",
+    "leaflet-draw": "^1.0.4",
     "leaflet-geosearch": "^4.0.0",
     "lucide-react": "^0.475.0",
     "next": "15.0.2",
