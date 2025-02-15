@@ -60,39 +60,41 @@ export default function Index() {
         title: "No Data",
         description: "No locations available to export",
         variant: "destructive",
-      });
-      return;
+      })
+      return
     }
 
-    const headers = ["Type", "Latitude", "Longitude", "Area Name", "Category"];
-    
-    const uniqueLocations = new Set();
-    const formatRow = (type: string, loc: Location) => 
-      `${type},${loc.lat},${loc.lng},,`;
+    const headers = ["Type", "Latitude", "Longitude", "Area Name", "Category"]
+
+    const uniqueLocations = new Set()
+    const formatRow = (type: string, loc: Location) => `${type},${loc.lat},${loc.lng},,`
 
     const rows = [
       ...mustHaveLocations.map((loc) => formatRow("Must Have", loc)),
-      ...suggestedLocations.map((loc) => formatRow("Suggested", loc))
-    ].filter((row) => {
-      if (uniqueLocations.has(row)) return false;
-      uniqueLocations.add(row);
-      return true;
-    });
+      ...suggestedLocations
+        .map((loc) => formatRow("Suggested", loc))
+        .filter((row) => {
+          const key = `${row.split(",")[1]},${row.split(",")[2]}`
+          if (uniqueLocations.has(key)) return false
+          uniqueLocations.add(key)
+          return true
+        }),
+    ]
 
-    const csvContent = [headers.join(","), ...rows].join("\n");
+    const csvContent = [headers.join(","), ...rows].join("\n")
 
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "locations.csv";
-    a.click();
-    window.URL.revokeObjectURL(url);
+    const blob = new Blob([csvContent], { type: "text/csv" })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "locations.csv"
+    a.click()
+    window.URL.revokeObjectURL(url)
 
     toast({
       title: "Success",
       description: "CSV file downloaded successfully",
-    });
+    })
   }
 
   const handleSaveMap = async () => {
@@ -165,3 +167,4 @@ export default function Index() {
     </div>
   )
 }
+
