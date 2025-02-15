@@ -6,11 +6,11 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 const navItems = [
-  { name: "Home", href: "/" },
-  { name: "About", href: "/about" },
+  { name: "Home", href: "/" }, 
   { name: "Locate", href: "/locate" },
   { name: "Categorize", href: "/categorize" },
   { name: "Reports", href: "/reports" },
+  { name: "About", href: "/about" },
 ]
 
 export default function Navigation({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
