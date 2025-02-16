@@ -69,17 +69,21 @@ export default function Index() {
     const uniqueLocations = new Set()
     const formatRow = (type: string, loc: Location) => `${type},${loc.lat},${loc.lng},,`
 
-    const rows = [
-      ...mustHaveLocations.map((loc) => formatRow("Must Have", loc)),
-      ...suggestedLocations
-        .map((loc) => formatRow("Suggested", loc))
-        .filter((row) => {
-          const key = `${row.split(",")[1]},${row.split(",")[2]}`
-          if (uniqueLocations.has(key)) return false
-          uniqueLocations.add(key)
-          return true
-        }),
-    ]
+    // Add must-have locations first
+    const rows = mustHaveLocations.map((loc) => {
+      const key = `${loc.lat},${loc.lng}`
+      uniqueLocations.add(key)
+      return formatRow("Must Have", loc)
+    })
+
+    // Add suggested locations, excluding duplicates and must-have locations
+    suggestedLocations.forEach((loc) => {
+      const key = `${loc.lat},${loc.lng}`
+      if (!uniqueLocations.has(key)) {
+        uniqueLocations.add(key)
+        rows.push(formatRow("Suggested", loc))
+      }
+    })
 
     const csvContent = [headers.join(","), ...rows].join("\n")
 

@@ -174,7 +174,7 @@ export function MapComponent({
           <Marker
             key={`must-have-${location.lat}-${location.lng}-${index}`}
             position={[location.lat, location.lng]}
-            icon={blueIcon}
+            icon={greenIcon}
           />
         ))}
 
@@ -182,7 +182,7 @@ export function MapComponent({
           <Marker
             key={`suggested-${location.lat}-${location.lng}-${index}`}
             position={[location.lat, location.lng]}
-            icon={greenIcon}
+            icon={blueIcon}
           />
         ))}
       </MapContainer>
