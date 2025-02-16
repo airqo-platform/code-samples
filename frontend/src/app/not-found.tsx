@@ -1,15 +1,10 @@
-"use client"
+"use client";
 
-import { useEffect } from "react"
-import { usePathname } from "next/navigation"
-import Link from "next/link"
+import { usePathname } from "next/navigation";
+import Link from "next/link";
 
 const NotFound = () => {
-  const pathname = usePathname()
-
-  useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", pathname)
-  }, [pathname])
+  const pathname = usePathname();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-50 to-purple-50">
@@ -28,8 +23,7 @@ const NotFound = () => {
         </Link>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default NotFound
-
+export default NotFound;
