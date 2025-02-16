@@ -1,18 +1,21 @@
-import { useRef, useState } from 'react';
-import { Button } from '@/ui/button';
-import { Upload } from 'lucide-react';
-import Papa from 'papaparse';
-import { useToast } from '@/ui/use-toast';
-import type { Location, FileUploadProps } from '@/lib/types';
+import { useRef, useState } from "react";
+import { Button } from "@/ui/button";
+import { Upload } from "lucide-react";
+import Papa from "papaparse";
+import { useToast } from "@/ui/use-toast";
+import type { Location, FileUploadProps } from "@/lib/types";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ACCEPTED_FILE_TYPE = 'text/csv';
+// const ACCEPTED_FILE_TYPE = 'text/csv';
 
 const normalizeColumnName = (name: string): string =>
-  name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 
-const latitudeAliases = new Set(['lat', 'latitude']);
-const longitudeAliases = new Set(['lng', 'lon', 'longitude']);
+const latitudeAliases = new Set(["lat", "latitude"]);
+const longitudeAliases = new Set(["lng", "lon", "longitude"]);
 
 export function FileUpload({ onUpload }: FileUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -31,41 +34,50 @@ export function FileUpload({ onUpload }: FileUploadProps) {
 
         try {
           const headers = meta.fields?.map(normalizeColumnName) || [];
-          if (!headers.length) throw new Error('CSV file has no headers.');
+          if (!headers.length) throw new Error("CSV file has no headers.");
 
           const latHeader = headers.find((h) => latitudeAliases.has(h));
           const lngHeader = headers.find((h) => longitudeAliases.has(h));
 
           if (!latHeader && !lngHeader) {
-            throw new Error('Missing both latitude and longitude columns.');
+            throw new Error("Missing both latitude and longitude columns.");
           } else if (!latHeader) {
-            throw new Error('Missing latitude column.');
+            throw new Error("Missing latitude column.");
           } else if (!lngHeader) {
-            throw new Error('Missing longitude column.');
+            throw new Error("Missing longitude column.");
           }
 
           const locations: Location[] = data
             .map((row) => ({
-              lat: parseFloat(row[latHeader] || ''),
-              lng: parseFloat(row[lngHeader] || ''),
+              lat: parseFloat(row[latHeader] || ""),
+              lng: parseFloat(row[lngHeader] || ""),
             }))
             .filter(({ lat, lng }) => !isNaN(lat) && !isNaN(lng));
 
-          if (!locations.length) throw new Error('No valid latitude/longitude pairs found.');
+          if (!locations.length)
+            throw new Error("No valid latitude/longitude pairs found.");
 
           onUpload(locations);
-          toast({ title: 'Success', description: `Imported ${locations.length} locations.` });
+          toast({
+            title: "Success",
+            description: `Imported ${locations.length} locations.`,
+          });
         } catch (error) {
           toast({
-            title: 'Error',
-            description: error instanceof Error ? error.message : 'Failed to parse CSV.',
-            variant: 'destructive',
+            title: "Error",
+            description:
+              error instanceof Error ? error.message : "Failed to parse CSV.",
+            variant: "destructive",
           });
         }
       },
       error: () => {
         setIsLoading(false);
-        toast({ title: 'Error', description: 'Failed to read CSV file.', variant: 'destructive' });
+        toast({
+          title: "Error",
+          description: "Failed to read CSV file.",
+          variant: "destructive",
+        });
       },
     });
   };
@@ -75,7 +87,11 @@ export function FileUpload({ onUpload }: FileUploadProps) {
     if (!file) return;
 
     if (file.size > MAX_FILE_SIZE) {
-      toast({ title: 'Error', description: 'File size exceeds 5MB limit.', variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: "File size exceeds 5MB limit.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -84,7 +100,13 @@ export function FileUpload({ onUpload }: FileUploadProps) {
 
   return (
     <div>
-      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".csv" className="hidden" />
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept=".csv"
+        className="hidden"
+      />
       <Button
         variant="outline"
         className="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white"
@@ -93,7 +115,7 @@ export function FileUpload({ onUpload }: FileUploadProps) {
         aria-label="Upload CSV file"
       >
         <Upload className="mr-2 h-4 w-4" />
-        {isLoading ? 'Uploading...' : 'Upload CSV'}
+        {isLoading ? "Uploading..." : "Upload CSV"}
       </Button>
     </div>
   );

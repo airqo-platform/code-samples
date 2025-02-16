@@ -1,22 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card";
 import { Sparkles, BarChart3, BrainCircuit } from "lucide-react";
 import Navigation from "@/components/navigation/navigation";
-import {
-  BarChart as ReBarChart,
-  LineChart as ReLineChart,
-  PieChart as RePieChart,
-  AreaChart as ReAreaChart,
-  Bar,
-  Line,
-  Pie,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
 import { ReactNode } from "react";
 
 export default function ReportPage() {
@@ -36,8 +20,9 @@ function ReportContent() {
         <span>Coming Soon</span>
       </div>
       <p className="text-xl text-gray-600 max-w-2xl">
-        Our AI-powered air quality reports are on the way! Stay tuned for real-time insights and advanced analytics
-        to help you understand air pollution trends like never before.
+        Our AI-powered air quality reports are on the way! Stay tuned for
+        real-time insights and advanced analytics to help you understand air
+        pollution trends like never before.
       </p>
       <Card className="w-full max-w-4xl shadow-lg border border-blue-500 bg-white">
         <CardHeader className="text-center bg-blue-500 text-white rounded-t-lg">
@@ -48,21 +33,39 @@ function ReportContent() {
         </CardHeader>
         <CardContent className="p-6 space-y-6">
           <p className="text-gray-700 text-lg">
-            Leveraging artificial intelligence, we analyze real-time air pollution data to provide accurate insights
-            and actionable recommendations. Our reports cover PM2.5 trends, pollution hotspots, and seasonal variations.
+            Leveraging artificial intelligence, we analyze real-time air
+            pollution data to provide accurate insights and actionable
+            recommendations. Our reports cover PM2.5 trends, pollution hotspots,
+            and seasonal variations.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <InfoBox title="PM2.5 Trends" icon={<BarChart3 className="text-blue-500 w-10 h-10" />}>
-              Analyze pollution levels over time to detect patterns and anomalies.
+            <InfoBox
+              title="PM2.5 Trends"
+              icon={<BarChart3 className="text-blue-500 w-10 h-10" />}
+            >
+              Analyze pollution levels over time to detect patterns and
+              anomalies.
             </InfoBox>
-            <InfoBox title="Regional Analysis" icon={<BarChart3 className="text-green-500 w-10 h-10" />}>
-              Compare air quality across different locations with detailed breakdowns.
+            <InfoBox
+              title="Regional Analysis"
+              icon={<BarChart3 className="text-green-500 w-10 h-10" />}
+            >
+              Compare air quality across different locations with detailed
+              breakdowns.
             </InfoBox>
-            <InfoBox title="Health Impact" icon={<BarChart3 className="text-red-500 w-10 h-10" />}>
-              Understand how pollution affects respiratory health and well-being.
+            <InfoBox
+              title="Health Impact"
+              icon={<BarChart3 className="text-red-500 w-10 h-10" />}
+            >
+              Understand how pollution affects respiratory health and
+              well-being.
             </InfoBox>
-            <InfoBox title="AI Insights" icon={<BrainCircuit className="text-purple-500 w-10 h-10" />}>
-              Smart predictions based on historical data to help communities prepare in advance.
+            <InfoBox
+              title="AI Insights"
+              icon={<BrainCircuit className="text-purple-500 w-10 h-10" />}
+            >
+              Smart predictions based on historical data to help communities
+              prepare in advance.
             </InfoBox>
           </div>
         </CardContent>

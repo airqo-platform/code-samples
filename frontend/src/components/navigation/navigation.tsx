@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import type React from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
+import type React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 const navItems = [
   { name: "Home", href: "/" },
@@ -11,10 +11,12 @@ const navItems = [
   { name: "Categorize", href: "/categorize" },
   { name: "Reports", href: "/reports" },
   { name: "About", href: "/about" },
-]
+];
 
-export default function Navigation({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  const pathname = usePathname()
+export default function Navigation({
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  const pathname = usePathname();
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b shadow-sm">
@@ -31,7 +33,7 @@ export default function Navigation({ className, ...props }: React.HTMLAttributes
               className={cn(
                 "text-sm font-medium text-gray-600 hover:text-gray-900 relative py-2",
                 pathname === item.href &&
-                  "text-gray-900 after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full after:bg-blue-600",
+                  "text-gray-900 after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full after:bg-blue-600"
               )}
             >
               {item.name}
@@ -40,6 +42,5 @@ export default function Navigation({ className, ...props }: React.HTMLAttributes
         </nav>
       </div>
     </header>
-  )
+  );
 }
-

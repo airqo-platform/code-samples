@@ -17,18 +17,23 @@ export default function AboutPage() {
 
         <div className="mb-12">
           <p className="text-lg mb-4">
-            AirQo is a pioneering initiative dedicated to improving air quality monitoring and management across Africa.
-            Our mission is to provide accurate, actionable air quality information to empower communities, researchers,
-            and policymakers in the fight against air pollution.
+            AirQo is a pioneering initiative dedicated to improving air quality
+            monitoring and management across Africa. Our mission is to provide
+            accurate, actionable air quality information to empower communities,
+            researchers, and policymakers in the fight against air pollution.
           </p>
           <p className="text-lg">
-            Founded in 2015 at Makerere University in Uganda, AirQo has grown into a multidisciplinary team of engineers,
-            data scientists, and environmental experts. We're committed to developing innovative, low-cost air quality
-            monitoring solutions tailored for the unique challenges of African urban environments.
+            Founded in 2015 at Makerere University in Uganda, AirQo has grown
+            into a multidisciplinary team of engineers, data scientists, and
+            environmental experts. We&apos;re committed to developing
+            innovative, low-cost air quality monitoring solutions tailored for
+            the unique challenges of African urban environments.
           </p>
         </div>
 
-        <h2 className="text-3xl font-semibold mb-6 text-center">Our Core Values</h2>
+        <h2 className="text-3xl font-semibold mb-6 text-center">
+          Our Core Values
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           <FeatureCard
             title="Local Expertise"
@@ -50,10 +55,21 @@ export default function AboutPage() {
         <div className="bg-blue-50 p-8 rounded-lg">
           <h2 className="text-2xl font-semibold mb-4">Our Impact</h2>
           <ul className="list-disc list-inside space-y-2">
-            <li>Deployed over 300 low-cost air quality sensors across Africa</li>
-            <li>Provided air quality data to millions of citizens through our digital platform and API</li>
-            <li>Collaborated with local governments to develop data-driven air quality management strategies</li>
-            <li>Engaged in capacity building, training over 5000 individuals in air quality monitoring and analysis</li>
+            <li>
+              Deployed over 300 low-cost air quality sensors across Africa
+            </li>
+            <li>
+              Provided air quality data to millions of citizens through our
+              digital platform and API
+            </li>
+            <li>
+              Collaborated with local governments to develop data-driven air
+              quality management strategies
+            </li>
+            <li>
+              Engaged in capacity building, training over 5000 individuals in
+              air quality monitoring and analysis
+            </li>
           </ul>
         </div>
       </div>

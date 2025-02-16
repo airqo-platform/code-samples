@@ -9,11 +9,18 @@ const NotFound = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-50 to-purple-50">
       <div className="text-center p-8 bg-white rounded-lg shadow-2xl transform transition-all hover:scale-105">
-        <h1 className="text-9xl font-bold text-gray-800 mb-4 animate-bounce">404</h1>
-        <p className="text-2xl text-gray-600 mb-6">Oops! The page you're looking for doesn't exist.</p>
+        <h1 className="text-9xl font-bold text-gray-800 mb-4 animate-bounce">
+          404
+        </h1>
+        <p className="text-2xl text-gray-600 mb-6">
+          Oops! The page you&apos;re looking for doesn&apos;t exist.
+        </p>
         <p className="text-lg text-gray-500 mb-8">
-          You tried to access <span className="font-mono text-gray-700 bg-gray-100 p-1 rounded">{pathname}</span>, but
-          it's not available.
+          You tried to access{" "}
+          <span className="font-mono text-gray-700 bg-gray-100 p-1 rounded">
+            {pathname}
+          </span>
+          , but it&apos;s not available.
         </p>
         <Link
           href="/"

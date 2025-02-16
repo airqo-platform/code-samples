@@ -1,58 +1,63 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { MapComponent } from "@/components/map/MapComponent"
-import { ControlPanel } from "@/components/Controls/ControlPanel"
-import type { Location, SiteLocatorPayload } from "@/lib/types"
-import { submitLocations } from "@/lib/api"
-import { useToast } from "@/ui/use-toast"
-import { Button } from "@/ui/button"
-import { Download, Camera } from "lucide-react"
-import html2canvas from "html2canvas"
-import Navigation from "@/components/navigation/navigation"
+import { useState } from "react";
+import { ControlPanel } from "@/components/Controls/ControlPanel";
+import type { Location, SiteLocatorPayload } from "@/lib/types";
+import { submitLocations } from "@/lib/api";
+import { useToast } from "@/ui/use-toast";
+import { Button } from "@/ui/button";
+import { Download, Camera } from "lucide-react";
+import html2canvas from "html2canvas";
+import Navigation from "@/components/navigation/navigation";
+import dynamic from "next/dynamic";
+
+const MapComponent = dynamic(() => import("@/components/map/MapComponent"), {
+  ssr: false,
+});
 
 export default function Index() {
-  const [polygon, setPolygon] = useState<Location[]>([])
-  const [mustHaveLocations, setMustHaveLocations] = useState<Location[]>([])
-  const [suggestedLocations, setSuggestedLocations] = useState<Location[]>([])
-  const { toast } = useToast()
-  const [isDrawing, setIsDrawing] = useState(false)
+  const [polygon, setPolygon] = useState<Location[]>([]);
+  const [mustHaveLocations, setMustHaveLocations] = useState<Location[]>([]);
+  const [suggestedLocations, setSuggestedLocations] = useState<Location[]>([]);
+  const { toast } = useToast();
+  const [isDrawing, setIsDrawing] = useState(false);
 
   const handleSubmit = async (payload: SiteLocatorPayload) => {
     try {
-      console.log("Submitting payload:", payload) // Debug log for request
-      const response = await submitLocations(payload)
-      console.log("API Response:", response) // Debug log for response
+      console.log("Submitting payload:", payload); // Debug log for request
+      const response = await submitLocations(payload);
+      console.log("API Response:", response); // Debug log for response
 
       if (!response.site_location || !Array.isArray(response.site_location)) {
-        throw new Error("Invalid response format from API")
+        throw new Error("Invalid response format from API");
       }
 
       const locations = response.site_location.map((site) => ({
         lat: site.latitude,
         lng: site.longitude,
-      }))
+      }));
 
-      console.log("Processed locations to plot:", locations) // Debug log for processed locations
-      setSuggestedLocations(locations)
+      console.log("Processed locations to plot:", locations); // Debug log for processed locations
+      setSuggestedLocations(locations);
 
       toast({
         title: "Success",
         description: `Found ${locations.length} suggested locations`,
-      })
+      });
     } catch (error) {
-      console.error("Submit error:", error)
+      console.error("Submit error:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to submit locations",
+        description:
+          error instanceof Error ? error.message : "Failed to submit locations",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const handleLocationClick = (location: Location) => {
-    setMustHaveLocations([...mustHaveLocations, location])
-  }
+    setMustHaveLocations([...mustHaveLocations, location]);
+  };
 
   const handleExportCSV = () => {
     if (suggestedLocations.length === 0 && mustHaveLocations.length === 0) {
@@ -60,67 +65,68 @@ export default function Index() {
         title: "No Data",
         description: "No locations available to export",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    const headers = ["Type", "Latitude", "Longitude", "Area Name", "Category"]
+    const headers = ["Type", "Latitude", "Longitude", "Area Name", "Category"];
 
-    const uniqueLocations = new Set()
-    const formatRow = (type: string, loc: Location) => `${type},${loc.lat},${loc.lng},,`
+    const uniqueLocations = new Set();
+    const formatRow = (type: string, loc: Location) =>
+      `${type},${loc.lat},${loc.lng},,`;
 
     // Add must-have locations first
     const rows = mustHaveLocations.map((loc) => {
-      const key = `${loc.lat},${loc.lng}`
-      uniqueLocations.add(key)
-      return formatRow("Must Have", loc)
-    })
+      const key = `${loc.lat},${loc.lng}`;
+      uniqueLocations.add(key);
+      return formatRow("Must Have", loc);
+    });
 
     // Add suggested locations, excluding duplicates and must-have locations
     suggestedLocations.forEach((loc) => {
-      const key = `${loc.lat},${loc.lng}`
+      const key = `${loc.lat},${loc.lng}`;
       if (!uniqueLocations.has(key)) {
-        uniqueLocations.add(key)
-        rows.push(formatRow("Suggested", loc))
+        uniqueLocations.add(key);
+        rows.push(formatRow("Suggested", loc));
       }
-    })
+    });
 
-    const csvContent = [headers.join(","), ...rows].join("\n")
+    const csvContent = [headers.join(","), ...rows].join("\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "locations.csv"
-    a.click()
-    window.URL.revokeObjectURL(url)
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "locations.csv";
+    a.click();
+    window.URL.revokeObjectURL(url);
 
     toast({
       title: "Success",
       description: "CSV file downloaded successfully",
-    })
-  }
+    });
+  };
 
   const handleSaveMap = async () => {
-    const mapElement = document.querySelector(".leaflet-container")
+    const mapElement = document.querySelector(".leaflet-container");
     if (mapElement) {
-      const canvas = await html2canvas(mapElement as HTMLElement)
-      const url = canvas.toDataURL("image/png")
-      const a = document.createElement("a")
-      a.href = url
-      a.download = "map.png"
-      a.click()
+      const canvas = await html2canvas(mapElement as HTMLElement);
+      const url = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "map.png";
+      a.click();
 
       toast({
         title: "Success",
         description: "Map image saved successfully",
-      })
+      });
     }
-  }
+  };
 
   const toggleDrawing = () => {
-    setIsDrawing(!isDrawing)
-  }
+    setIsDrawing(!isDrawing);
+  };
 
   return (
     <div className="flex flex-col h-screen">
@@ -148,11 +154,17 @@ export default function Index() {
 
         {/* Action Buttons */}
         <div className="absolute bottom-4 right-4 z-[1000] flex gap-2">
-          <Button onClick={handleExportCSV} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button
+            onClick={handleExportCSV}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
-          <Button onClick={handleSaveMap} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button
+            onClick={handleSaveMap}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
             <Camera className="h-4 w-4 mr-2" />
             Save Map
           </Button>
@@ -161,7 +173,11 @@ export default function Index() {
         {/* Draw Polygon Button */}
         <div className="absolute bottom-4 right-1/2 transform translate-x-1/2 z-[1000]">
           <Button
-            className={`${isDrawing ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"} text-white`}
+            className={`${
+              isDrawing
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-blue-600 hover:bg-blue-700"
+            } text-white`}
             onClick={toggleDrawing}
           >
             {isDrawing ? "Finish Drawing" : "Draw Polygon"}
@@ -169,6 +185,5 @@ export default function Index() {
         </div>
       </div>
     </div>
-  )
+  );
 }
-
