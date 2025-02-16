@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 const navItems = [
-  { name: "Home", href: "/" }, 
+  { name: "Home", href: "/" },
   { name: "Locate", href: "/locate" },
   { name: "Categorize", href: "/categorize" },
   { name: "Reports", href: "/reports" },
@@ -17,7 +17,7 @@ export default function Navigation({ className, ...props }: React.HTMLAttributes
   const pathname = usePathname()
 
   return (
-    <header className="border-b">
+    <header className="sticky top-0 z-50 bg-white border-b shadow-sm">
       <div className="container mx-auto px-4 flex h-16 items-center justify-between">
         <Link href="/" className="text-blue-600 text-xl font-semibold">
           AirQo AI

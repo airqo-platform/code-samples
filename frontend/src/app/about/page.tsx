@@ -50,10 +50,10 @@ export default function AboutPage() {
         <div className="bg-blue-50 p-8 rounded-lg">
           <h2 className="text-2xl font-semibold mb-4">Our Impact</h2>
           <ul className="list-disc list-inside space-y-2">
-            <li>Deployed over 100 low-cost air quality sensors across East Africa</li>
-            <li>Provided air quality data to millions of citizens through our mobile app and API</li>
+            <li>Deployed over 300 low-cost air quality sensors across Africa</li>
+            <li>Provided air quality data to millions of citizens through our digital platform and API</li>
             <li>Collaborated with local governments to develop data-driven air quality management strategies</li>
-            <li>Engaged in capacity building, training over 500 individuals in air quality monitoring and analysis</li>
+            <li>Engaged in capacity building, training over 5000 individuals in air quality monitoring and analysis</li>
           </ul>
         </div>
       </div>
