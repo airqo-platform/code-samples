@@ -2,7 +2,7 @@
 
 import React from "react";
 import { FeatureCard } from "@/components/feature-card";
-import { MapPin, Users, BarChart3 } from "lucide-react";
+import { Users, BarChart3, HeartHandshake, Ruler, Share2 } from "lucide-react";
 import Navigation from "@/components/navigation/navigation";
 
 export default function AboutPage() {
@@ -15,14 +15,17 @@ export default function AboutPage() {
       <div className="container mx-auto px-4 py-8 h-full overflow-y-auto">
         <h1 className="text-4xl font-bold mb-8 text-center">About AirQo</h1>
 
-        <div className="mb-12">
+        <div className="mb-12 text-justify">
           <p className="text-lg mb-4">
             AirQo is a pioneering initiative dedicated to improving air quality
-            monitoring and management across Africa. Our mission is to provide
-            accurate, actionable air quality information to empower communities,
-            researchers, and policymakers in the fight against air pollution.
+            monitoring and management across Africa.
+            <strong> 
+            Our mission is to efficiently collect, 
+            analyze and forecast air quality data to international standards and 
+            work with partners to reduce air pollution and raise awareness of its 
+            effects in African cities.</strong>
           </p>
-          <p className="text-lg">
+          <p className="text-lg font-light">
             Founded in 2015 at Makerere University in Uganda, AirQo has grown
             into a multidisciplinary team of engineers, data scientists, and
             environmental experts. We&apos;re committed to developing
@@ -31,24 +34,27 @@ export default function AboutPage() {
           </p>
         </div>
 
-        <h2 className="text-3xl font-semibold mb-6 text-center">
-          Our Core Values
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+        <h2 className="text-3xl font-semibold mb-6 text-center">Our Core Values</h2>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
           <FeatureCard
-            title="Local Expertise"
-            description="We leverage local knowledge and talent to create solutions that work for African cities."
-            Icon={MapPin}
+            title="Citizen Focus"
+            description="At AirQo, we believe that the main beneficiary of our work should be the citizen."
+            Icon={HeartHandshake}
           />
           <FeatureCard
-            title="Collaboration"
-            description="We partner with communities, governments, and organizations to maximize our impact."
+            title="Precision"
+            description="We convert low-cost sensor data into a reliable measure of air quality thus making our network and our models as accurate as they can be.."
+            Icon={Ruler}
+          />
+          <FeatureCard
+            title="Collaboration and Openness"
+            description="IWe work in a fast-moving field with continuous improvements in technology. We recruit the best teams and also commit to their ongoing professional development and training."
+            Icon={Share2}
+          />
+          <FeatureCard
+            title="Investment in People"
+            description="We invest in the best talent and commit to their ongoing development and training."
             Icon={Users}
-          />
-          <FeatureCard
-            title="Data-Driven Decisions"
-            description="We believe in the power of accurate data to drive meaningful policy changes."
-            Icon={BarChart3}
           />
         </div>
 
@@ -59,16 +65,13 @@ export default function AboutPage() {
               Deployed over 300 low-cost air quality sensors across Africa
             </li>
             <li>
-              Provided air quality data to millions of citizens through our
-              digital platform and API
+              Provided air quality data to millions of citizens through our digital platform and API
             </li>
             <li>
-              Collaborated with local governments to develop data-driven air
-              quality management strategies
+              Collaborated with local governments to develop data-driven air quality management strategies
             </li>
             <li>
-              Engaged in capacity building, training over 5000 individuals in
-              air quality monitoring and analysis
+              Engaged in capacity building, training over 5000 individuals in air quality monitoring and analysis
             </li>
           </ul>
         </div>
