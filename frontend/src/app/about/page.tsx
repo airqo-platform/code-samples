@@ -1,8 +1,8 @@
-"use client"; // Make sure to mark the file as a client component
+"use client";
 
 import React from "react";
 import { FeatureCard } from "@/components/feature-card";
-import { Users, BarChart3, HeartHandshake, Ruler, Share2 } from "lucide-react";
+import { Users, HeartHandshake, Ruler, Share2 } from "lucide-react";
 import Navigation from "@/components/navigation/navigation";
 
 export default function AboutPage() {
@@ -19,11 +19,12 @@ export default function AboutPage() {
           <p className="text-lg mb-4">
             AirQo is a pioneering initiative dedicated to improving air quality
             monitoring and management across Africa.
-            <strong> 
-            Our mission is to efficiently collect, 
-            analyze and forecast air quality data to international standards and 
-            work with partners to reduce air pollution and raise awareness of its 
-            effects in African cities.</strong>
+            <strong>
+              Our mission is to efficiently collect, analyze and forecast air
+              quality data to international standards and work with partners to
+              reduce air pollution and raise awareness of its effects in African
+              cities.
+            </strong>
           </p>
           <p className="text-lg font-light">
             Founded in 2015 at Makerere University in Uganda, AirQo has grown
@@ -34,7 +35,9 @@ export default function AboutPage() {
           </p>
         </div>
 
-        <h2 className="text-3xl font-semibold mb-6 text-center">Our Core Values</h2>
+        <h2 className="text-3xl font-semibold mb-6 text-center">
+          Our Core Values
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
           <FeatureCard
             title="Citizen Focus"
@@ -65,13 +68,16 @@ export default function AboutPage() {
               Deployed over 300 low-cost air quality sensors across Africa
             </li>
             <li>
-              Provided air quality data to millions of citizens through our digital platform and API
+              Provided air quality data to millions of citizens through our
+              digital platform and API
             </li>
             <li>
-              Collaborated with local governments to develop data-driven air quality management strategies
+              Collaborated with local governments to develop data-driven air
+              quality management strategies
             </li>
             <li>
-              Engaged in capacity building, training over 5000 individuals in air quality monitoring and analysis
+              Engaged in capacity building, training over 5000 individuals in
+              air quality monitoring and analysis
             </li>
           </ul>
         </div>

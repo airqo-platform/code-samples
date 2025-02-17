@@ -2,25 +2,41 @@
 
 import { useState } from "react";
 import { Button } from "@/ui/button";
-import { Input } from "@/ui/input";
 import { FileUpload } from "@/components/Controls/FileUpload";
 import { useToast } from "@/ui/use-toast";
-import {
-  MapContainer,
-  TileLayer,
-  useMapEvents,
-  Marker,
-  Popup,
-} from "react-leaflet";
+import dynamic from "next/dynamic";
+import { useMapEvents } from "react-leaflet";
+
 import { getSiteCategory } from "@/lib/api";
-import { Location, SiteCategoryResponse } from "@/lib/types";
+import { Location } from "@/lib/types";
 import { Card } from "@/ui/card";
 import { Loader2 } from "lucide-react";
 import Papa from "papaparse";
 import Navigation from "@/components/navigation/navigation";
 import { Textarea } from "@/ui/textarea";
-import { Download } from "lucide-react"; // Import the download icon
+import { Download } from "lucide-react";
 import "leaflet/dist/leaflet.css";
+
+// Dynamic imports for leaflet components to avoid SSR errors
+const MapContainer = dynamic(
+  () => import("react-leaflet").then((mod) => mod.MapContainer),
+  { ssr: false }
+);
+const TileLayer = dynamic(
+  () => import("react-leaflet").then((mod) => mod.TileLayer),
+  { ssr: false }
+);
+// const useMapEvents = dynamic(
+//   () => import("react-leaflet").then((mod) => mod.useMapEvents),
+//   { ssr: false }
+// );
+const Marker = dynamic(
+  () => import("react-leaflet").then((mod) => mod.Marker),
+  { ssr: false }
+);
+const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), {
+  ssr: false,
+});
 
 interface SiteCategoryInfo extends Location {
   category?: string;
@@ -47,6 +63,7 @@ export default function SiteCategory() {
         area_name: response.site["site-category"].area_name,
       };
     } catch (error) {
+      console.log(error);
       toast({
         title: "Error",
         description: "Failed to get site category",
@@ -58,7 +75,9 @@ export default function SiteCategory() {
     }
   };
 
-  const handleMapClick = async (e: { latlng: { lat: number; lng: number } }) => {
+  const handleMapClick = async (e: {
+    latlng: { lat: number; lng: number };
+  }) => {
     const { lat, lng } = e.latlng;
 
     // Avoid duplicate requests for the same location
@@ -88,7 +107,9 @@ export default function SiteCategory() {
     const newSites: SiteCategoryInfo[] = [];
 
     for (const coord of coordinates) {
-      if (!sites.some((site) => site.lat === coord.lat && site.lng === coord.lng)) {
+      if (
+        !sites.some((site) => site.lat === coord.lat && site.lng === coord.lng)
+      ) {
         const newSite = await fetchSiteCategory(coord.lat, coord.lng);
         if (newSite) newSites.push(newSite);
       }
@@ -127,7 +148,11 @@ export default function SiteCategory() {
       <Navigation />
       <div className="flex h-screen pt-16">
         <div className="flex-1">
-          <MapContainer center={[1.3733, 32.2903]} zoom={7} className="h-full w-full">
+          <MapContainer
+            center={[1.3733, 32.2903]}
+            zoom={7}
+            className="h-full w-full"
+          >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
