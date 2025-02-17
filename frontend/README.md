@@ -54,8 +54,13 @@ AirQo AI is an advanced air quality monitoring and forecasting platform designed
    # or
    yarn dev
    \`\`\`
-
-5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+5. Code Quality and Build
+    Before committing or deploying changes, ensure code quality and build readiness by running:
+     \`\`\`
+    npm run lint   # Lint the codebase
+    npm run build  # Create an optimized production build
+     \`\`\`
+6. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
 
 ## Usage
 
