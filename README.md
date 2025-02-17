@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Air Quality API Code Samples
+
+Welcome to the Air Quality API code samples repository! In this monorepo, you'll find code samples and examples in various programming languages for accessing the Air Quality API provided by AirQo. These code snippets demonstrate how to integrate air quality data into your applications and projects.
+
+## Subfolders
+
+This monorepo is organized into subfolders, each containing code samples for a specific programming language or framework:
+
+1. **javascript**: Code samples for accessing the Air Quality API using JavaScript.
+
+2. **dart**: Code samples for integrating air quality data into mobile applications using Dart.
+
+3. **php**: Code samples demonstrating how to access the Air Quality API with PHP.
+
+4. **python**: Code samples for Python applications
 
 ## Getting Started
 
-First, run the development server:
+To get started with any of the code samples, navigate to the respective subfolder and follow the instructions provided in the README or code comments. Each subfolder contains code examples and explanations specific to the programming language or framework.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Code Samples
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- [**javascript**](./javascript): Explore code samples for JavaScript.
+- [**dart**](./dart): Get code examples for building mobile apps with Dart.
+- [**php**](./php): Find PHP code samples for accessing air quality data from the API.
+- [**python**](./python): Discover code samples for Python applications 
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Feel free to explore, use, and adapt these code samples to integrate air quality data into your own projects. If you have any questions or need further assistance, please don't hesitate to reach out.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## About AirQo
 
-## Learn More
+AirQo provides comprehensive air quality data and analytics to support environmental monitoring and decision-making. Visit the [AirQo website](https://www.airqo.net/) to learn more about their services and APIs.
 
-To learn more about Next.js, take a look at the following resources:
+## License
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This repository is licensed under the [MIT License](LICENSE).
