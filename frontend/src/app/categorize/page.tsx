@@ -89,7 +89,35 @@ export default function SiteCategory() {
       setSelectedSite(newSite);
     }
   };
+  const handleFileUpload = async (locations: Location[]) => {
+    setLoading(true);
+    const newSites: SiteCategoryInfo[] = [];
 
+    try {
+      for (const location of locations) {
+        const response = await getSiteCategory(location.lat, location.lng);
+        newSites.push({
+          ...location,
+          category: response.site['site-category'].category,
+          area_name: response.site['site-category'].area_name,
+        });
+      }
+
+      setSites(newSites);
+      toast({
+        title: 'Success',
+        description: `Processed ${newSites.length} sites`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to process sites',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
   const handleManualSubmit = async () => {
     const coordinates = manualInput
       .split("\n")
@@ -190,7 +218,7 @@ export default function SiteCategory() {
               <Download className="mr-2" /> {/* Download icon */}
               Download CSV
             </Button>
-            <FileUpload onUpload={handleManualSubmit} />
+            <FileUpload onUpload={handleFileUpload} />
 
             <Card className="p-4">
               <h3 className="font-medium mb-2">Add Multiple Locations</h3>
