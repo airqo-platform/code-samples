@@ -2,11 +2,10 @@
 
 ## Overview
 
-AirQo AI is an advanced air quality monitoring and forecasting platform designed to efficiently collect, analyze, and forecast air quality data across Africa.
-AirQo mission is to efficiently collect, analyze and forecast air quality data to international standards and work with partners to reduce air pollution and raise awareness of its effects in African cities.
+AirQo AI is an advanced air quality monitoring and forecasting platform designed to efficiently collect, analyze, and forecast air quality data across Africa. Our mission is to provide accurate insights and raise awareness about air pollution in African cities.
 
-![AirQo AI Platform](https://www.ai.airqo.net)
- 
+![AirQo AI Platform](https://placeholder.com/airqo-platform-screenshot.png)
+
 ## Features
 
 - **Interactive Map**: Real-time visualization of air quality data across various locations.
@@ -25,21 +24,21 @@ AirQo mission is to efficiently collect, analyze and forecast air quality data t
 ### Installation
 
 1. Clone the repository:
-   \`\`\`
+   ```
    git clone https://github.com/your-username/airqo-ai-platform.git
    cd airqo-ai-platform
-   \`\`\`
+   ```
 
 2. Install dependencies:
-   \`\`\`
+   ```
    npm install
    # or
    yarn install
-   \`\`\`
+   ```
 
 3. Set up environment variables:
-   Create a \`.env.local\` file in the root directory and add the following variables:
-   \`\`\`
+   Create a `.env.local` file in the root directory and add the following variables:
+   ```
     NEXT_PUBLIC_API_TOKEN=your_api_token_here   
     NEXT_PUBLIC_LOCATE_API_URL=https://platform.airqo.net/api/v2/spatial/site_location
     NEXT_PUBLIC_SITE_CATEGORY_API_URL=https://platform.airqo.net/api/v2/spatial/categorize_site
@@ -47,21 +46,24 @@ AirQo mission is to efficiently collect, analyze and forecast air quality data t
     NEXT_PUBLIC_SATELLITE_DATA_API_URL=https://platform.airqo.net/api/v2/spatial/satellite_prediction
     NEXT_PUBLIC_DEVICE_DATA_API_URL=https://analytics.airqo.net/api/v2/devices/readings/map
     NEXT_PUBLIC_GRID_SUMMARY_API_URL=https://platform.airqo.net/api/v2/devices/grids/summary?
-   \`\`\`
+   ```
 
 4. Run the development server:
-   \`\`\`
+   ```
    npm run dev
    # or
    yarn dev
-   \`\`\`
-5. Code Quality and Build
-    Before committing or deploying changes, ensure code quality and build readiness by running:
-     \`\`\`
-    npm run lint   # Lint the codebase
-    npm run build  # Create an optimized production build
-     \`\`\`
-6. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+   ```
+
+5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+
+### Code Quality and Build
+
+Before committing or deploying changes, ensure code quality and build readiness by running:
+   ```
+   npm run lint   # Lint the codebase
+   npm run build  # Create an optimized production build
+   ```
 
 ## Usage
 
@@ -102,14 +104,14 @@ The easiest way to deploy your AirQo AI Platform is to use the [Vercel Platform]
 1. Sign up for a Vercel account if you haven't already: [https://vercel.com/signup](https://vercel.com/signup)
 
 2. Install the Vercel CLI:
-   \`\`\`
+   ```
    npm i -g vercel
-   \`\`\`
+   ```
 
 3. Run the following command from your project's root directory:
-   \`\`\`
+   ```
    vercel
-   \`\`\`
+   ```
 
 4. Follow the prompts to link your project to Vercel and configure your deployment settings.
 
@@ -142,10 +144,10 @@ For more detailed information about deploying Next.js applications on Vercel, ch
 We welcome contributions to the AirQo AI Platform! Please follow these steps to contribute:
 
 1. Fork the repository
-2. Create a new branch (\`git checkout -b feature/your-feature-name\`)
+2. Create a new branch (`git checkout -b feature/your-feature-name`)
 3. Make your changes
-4. Commit your changes (\`git commit -am 'Add some feature'\`)
-5. Push to the branch (\`git push origin feature/your-feature-name\`)
+4. Commit your changes (`git commit -am 'Add some feature'`)
+5. Push to the branch (`git push origin feature/your-feature-name`)
 6. Create a new Pull Request
 
 Please ensure your code follows the project's coding standards and includes appropriate tests.
