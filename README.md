@@ -33,4 +33,4 @@ AirQo provides comprehensive air quality data and analytics to support environme
 
 ## License
 
-This repository is licensed under the [MIT License](LICENSE).
+This repository is licensed under the [MIT License](LICENSE). 
