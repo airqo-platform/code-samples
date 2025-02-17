@@ -22,7 +22,7 @@ function ReportContent() {
       <p className="text-xl text-gray-600 max-w-2xl">
         Our AI-powered air quality reports are on the way! Stay tuned for
         real-time insights and advanced analytics to help you understand air
-        pollution trends like never before.
+        pollution trends like never before
       </p>
       <Card className="w-full max-w-4xl shadow-lg border border-blue-500 bg-white">
         <CardHeader className="text-center bg-blue-500 text-white rounded-t-lg">
