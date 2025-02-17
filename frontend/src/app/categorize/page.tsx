@@ -269,8 +269,8 @@ export default function SiteCategory() {
       {loading && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white p-4 pr-50 rounded-lg flex items-center space-x-2">
-            <Loader2 className="h-6 w-4 animate-spin" />
-            <span className="fixed right-4">Processing...</span>
+            <Loader2 className="fixed right-3 w-4 h-4 animate-spin" />
+            <span className="font-bold font-xl text-white-700 fixed right-11">Processing...</span>
           </div>
         </div>
       )}
