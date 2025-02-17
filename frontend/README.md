@@ -2,8 +2,8 @@
 
 ## Overview
 
-AirQo AI is an advanced air quality monitoring and forecasting platform designed to efficiently collect, analyze, and forecast air quality data across Africa. Our mission is to provide accurate insights and raise awareness about air pollution in African cities.
-
+AirQo AI is an advanced air quality monitoring and forecasting platform designed to efficiently collect, analyze, and forecast air quality data across Africa.
+AirQo mission is to efficiently collect, analyze and forecast air quality data to international standards and work with partners to reduce air pollution and raise awareness of its effects in African cities.
 ![AirQo AI Platform](https://placeholder.com/airqo-platform-screenshot.png)
 
 ## Features
