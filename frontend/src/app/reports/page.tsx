@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card";
-import { Sparkles, BarChart3, BrainCircuit } from "lucide-react";
+import { Sparkles, BarChart3, BrainCircuit,HeartPulse, Globe  } from "lucide-react";
 import Navigation from "@/components/navigation/navigation";
 import { ReactNode } from "react";
 
@@ -22,7 +22,7 @@ function ReportContent() {
       <p className="text-xl text-gray-600 max-w-2xl">
         Our AI-powered air quality reports are on the way! Stay tuned for
         real-time insights and advanced analytics to help you understand air
-        pollution trends like never before
+        pollution trends like never before.
       </p>
       <Card className="w-full max-w-4xl shadow-lg border border-blue-500 bg-white">
         <CardHeader className="text-center bg-blue-500 text-white rounded-t-lg">
@@ -48,14 +48,14 @@ function ReportContent() {
             </InfoBox>
             <InfoBox
               title="Regional Analysis"
-              icon={<BarChart3 className="text-green-500 w-10 h-10" />}
+              icon={<Globe className="text-green-500 w-10 h-10" />}
             >
               Compare air quality across different locations with detailed
               breakdowns.
             </InfoBox>
             <InfoBox
               title="Health Impact"
-              icon={<BarChart3 className="text-red-500 w-10 h-10" />}
+              icon={<HeartPulse className="text-red-500 w-10 h-10" />}
             >
               Understand how pollution affects respiratory health and
               well-being.
