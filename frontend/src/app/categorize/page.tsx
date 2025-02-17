@@ -98,21 +98,22 @@ export default function SiteCategory() {
         const response = await getSiteCategory(location.lat, location.lng);
         newSites.push({
           ...location,
-          category: response.site['site-category'].category,
-          area_name: response.site['site-category'].area_name,
+          category: response.site["site-category"].category,
+          area_name: response.site["site-category"].area_name,
         });
       }
 
       setSites(newSites);
       toast({
-        title: 'Success',
+        title: "Success",
         description: `Processed ${newSites.length} sites`,
       });
     } catch (error) {
+      console.log(error);
       toast({
-        title: 'Error',
-        description: 'Failed to process sites',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to process sites",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
