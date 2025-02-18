@@ -40,12 +40,7 @@ AirQo AI Platform [https://ai.airqo.net/](https://ai.airqo.net/).
    Create a `.env.local` file in the root directory and add the following variables:
    ```
     NEXT_PUBLIC_API_TOKEN=your_api_token_here   
-    NEXT_PUBLIC_LOCATE_API_URL=https://platform.airqo.net/api/v2/spatial/site_location
-    NEXT_PUBLIC_SITE_CATEGORY_API_URL=https://platform.airqo.net/api/v2/spatial/categorize_site
-    NEXT_PUBLIC_AIR_QUALITY_REPORT_API_URL_LLM=https://platform.airqo.net/api/v2/spatial/air_quality_report
-    NEXT_PUBLIC_SATELLITE_DATA_API_URL=https://platform.airqo.net/api/v2/spatial/satellite_prediction
-    NEXT_PUBLIC_DEVICE_DATA_API_URL=https://analytics.airqo.net/api/v2/devices/readings/map
-    NEXT_PUBLIC_GRID_SUMMARY_API_URL=https://platform.airqo.net/api/v2/devices/grids/summary?
+    NEXT_PUBLIC_API_URL=https://analytics.airqo.net/api/v2/
    ```
 
 4. Run the development server:

@@ -7,63 +7,81 @@ import {
   Grid,
 } from "./types";
 
-const API_TOKEN = process.env.NEXT_PUBLIC_API_TOKEN;
-// const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
-const PUBLIC_LOCATE_API_URL = process.env.NEXT_PUBLIC_LOCATE_API_URL;
-const PUBLIC_SITE_CATEGORY_API_URL =
-  process.env.NEXT_PUBLIC_SITE_CATEGORY_API_URL;
-const PUBLIC_AIR_QUALITY_REPORT_API_URL_LLM =
-  process.env.NEXT_PUBLIC_AIR_QUALITY_REPORT_API_URL_LLM;
-// const PUBLIC_SATELLITE_DATA_API_URL = process.env.NEXT_PUBLIC_SATELLITE_DATA_API_URL;
-// const PUBLIC_DEVICE_DATA_API_URL = process.env.NEXT_PUBLIC_DEVICE_DATA_API_URL;
-const PUBLIC_GRID_SUMMARY_API_URL =
-  process.env.NEXT_PUBLIC_GRID_SUMMARY_API_URL;
+function getApiConfig() {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  const token = process.env.NEXT_PUBLIC_API_TOKEN;
 
-const requiredEnvVars = {
-  API_TOKEN: process.env.NEXT_PUBLIC_API_TOKEN,
-  BASE_URL: process.env.NEXT_PUBLIC_API_URL,
-  LOCATE_API_URL: process.env.NEXT_PUBLIC_LOCATE_API_URL,
-  // ... add other required variables as needed
-};
+  if (!baseUrl || !token) {
+    throw new Error(
+      "API configuration is missing. Ensure NEXT_PUBLIC_API_URL and NEXT_PUBLIC_API_TOKEN are set."
+    );
+  }
 
-Object.entries(requiredEnvVars).forEach(([key, value]) => {
-  if (!value) throw new Error(`Missing required environment variable: ${key}`);
-});
+  return { baseUrl, token };
+}
+
+async function baseFetch<T>(
+  endpoint: string,
+  options: {
+    method?: string;
+    queryParams?: Record<string, string | number>;
+    json?: unknown;
+  } = {}
+): Promise<T> {
+  const { baseUrl, token } = getApiConfig();
+  const url = new URL(endpoint, baseUrl);
+
+  // Add query parameters
+  if (options.queryParams) {
+    Object.entries(options.queryParams).forEach(([key, value]) => {
+      url.searchParams.append(key, String(value));
+    });
+  }
+
+  // Add API token
+  url.searchParams.append("token", token);
+
+  // Configure headers
+  const headers: HeadersInit = {
+    Accept: "application/json",
+  };
+
+  // Configure body
+  let body: BodyInit | undefined;
+  if (options.json) {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify(options.json);
+  }
+
+  // Log request details
+  //console.log("Making API request to:", url.toString());
+  if (options.json) console.log("Request payload:", options.json);
+
+  const response = await fetch(url.toString(), {
+    method: options.method || "GET",
+    headers,
+    body,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    console.error("API Error Response:", errorData);
+    throw new Error(
+      `API request failed: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return response.json() as Promise<T>;
+}
 
 export async function submitLocations(
   payload: SiteLocatorPayload
 ): Promise<SiteLocatorResponse> {
   try {
-    if (!PUBLIC_LOCATE_API_URL || !API_TOKEN) {
-      throw new Error("API configuration missing");
-    }
-
-    console.log("Making API request to:", PUBLIC_LOCATE_API_URL);
-    console.log("Request payload:", payload);
-
-    const response = await fetch(
-      `${PUBLIC_LOCATE_API_URL}?token=${API_TOKEN}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(payload),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("API Error Response:", errorData);
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText}`
-      );
-    }
-
-    const data = await response.json();
-    console.log("API Response data:", data);
-    return data;
+    return await baseFetch<SiteLocatorResponse>("spatial/site_location", {
+      method: "POST",
+      json: payload,
+    });
   } catch (error) {
     console.error("Error submitting locations:", error);
     throw error;
@@ -75,30 +93,9 @@ export async function getSiteCategory(
   longitude: number
 ): Promise<SiteCategoryResponse> {
   try {
-    if (!PUBLIC_SITE_CATEGORY_API_URL || !API_TOKEN) {
-      throw new Error("API configuration missing");
-    }
-
-    console.log("Making site category API request for:", {
-      latitude,
-      longitude,
+    return await baseFetch<SiteCategoryResponse>("spatial/categorize_site", {
+      queryParams: { latitude, longitude },
     });
-
-    const response = await fetch(
-      `${PUBLIC_SITE_CATEGORY_API_URL}?latitude=${latitude}&longitude=${longitude}&token=${API_TOKEN}`
-    );
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("API Error Response:", errorData);
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText}`
-      );
-    }
-
-    const data = await response.json();
-    console.log("Site category API Response:", data);
-    return data;
   } catch (error) {
     console.error("Error getting site category:", error);
     throw error;
@@ -109,28 +106,13 @@ export async function getAirQualityReport(
   payload: AirQualityReportPayload
 ): Promise<AirQualityReportResponse> {
   try {
-    const response = await fetch(
-      `${PUBLIC_AIR_QUALITY_REPORT_API_URL_LLM}?token=${API_TOKEN}`,
+    return await baseFetch<AirQualityReportResponse>(
+      "spatial/air_quality_report",
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+        json: payload,
       }
     );
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("API Error Response:", errorData);
-      throw new Error(
-        `API request failed: ${response.status} ${response.statusText}`
-      );
-    }
-
-    const data = await response.json();
-    console.log("Air Quality Report Response:", data);
-    return data;
   } catch (error) {
     console.error("Error getting air quality report:", error);
     throw error;
@@ -139,21 +121,10 @@ export async function getAirQualityReport(
 
 export async function fetchGrids(): Promise<Grid[]> {
   try {
-    const response = await fetch(
-      `${PUBLIC_GRID_SUMMARY_API_URL}?token=${API_TOKEN}`
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch grids: ${response.status} ${response.statusText}`
-      );
-    }
-    const data = await response.json();
+    const data = await baseFetch<{ grids: Grid[] }>("devices/grids/summary");
     return data.grids;
   } catch (error) {
     console.error("Error fetching grids:", error);
-    throw new Error(
-      "Failed to fetch grids: " +
-        (error instanceof Error ? error.message : "Unknown error")
-    );
+    throw error;
   }
 }
