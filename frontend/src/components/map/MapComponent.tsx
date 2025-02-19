@@ -205,7 +205,7 @@ export default function MapComponent({
         ))}
       </MapContainer>
 
-      <NavigationControls isDrawing={isDrawing} onDrawingToggle={() => {}} />
+      <NavigationControls/>
     </div>
   );
 }
