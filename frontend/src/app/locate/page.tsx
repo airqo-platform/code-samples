@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import { ControlPanel } from "@/components/Controls/ControlPanel";
 import type { Location, SiteLocatorPayload } from "@/lib/types";
@@ -24,22 +23,18 @@ export default function Index() {
 
   const handleSubmit = async (payload: SiteLocatorPayload) => {
     try {
-      console.log("Submitting payload:", payload); // Debug log for request
+      console.log("Submitting payload:", payload);
       const response = await submitLocations(payload);
-      console.log("API Response:", response); // Debug log for response
-
+      console.log("API Response:", response);
       if (!response.site_location || !Array.isArray(response.site_location)) {
         throw new Error("Invalid response format from API");
       }
-
       const locations = response.site_location.map((site) => ({
         lat: site.latitude,
         lng: site.longitude,
       }));
-
-      console.log("Processed locations to plot:", locations); // Debug log for processed locations
+      console.log("Processed locations to plot:", locations);
       setSuggestedLocations(locations);
-
       toast({
         title: "Success",
         description: `Found ${locations.length} suggested locations`,
@@ -68,21 +63,17 @@ export default function Index() {
       });
       return;
     }
-
-    const headers = ["Type", "Latitude", "Longitude", "Area Name", "Category"];
-
+    const headers = ["Type", "Latitude", "Longitude"];
     const uniqueLocations = new Set();
     const formatRow = (type: string, loc: Location) =>
       `${type},${loc.lat},${loc.lng},,`;
 
-    // Add must-have locations first
     const rows = mustHaveLocations.map((loc) => {
       const key = `${loc.lat},${loc.lng}`;
       uniqueLocations.add(key);
       return formatRow("Must Have", loc);
     });
 
-    // Add suggested locations, excluding duplicates and must-have locations
     suggestedLocations.forEach((loc) => {
       const key = `${loc.lat},${loc.lng}`;
       if (!uniqueLocations.has(key)) {
@@ -92,7 +83,6 @@ export default function Index() {
     });
 
     const csvContent = [headers.join(","), ...rows].join("\n");
-
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -100,7 +90,6 @@ export default function Index() {
     a.download = "locations.csv";
     a.click();
     window.URL.revokeObjectURL(url);
-
     toast({
       title: "Success",
       description: "CSV file downloaded successfully",
@@ -116,7 +105,6 @@ export default function Index() {
       a.href = url;
       a.download = "map.png";
       a.click();
-
       toast({
         title: "Success",
         description: "Map image saved successfully",
@@ -130,6 +118,7 @@ export default function Index() {
 
   return (
     <div className="flex flex-col h-screen">
+      {/* Navigation */}
       <Navigation />
       <div className="relative flex-1">
         <MapComponent
@@ -140,7 +129,6 @@ export default function Index() {
           onLocationClick={handleLocationClick}
           isDrawing={isDrawing}
         />
-
         {/* Control Panel */}
         <div className="absolute right-4 top-4 z-[1000]">
           <ControlPanel
@@ -150,38 +138,39 @@ export default function Index() {
             onMustHaveLocationsChange={setMustHaveLocations}
             onBoundaryFound={setPolygon}
           />
-        </div>
 
-        {/* Action Buttons */}
-        <div className="absolute bottom-4 right-4 z-[1000] flex gap-2">
-          <Button
-            onClick={handleExportCSV}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
-          <Button
-            onClick={handleSaveMap}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <Camera className="h-4 w-4 mr-2" />
-            Save Map
-          </Button>
-        </div>
+          {/* Action Buttons */}
+          <div className="mt-8 flex justify-center gap-4">
+            <Button
+              onClick={handleExportCSV}
+              aria-label="Export locations to CSV"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+            >
+              <Download className="h-4 w-4" />
+              Save CSV
+            </Button>
+            <Button
+              onClick={handleSaveMap}
+              aria-label="Save map as image"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+            >
+              <Camera className="h-4 w-4" />
+              Save Map
+            </Button>
 
-        {/* Draw Polygon Button */}
-        <div className="absolute bottom-4 right-1/2 transform translate-x-1/2 z-[1000]">
-          <Button
-            className={`${
-              isDrawing
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-blue-600 hover:bg-blue-700"
-            } text-white`}
-            onClick={toggleDrawing}
-          >
-            {isDrawing ? "Finish Drawing" : "Draw Polygon"}
-          </Button>
+            {/* Draw Polygon Button */}
+            <Button
+              onClick={toggleDrawing}
+              aria-label={isDrawing ? "Finish drawing polygon" : "Start drawing polygon"}
+              className={`${
+                isDrawing
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-blue-600 hover:bg-blue-700"
+              } flex items-center gap-2 text-white px-4 py-2 rounded-lg`}
+            >
+              {isDrawing ? "Finish Drawing" : "Draw Polygon"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
