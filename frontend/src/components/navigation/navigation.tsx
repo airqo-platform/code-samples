@@ -1,9 +1,10 @@
 "use client";
 
-import type React from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Menu, X } from "lucide-react";
 
 const navItems = [
   { name: "Home", href: "/" },
@@ -13,10 +14,9 @@ const navItems = [
   { name: "About", href: "/about" },
 ];
 
-export default function Navigation({
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+export default function Navigation({ ...props }) {
   const pathname = usePathname();
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b shadow-sm">
@@ -25,7 +25,16 @@ export default function Navigation({
           AirQo AI
         </Link>
 
-        <nav className="flex items-center space-x-8" {...props}>
+        {/* Mobile Menu Button */}
+        <button
+          className="lg:hidden text-gray-600 hover:text-gray-900"
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+
+        {/* Desktop Navigation */}
+        <nav className="hidden lg:flex items-center space-x-8" {...props}>
           {navItems.map((item) => (
             <Link
               key={item.name}
@@ -41,6 +50,27 @@ export default function Navigation({
           ))}
         </nav>
       </div>
+
+      {/* Mobile Navigation */}
+      {isOpen && (
+        <nav className="lg:hidden bg-white border-t shadow-md">
+          <div className="container mx-auto px-4 py-4 space-y-4">
+            {navItems.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "block text-base font-medium text-gray-600 hover:text-gray-900",
+                  pathname === item.href && "text-gray-900"
+                )}
+                onClick={() => setIsOpen(false)}
+              >
+                {item.name}
+              </Link>
+            ))}
+          </div>
+        </nav>
+      )}
     </header>
   );
 }
