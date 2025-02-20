@@ -77,7 +77,7 @@ export default function AboutPage() {
             </li>
             <li>
               Engaged in capacity building, training over 5000 individuals in
-              air quality monitoring and analysis
+              air quality monitoring and analysis.
             </li>
           </ul>
         </div>
