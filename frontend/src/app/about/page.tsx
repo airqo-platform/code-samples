@@ -8,7 +8,7 @@ import Navigation from "@/components/navigation/navigation";
 export default function AboutPage() {
   return (
     <div>
-      {/* Navigation Component at the top for consistency */}
+      {/* Navigation Component wrapped in Suspense */}
       <Suspense fallback={<div>Loading navigation...</div>}>
         <Navigation />
       </Suspense>
