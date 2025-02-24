@@ -8,7 +8,7 @@ import Navigation from "@/components/navigation/navigation";
 export default function AboutPage() {
   return (
     <div>
-      {/* Navigation Component wrapped in Suspense */}
+      {/* Navigation Component at the top for consistency */}
       <Suspense fallback={<div>Loading navigation...</div>}>
         <Navigation />
       </Suspense>
@@ -31,7 +31,7 @@ export default function AboutPage() {
           <p className="text-lg font-light">
             Founded in 2015 at Makerere University in Uganda, AirQo has grown
             into a multidisciplinary team of engineers, data scientists, and
-            environmental experts. We're committed to developing
+            environmental experts. We&apos;re committed to developing
             innovative, low-cost air quality monitoring solutions tailored for
             the unique challenges of African urban environments.
           </p>
@@ -48,12 +48,12 @@ export default function AboutPage() {
           />
           <FeatureCard
             title="Precision"
-            description="We convert low-cost sensor data into a reliable measure of air quality thus making our network and our models as accurate as they can be."
+            description="We convert low-cost sensor data into a reliable measure of air quality thus making our network and our models as accurate as they can be.."
             Icon={Ruler}
           />
           <FeatureCard
             title="Collaboration and Openness"
-            description="We work in a fast-moving field with continuous improvements in technology. We recruit the best teams and also commit to their ongoing professional development and training."
+            description="IWe work in a fast-moving field with continuous improvements in technology. We recruit the best teams and also commit to their ongoing professional development and training."
             Icon={Share2}
           />
           <FeatureCard
