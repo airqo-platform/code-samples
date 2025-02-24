@@ -10,7 +10,6 @@ declare global {
   }
 }
 
-
 export default function GoogleAnalytics() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
