@@ -31,7 +31,7 @@ export default function AboutPage() {
           <p className="text-lg font-light">
             Founded in 2015 at Makerere University in Uganda, AirQo has grown
             into a multidisciplinary team of engineers, data scientists, and
-            environmental experts. We&apos;re committed to developing
+            environmental experts. We are committed to developing
             innovative, low-cost air quality monitoring solutions tailored for
             the unique challenges of African urban environments.
           </p>
