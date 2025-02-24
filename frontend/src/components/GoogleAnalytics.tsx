@@ -10,10 +10,7 @@ declare global {
   }
 }
 
-/**
- * Single component to initialize Google Analytics and
- * track page views on route changes using the Next.js App Router.
- */
+
 export default function GoogleAnalytics() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -64,9 +61,7 @@ export default function GoogleAnalytics() {
   );
 }
 
-/**
- * Helper function to track custom GA events.
- */
+
 export function trackEvent({
   action,
   category,
