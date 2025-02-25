@@ -100,7 +100,7 @@ function AboutContent() {
               <div className="flex items-center justify-center md:justify-start">
                 <Phone className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a
-                  href="tel:+256123456789"
+                  href="tel:+256 786 142 396"
                   className="text-blue-600 hover:underline"
                 >
                   +256 786 142 396
