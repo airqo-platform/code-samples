@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { FeatureCard } from "@/components/feature-card"
 import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Twitter, Linkedin } from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
@@ -12,9 +13,9 @@ function AboutContent() {
 
       <div className="mb-12 text-justify">
         <p className="text-lg mb-4">
-          AirQo is a pioneering initiative dedicated to improving air quality monitoring and management across Africa.
+          AirQo is a pioneering initiative dedicated to improving air quality monitoring and management across Africa. 
           <strong>
-            Our mission is to efficiently collect, analyze and forecast air quality data to international standards and
+             Our mission is to efficiently collect, analyze and forecast air quality data to international standards and
             work with partners to reduce air pollution and raise awareness of its effects in African cities.
           </strong>
         </p>
@@ -63,7 +64,7 @@ function AboutContent() {
       <div className="bg-blue-50 p-8 rounded-lg mb-12">
         <h2 className="text-3xl font-semibold mb-6 text-center">Get in Touch</h2>
         <p className="text-center text-gray-600 mb-8">
-          We’d love to hear from you! Reach out with questions, feedback, or collaboration ideas.
+          We'd love to hear from you! Reach out with questions, feedback, or collaboration ideas.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Contact Information */}
@@ -134,9 +135,18 @@ function AboutContent() {
   )
 }
 
+function SearchParamsWrapper() {
+  // This component uses useSearchParams, wrapped in Suspense
+  useSearchParams()
+  return null
+}
+
 export default function AboutPage() {
   return (
     <div>
+      <Suspense fallback={<div>Loading params...</div>}>
+        <SearchParamsWrapper />
+      </Suspense>
       <Suspense fallback={<div>Loading navigation...</div>}>
         <Navigation />
       </Suspense>
