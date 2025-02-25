@@ -43,7 +43,7 @@ interface SiteCategoryInfo extends Location {
   area_name?: string;
 }
 
-export default function SiteCategory() {
+function SiteCategoryContent() {
   const [sites, setSites] = useState<SiteCategoryInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSite, setSelectedSite] = useState<SiteCategoryInfo | null>(
@@ -277,5 +277,12 @@ export default function SiteCategory() {
         </div>
       )}
     </div>
+  );
+}
+export default function SiteCategory() {
+  return (
+    <Suspense fallback={<div>Loading site category...</div>}>
+      <SiteCategoryContent />
+    </Suspense>
   );
 }
