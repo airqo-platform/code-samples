@@ -64,7 +64,7 @@ function AboutContent() {
       <div className="bg-blue-50 p-8 rounded-lg mb-12">
         <h2 className="text-3xl font-semibold mb-6 text-center">Get in Touch</h2>
         <p className="text-center text-gray-600 mb-8">
-          We'd love to hear from you! Reach out with questions, feedback, or collaboration ideas.
+        We&apos;d love to hear from you! Reach out with questions, feedback, or collaboration ideas.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Contact Information */}
