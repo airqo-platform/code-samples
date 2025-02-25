@@ -2,7 +2,7 @@
 
 import React, { Suspense } from "react";
 import { FeatureCard } from "@/components/feature-card";
-import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Twitter, Linkedin, Facebook } from "lucide-react";
+import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Twitter, Linkedin} from "lucide-react";
 import Navigation from "@/components/navigation/navigation";
 
 export default function AboutPage() {
@@ -90,7 +90,7 @@ export default function AboutPage() {
                 </div>
                 <div className="flex items-center justify-center md:justify-start">
                   <Phone className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
-                  <a href="tel:+256123456789" className="text-blue-600 hover:underline">+256 123 456 789</a>
+                  <a href="tel:+256123456789" className="text-blue-600 hover:underline">+256 786 142 396</a>
                 </div>
                 <div className="flex items-start justify-center md:justify-start">
                   <MapPin className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0 mt-1" />
@@ -115,12 +115,7 @@ export default function AboutPage() {
                     @AirQoProject
                   </a>
                 </div>
-                <div className="flex items-center justify-center md:justify-start">
-                  <Facebook className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
-                  <a href="https://facebook.com/airqo" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
-                    AirQo Official
-                  </a>
-                </div>
+               
                 <div className="flex items-center justify-center md:justify-start">
                   <Linkedin className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                   <a href="https://linkedin.com/company/airqo" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
