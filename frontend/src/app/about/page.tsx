@@ -2,7 +2,7 @@
 
 import React, { Suspense } from "react";
 import { FeatureCard } from "@/components/feature-card";
-import { Users, HeartHandshake, Ruler, Share2 } from "lucide-react";
+import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Twitter, Linkedin, Facebook } from "lucide-react";
 import Navigation from "@/components/navigation/navigation";
 
 export default function AboutPage() {
@@ -31,9 +31,9 @@ export default function AboutPage() {
           <p className="text-lg font-light">
             Founded in 2015 at Makerere University in Uganda, AirQo has grown
             into a multidisciplinary team of engineers, data scientists, and
-            environmental experts. We are committed to developing
-            innovative, low-cost air quality monitoring solutions tailored for
-            the unique challenges of African urban environments.
+            environmental experts. We are committed to developing innovative,
+            low-cost air quality monitoring solutions tailored for the unique
+            challenges of African urban environments.
           </p>
         </div>
 
@@ -48,12 +48,12 @@ export default function AboutPage() {
           />
           <FeatureCard
             title="Precision"
-            description="We convert low-cost sensor data into a reliable measure of air quality thus making our network and our models as accurate as they can be.."
+            description="We convert low-cost sensor data into a reliable measure of air quality thus making our network and our models as accurate as they can be."
             Icon={Ruler}
           />
           <FeatureCard
             title="Collaboration and Openness"
-            description="IWe work in a fast-moving field with continuous improvements in technology. We recruit the best teams and also commit to their ongoing professional development and training."
+            description="We work in a fast-moving field with continuous improvements in technology. We recruit the best teams and also commit to their ongoing professional development and training."
             Icon={Share2}
           />
           <FeatureCard
@@ -63,25 +63,73 @@ export default function AboutPage() {
           />
         </div>
 
-        <div className="bg-blue-50 p-8 rounded-lg">
+        <div className="bg-blue-50 p-8 rounded-lg mb-12">
           <h2 className="text-2xl font-semibold mb-4">Our Impact</h2>
           <ul className="list-disc list-inside space-y-2">
-            <li>
-              Deployed over 300 low-cost air quality sensors across Africa
-            </li>
-            <li>
-              Provided air quality data to millions of citizens through our
-              digital platform and API
-            </li>
-            <li>
-              Collaborated with local governments to develop data-driven air
-              quality management strategies
-            </li>
-            <li>
-              Engaged in capacity building, training over 5000 individuals in
-              air quality monitoring and analysis.
-            </li>
+            <li>Deployed over 300 low-cost air quality sensors across Africa</li>
+            <li>Provided air quality data to millions of citizens through our digital platform and API</li>
+            <li>Collaborated with local governments to develop data-driven air quality management strategies</li>
+            <li>Engaged in capacity building, training over 5000 individuals in air quality monitoring and analysis.</li>
           </ul>
+        </div>
+
+        {/* Updated Get in Touch Section with Full Address */}
+        <div className="bg-blue-50 p-8 rounded-lg mb-12">
+          <h2 className="text-3xl font-semibold mb-6 text-center">Get in Touch</h2>
+          <p className="text-center text-gray-600 mb-8">
+            We’d love to hear from you! Reach out with questions, feedback, or collaboration ideas.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Contact Information */}
+            <div>
+              <h3 className="text-xl font-medium mb-4 text-center md:text-left">Contact Information</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-center md:justify-start">
+                  <Mail className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
+                  <a href="mailto:info@airqo.net" className="text-blue-600 hover:underline">info@airqo.net</a>
+                </div>
+                <div className="flex items-center justify-center md:justify-start">
+                  <Phone className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
+                  <a href="tel:+256123456789" className="text-blue-600 hover:underline">+256 123 456 789</a>
+                </div>
+                <div className="flex items-start justify-center md:justify-start">
+                  <MapPin className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0 mt-1" />
+                  <span className="text-gray-700">
+                    Makerere University<br />
+                    Software Systems Centre, Block B, Level 3<br />
+                    College of Computing and Information Sciences<br />
+                    Plot 56 University Pool Road<br />
+                    Kampala, Uganda
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Social Media */}
+            <div>
+              <h3 className="text-xl font-medium mb-4 text-center md:text-left">Connect With Us</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-center md:justify-start">
+                  <Twitter className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
+                  <a href="https://twitter.com/AirQoProject" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
+                    @AirQoProject
+                  </a>
+                </div>
+                <div className="flex items-center justify-center md:justify-start">
+                  <Facebook className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
+                  <a href="https://facebook.com/airqo" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
+                    AirQo Official
+                  </a>
+                </div>
+                <div className="flex items-center justify-center md:justify-start">
+                  <Linkedin className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
+                  <a href="https://linkedin.com/company/airqo" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
+                    AirQo
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

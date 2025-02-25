@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Button } from "@/ui/button";
 import { FileUpload } from "@/components/Controls/FileUpload";
 import { useToast } from "@/ui/use-toast";
@@ -174,7 +174,9 @@ export default function SiteCategory() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
+      <Suspense fallback={<div>Loading navigation...</div>}>
+        <Navigation />
+      </Suspense>
       <div className="flex h-screen pt-16">
         <div className="flex-1">
           <MapContainer
