@@ -1,7 +1,6 @@
 "use client"
 
-import { Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { Suspense } from "react" 
 import { FeatureCard } from "@/components/feature-card"
 import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Twitter, Linkedin } from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
@@ -134,19 +133,11 @@ function AboutContent() {
     </div>
   )
 }
-
-function SearchParamsWrapper() {
-  // This component uses useSearchParams, wrapped in Suspense 
-  useSearchParams()
-  return null
-}
+ 
 
 export default function AboutPage() {
   return (
-    <div>
-      <Suspense fallback={<div>Loading params...</div>}>
-        <SearchParamsWrapper />
-      </Suspense>
+    <div> 
       <Suspense fallback={<div>Loading navigation...</div>}>
         <Navigation />
       </Suspense>
