@@ -1,19 +1,10 @@
-"use client";
+"use client"
 
-import React, { Suspense } from "react";
-import { FeatureCard } from "@/components/feature-card";
-import {
-  Users,
-  HeartHandshake,
-  Ruler,
-  Share2,
-  Mail,
-  Phone,
-  MapPin,
-  Twitter,
-  Linkedin,
-} from "lucide-react";
-import Navigation from "@/components/navigation/navigation";
+import { Suspense } from "react"
+import { useSearchParams } from "next/navigation"
+import { FeatureCard } from "@/components/feature-card"
+import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Twitter, Linkedin } from "lucide-react"
+import Navigation from "@/components/navigation/navigation"
 
 function AboutContent() {
   return (
@@ -22,21 +13,16 @@ function AboutContent() {
 
       <div className="mb-12 text-justify">
         <p className="text-lg mb-4">
-          AirQo is a pioneering initiative dedicated to improving air quality
-          monitoring and management across Africa. 
+          AirQo is a pioneering initiative dedicated to improving air quality monitoring and management across Africa.
           <strong>
-            Our mission is to efficiently collect, analyze and forecast air
-            quality data to international standards and work with partners to
-            reduce air pollution and raise awareness of its effects in African
-            cities.
+            Our mission is to efficiently collect, analyze and forecast air quality data to international standards and
+            work with partners to reduce air pollution and raise awareness of its effects in African cities.
           </strong>
         </p>
         <p className="text-lg font-light">
-          Founded in 2015 at Makerere University in Uganda, AirQo has grown into
-          a multidisciplinary team of engineers, data scientists, and
-          environmental experts. We are committed to developing innovative,
-          low-cost air quality monitoring solutions tailored for the unique
-          challenges of African urban environments.
+          Founded in 2015 at Makerere University in Uganda, AirQo has grown into a multidisciplinary team of engineers,
+          data scientists, and environmental experts. We are committed to developing innovative, low-cost air quality
+          monitoring solutions tailored for the unique challenges of African urban environments.
         </p>
       </div>
 
@@ -78,31 +64,22 @@ function AboutContent() {
       <div className="bg-blue-50 p-8 rounded-lg mb-12">
         <h2 className="text-3xl font-semibold mb-6 text-center">Get in Touch</h2>
         <p className="text-center text-gray-600 mb-8">
-          We’d love to hear from you! Reach out with questions, feedback, or
-          collaboration ideas.
+          We’d love to hear from you! Reach out with questions, feedback, or collaboration ideas.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Contact Information */}
           <div>
-            <h3 className="text-xl font-medium mb-4 text-center md:text-left">
-              Contact Information
-            </h3>
+            <h3 className="text-xl font-medium mb-4 text-center md:text-left">Contact Information</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-center md:justify-start">
                 <Mail className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
-                <a
-                  href="mailto:info@airqo.net"
-                  className="text-blue-600 hover:underline"
-                >
+                <a href="mailto:info@airqo.net" className="text-blue-600 hover:underline">
                   info@airqo.net
                 </a>
               </div>
               <div className="flex items-center justify-center md:justify-start">
                 <Phone className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
-                <a
-                  href="tel:+256 786 142 396"
-                  className="text-blue-600 hover:underline"
-                >
+                <a href="tel:+256 786 142 396" className="text-blue-600 hover:underline">
                   +256 786 142 396
                 </a>
               </div>
@@ -125,9 +102,7 @@ function AboutContent() {
 
           {/* Social Media */}
           <div>
-            <h3 className="text-xl font-medium mb-4 text-center md:text-left">
-              Connect With Us
-            </h3>
+            <h3 className="text-xl font-medium mb-4 text-center md:text-left">Connect With Us</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-center md:justify-start">
                 <Twitter className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
@@ -157,21 +132,28 @@ function AboutContent() {
         </div>
       </div>
     </div>
-  );
+  )
+}
+
+const SearchParamsComponent = () => {
+  const searchParams = useSearchParams()
+  // Use searchParams as needed
+  return null // or return some JSX that uses searchParams
 }
 
 export default function AboutPage() {
   return (
     <div>
-      {/* Wrap Navigation in Suspense */}
+      <Suspense fallback={<div>Loading search params...</div>}>
+        <SearchParamsComponent />
+      </Suspense>
       <Suspense fallback={<div>Loading navigation...</div>}>
         <Navigation />
       </Suspense>
-
-      {/* Wrap entire AboutContent in Suspense */}
       <Suspense fallback={<div>Loading content...</div>}>
         <AboutContent />
       </Suspense>
     </div>
-  );
+  )
 }
+
