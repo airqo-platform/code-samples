@@ -136,7 +136,7 @@ function AboutContent() {
 }
 
 function SearchParamsWrapper() {
-  // This component uses useSearchParams, wrapped in Suspense
+  // This component uses useSearchParams, wrapped in Suspense 
   useSearchParams()
   return null
 }
