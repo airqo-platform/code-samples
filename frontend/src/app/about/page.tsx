@@ -23,7 +23,7 @@ function AboutContent() {
       <div className="mb-12 text-justify">
         <p className="text-lg mb-4">
           AirQo is a pioneering initiative dedicated to improving air quality
-          monitoring and management across Africa.
+          monitoring and management across Africa. 
           <strong>
             Our mission is to efficiently collect, analyze and forecast air
             quality data to international standards and work with partners to
@@ -78,7 +78,7 @@ function AboutContent() {
       <div className="bg-blue-50 p-8 rounded-lg mb-12">
         <h2 className="text-3xl font-semibold mb-6 text-center">Get in Touch</h2>
         <p className="text-center text-gray-600 mb-8">
-          We would love to hear from you! Reach out with questions, feedback, or
+          We’d love to hear from you! Reach out with questions, feedback, or
           collaboration ideas.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
