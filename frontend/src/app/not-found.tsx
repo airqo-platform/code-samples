@@ -1,9 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 
-const NotFound = () => {
+const NotFoundContent = () => {
   const pathname = usePathname();
 
   return (
@@ -30,6 +31,14 @@ const NotFound = () => {
         </Link>
       </div>
     </div>
+  );
+};
+
+const NotFound = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <NotFoundContent />
+    </Suspense>
   );
 };
 
