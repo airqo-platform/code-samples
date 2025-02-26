@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Button } from "@/ui/button";
 import { FileUpload } from "@/components/Controls/FileUpload";
 import { useToast } from "@/ui/use-toast";
@@ -43,7 +43,7 @@ interface SiteCategoryInfo extends Location {
   area_name?: string;
 }
 
-export default function SiteCategory() {
+function SiteCategoryContent() {
   const [sites, setSites] = useState<SiteCategoryInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSite, setSelectedSite] = useState<SiteCategoryInfo | null>(
@@ -174,7 +174,9 @@ export default function SiteCategory() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
+      <Suspense fallback={<div>Loading navigation...</div>}>
+        <Navigation />
+      </Suspense>
       <div className="flex h-screen pt-16">
         <div className="flex-1">
           <MapContainer
@@ -275,5 +277,12 @@ export default function SiteCategory() {
         </div>
       )}
     </div>
+  );
+}
+export default function SiteCategory() {
+  return (
+    <Suspense fallback={<div>Loading site category...</div>}>
+      <SiteCategoryContent />
+    </Suspense>
   );
 }
