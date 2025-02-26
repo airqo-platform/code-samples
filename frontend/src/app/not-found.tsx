@@ -1,9 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 
-const NotFound = () => {
+const NotFoundContent = () => {
   const pathname = usePathname();
 
   return (
@@ -13,14 +14,14 @@ const NotFound = () => {
           404
         </h1>
         <p className="text-2xl text-gray-600 mb-6">
-          Oops! The page you&apos;re looking for doesn&apos;t exist.
+          Oops! The page you are looking for does not exist.
         </p>
         <p className="text-lg text-gray-500 mb-8">
           You tried to access{" "}
           <span className="font-mono text-gray-700 bg-gray-100 p-1 rounded">
             {pathname}
           </span>
-          , but it&apos;s not available.
+          , but it is not available.
         </p>
         <Link
           href="/"
@@ -30,6 +31,14 @@ const NotFound = () => {
         </Link>
       </div>
     </div>
+  );
+};
+
+const NotFound = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <NotFoundContent />
+    </Suspense>
   );
 };
 
