@@ -118,7 +118,7 @@ function AboutContent() {
               <div className="flex items-center justify-center md:justify-start">
                 <Linkedin className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a
-                  href="https://linkedin.com/company/airqo"
+                  href="https://www.linkedin.com/company/airqo/posts/?feedView=all"
                   className="text-blue-600 hover:underline"
                   target="_blank"
                   rel="noopener noreferrer"
