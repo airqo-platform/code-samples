@@ -1,22 +1,23 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
-import { Menu, X } from "lucide-react";
+import { useState } from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
+import { Menu, X } from "lucide-react"
 
 const navItems = [
   { name: "Home", href: "/" },
+  { name: "Map", href: "/map" },
   { name: "Locate", href: "/locate" },
   { name: "Categorize", href: "/categorize" },
   { name: "Reports", href: "/reports" },
   { name: "About", href: "/about" },
-];
+]
 
 export default function Navigation({ ...props }) {
-  const pathname = usePathname();
-  const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname()
+  const [isOpen, setIsOpen] = useState(false)
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b shadow-sm">
@@ -26,10 +27,7 @@ export default function Navigation({ ...props }) {
         </Link>
 
         {/* Mobile Menu Button */}
-        <button
-          className="lg:hidden text-gray-600 hover:text-gray-900"
-          onClick={() => setIsOpen(!isOpen)}
-        >
+        <button className="lg:hidden text-gray-600 hover:text-gray-900" onClick={() => setIsOpen(!isOpen)}>
           {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
 
@@ -42,7 +40,7 @@ export default function Navigation({ ...props }) {
               className={cn(
                 "text-sm font-medium text-gray-600 hover:text-gray-900 relative py-2",
                 pathname === item.href &&
-                  "text-gray-900 after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full after:bg-blue-600"
+                  "text-gray-900 after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full after:bg-blue-600",
               )}
             >
               {item.name}
@@ -61,7 +59,7 @@ export default function Navigation({ ...props }) {
                 href={item.href}
                 className={cn(
                   "block text-base font-medium text-gray-600 hover:text-gray-900",
-                  pathname === item.href && "text-gray-900"
+                  pathname === item.href && "text-gray-900",
                 )}
                 onClick={() => setIsOpen(false)}
               >
@@ -72,5 +70,6 @@ export default function Navigation({ ...props }) {
         </nav>
       )}
     </header>
-  );
+  )
 }
+
