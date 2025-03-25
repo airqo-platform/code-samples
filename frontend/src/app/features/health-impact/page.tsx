@@ -25,9 +25,9 @@ export default function HealthImpactFeature() {
               Feature
             </div>
             <h1 className="text-4xl font-bold mb-6">Health Impact Assessment</h1>
-            <p className="text-lg text-gray-700 mb-6">
+            <p className="text-gray-700 mb-6">
               Our health impact assessment tools evaluate the potential health effects of air pollution on different
-              population groups and geographic areas, helping prioritize interventions where they're needed most.
+              population groups and geographic areas, helping prioritize interventions where they&apos;re needed most.
             </p>
             <Link href="/reports">
               <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium inline-flex items-center">

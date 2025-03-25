@@ -68,7 +68,7 @@ async function baseFetch<T>(
         if (errorJson.message || errorJson.error) {
           errorMessage = errorJson.message || errorJson.error
         }
-      } catch (e) {
+      } catch (_) {
         // If not JSON, use the text as is
         if (errorText) {
           errorMessage += ` - ${errorText}`

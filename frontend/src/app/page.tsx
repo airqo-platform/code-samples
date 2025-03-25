@@ -2,7 +2,19 @@
 import type React from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowRight, MapPin, Wind, BarChart3, BrainCircuit, Shield, Sliders, LineChart, Zap } from "lucide-react"
+import {
+  ArrowRight,
+  MapPin,
+  Wind,
+  BarChart3,
+  BrainCircuit,
+  Shield,
+  Sliders,
+  LineChart,
+  Zap,
+  Satellite,
+  Factory,
+} from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
 import { Button } from "@/ui/button"
 
@@ -52,7 +64,7 @@ const Home: React.FC = () => {
       </section>
 
       {/* AI Technologies Section */}
-      <section className="py-16 md:py-24 bg-gradient-to-r from-blue-50 to-purple-50">
+      <section id="ai-technologies" className="py-16 md:py-24 bg-gradient-to-r from-blue-50 to-purple-50">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <div className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800 mb-4">
@@ -67,7 +79,7 @@ const Home: React.FC = () => {
           </div>
 
           {/* Core AI Technologies */}
-          <div className="grid md:grid-cols-3 gap-10 mb-16">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-10 mb-16">
             {/* Forecasting AI */}
             <div className="bg-white rounded-xl shadow-md overflow-hidden transition-transform hover:scale-105">
               <div className="relative h-48 bg-blue-600">
@@ -175,6 +187,80 @@ const Home: React.FC = () => {
                 </ul>
                 <Link href="/locate">
                   <Button className="w-full bg-purple-600 hover:bg-purple-700">Try Location AI</Button>
+                </Link>
+              </div>
+            </div>
+
+            {/* Satellite PM2.5 Prediction */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden transition-transform hover:scale-105">
+              <div className="relative h-48 bg-indigo-600">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Satellite className="h-20 w-20 text-white opacity-30" />
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-indigo-900 to-transparent h-1/2"></div>
+                <div className="absolute bottom-4 left-6">
+                  <h3 className="text-2xl font-bold text-white">Satellite PM2.5 AI</h3>
+                </div>
+              </div>
+              <div className="p-6">
+                <p className="text-gray-700 mb-4">
+                  Our satellite-based AI models predict PM2.5 concentrations in areas without ground-based monitors. By
+                  analyzing satellite imagery, meteorological data, and land use information, we provide air quality
+                  estimates for remote and underserved regions.
+                </p>
+                <ul className="space-y-2 mb-6">
+                  <li className="flex items-start">
+                    <span className="text-indigo-500 mr-2">•</span>
+                    <span>Remote sensing data integration</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-indigo-500 mr-2">•</span>
+                    <span>Wide geographic coverage</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-indigo-500 mr-2">•</span>
+                    <span>Historical trend analysis</span>
+                  </li>
+                </ul>
+                <Link href="/map">
+                  <Button className="w-full bg-indigo-600 hover:bg-indigo-700">View Satellite Data</Button>
+                </Link>
+              </div>
+            </div>
+
+            {/* Pollution Source Prediction */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden transition-transform hover:scale-105">
+              <div className="relative h-48 bg-rose-600">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Factory className="h-20 w-20 text-white opacity-30" />
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-rose-900 to-transparent h-1/2"></div>
+                <div className="absolute bottom-4 left-6">
+                  <h3 className="text-2xl font-bold text-white">Source Prediction AI</h3>
+                </div>
+              </div>
+              <div className="p-6">
+                <p className="text-gray-700 mb-4">
+                  Our source prediction AI identifies and characterizes stationary pollution sources. Using advanced
+                  pattern recognition and dispersion modeling, we can pinpoint industrial emissions, waste burning
+                  sites, and other significant pollution contributors.
+                </p>
+                <ul className="space-y-2 mb-6">
+                  <li className="flex items-start">
+                    <span className="text-rose-500 mr-2">•</span>
+                    <span>Emission source fingerprinting</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-rose-500 mr-2">•</span>
+                    <span>Pollution dispersion modeling</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-rose-500 mr-2">•</span>
+                    <span>Temporal pattern analysis</span>
+                  </li>
+                </ul>
+                <Link href="/reports">
+                  <Button className="w-full bg-rose-600 hover:bg-rose-700">Explore Source Analysis</Button>
                 </Link>
               </div>
             </div>
