@@ -73,7 +73,7 @@ const Home: React.FC = () => {
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Our AI Technologies</h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              At AirQo, we've developed specialized AI solutions to address the unique challenges of air quality
+              At AirQo, we&apos;ve developed specialized AI solutions to address the unique challenges of air quality
               monitoring in Africa. Our cutting-edge technologies power all aspects of our platform.
             </p>
           </div>
