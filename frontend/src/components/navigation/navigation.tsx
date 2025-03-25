@@ -27,7 +27,13 @@ export default function Navigation({ ...props }) {
         </Link>
 
         {/* Mobile Menu Button */}
-        <button className="lg:hidden text-gray-600 hover:text-gray-900" onClick={() => setIsOpen(!isOpen)}>
+        <button
+          className="lg:hidden text-gray-600 hover:text-gray-900"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-label={isOpen ? "Close menu" : "Open menu"}
+          aria-expanded={isOpen}
+          aria-controls="mobile-menu"
+        >
           {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
 
@@ -51,7 +57,7 @@ export default function Navigation({ ...props }) {
 
       {/* Mobile Navigation */}
       {isOpen && (
-        <nav className="lg:hidden bg-white border-t shadow-md">
+        <nav id="mobile-menu" className="lg:hidden bg-white border-t shadow-md">
           <div className="container mx-auto px-4 py-4 space-y-4">
             {navItems.map((item) => (
               <Link
@@ -62,6 +68,7 @@ export default function Navigation({ ...props }) {
                   pathname === item.href && "text-gray-900",
                 )}
                 onClick={() => setIsOpen(false)}
+                aria-current={pathname === item.href ? "page" : undefined}
               >
                 {item.name}
               </Link>

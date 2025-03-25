@@ -1,176 +1,163 @@
-"use client";
+"use client"
 
-import { Suspense, useState } from "react";
-import { Button } from "@/ui/button";
-import { FileUpload } from "@/components/Controls/FileUpload";
-import { useToast } from "@/ui/use-toast";
-import dynamic from "next/dynamic";
-import { useMapEvents } from "react-leaflet";
+import { Suspense, useState } from "react"
+import { Button } from "@/ui/button"
+import { FileUpload } from "@/components/Controls/FileUpload"
+import { useToast } from "@/ui/use-toast"
+import dynamic from "next/dynamic"
+import { useMapEvents } from "react-leaflet"
 
-import { getSiteCategory } from "@/lib/api";
-import { Location } from "@/lib/types";
-import { Card } from "@/ui/card";
-import { Loader2 } from "lucide-react";
-import Papa from "papaparse";
-import Navigation from "@/components/navigation/navigation";
-import { Textarea } from "@/ui/textarea";
-import { Download } from "lucide-react";
-import "leaflet/dist/leaflet.css";
+import { getSiteCategory } from "@/lib/api"
+import type { Location } from "@/lib/types"
+import { Card } from "@/ui/card"
+import { Loader2 } from "lucide-react"
+import Papa from "papaparse"
+import Navigation from "@/components/navigation/navigation"
+import { Textarea } from "@/ui/textarea"
+import { Download } from "lucide-react"
+import "leaflet/dist/leaflet.css"
 
 // Dynamic imports for leaflet components to avoid SSR errors
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.MapContainer),
-  { ssr: false }
-);
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.TileLayer),
-  { ssr: false }
-);
+const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false })
 // const useMapEvents = dynamic(
 //   () => import("react-leaflet").then((mod) => mod.useMapEvents),
 //   { ssr: false }
 // );
-const Marker = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Marker),
-  { ssr: false }
-);
+const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), {
   ssr: false,
-});
+})
 
 interface SiteCategoryInfo extends Location {
-  category?: string;
-  area_name?: string;
+  category?: string
+  area_name?: string
 }
 
 function SiteCategoryContent() {
-  const [sites, setSites] = useState<SiteCategoryInfo[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedSite, setSelectedSite] = useState<SiteCategoryInfo | null>(
-    null
-  );
-  const [manualInput, setManualInput] = useState("");
-  const { toast } = useToast();
+  const [sites, setSites] = useState<SiteCategoryInfo[]>([])
+  const [loading, setLoading] = useState(false)
+  const [selectedSite, setSelectedSite] = useState<SiteCategoryInfo | null>(null)
+  const [manualInput, setManualInput] = useState("")
+  const { toast } = useToast()
 
   const fetchSiteCategory = async (lat: number, lng: number) => {
     try {
-      setLoading(true);
-      const response = await getSiteCategory(lat, lng);
+      setLoading(true)
+      const response = await getSiteCategory(lat, lng)
       return {
         lat,
         lng,
         category: response.site["site-category"].category,
         area_name: response.site["site-category"].area_name,
-      };
+      }
     } catch (error) {
-      console.log(error);
+      console.log(error)
       toast({
         title: "Error",
         description: "Failed to get site category",
         variant: "destructive",
-      });
-      return null;
+      })
+      return null
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleMapClick = async (e: {
-    latlng: { lat: number; lng: number };
+    latlng: { lat: number; lng: number }
   }) => {
-    const { lat, lng } = e.latlng;
+    const { lat, lng } = e.latlng
 
     // Avoid duplicate requests for the same location
-    if (sites.some((site) => site.lat === lat && site.lng === lng)) return;
+    if (sites.some((site) => site.lat === lat && site.lng === lng)) return
 
-    const newSite = await fetchSiteCategory(lat, lng);
+    const newSite = await fetchSiteCategory(lat, lng)
     if (newSite) {
-      setSites((prevSites) => [...prevSites, newSite]);
-      setSelectedSite(newSite);
+      setSites((prevSites) => [...prevSites, newSite])
+      setSelectedSite(newSite)
     }
-  };
+  }
   const handleFileUpload = async (locations: Location[]) => {
-    setLoading(true);
-    const newSites: SiteCategoryInfo[] = [];
+    setLoading(true)
+    const newSites: SiteCategoryInfo[] = []
 
     try {
       for (const location of locations) {
-        const response = await getSiteCategory(location.lat, location.lng);
+        const response = await getSiteCategory(location.lat, location.lng)
         newSites.push({
           ...location,
           category: response.site["site-category"].category,
           area_name: response.site["site-category"].area_name,
-        });
+        })
       }
 
-      setSites(newSites);
+      setSites(newSites)
       toast({
         title: "Success",
         description: `Processed ${newSites.length} sites`,
-      });
+      })
     } catch (error) {
-      console.log(error);
+      console.log(error)
       toast({
         title: "Error",
         description: "Failed to process sites",
         variant: "destructive",
-      });
+      })
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
   const handleManualSubmit = async () => {
     const coordinates = manualInput
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line)
       .map((line) => {
-        const [lat, lng] = line.split(",").map((num) => parseFloat(num.trim()));
+        const [lat, lng] = line.split(",").map((num) => Number.parseFloat(num.trim()))
         if (isNaN(lat) || isNaN(lng)) {
-          throw new Error("Invalid coordinates format");
+          throw new Error("Invalid coordinates format")
         }
-        return { lat, lng };
-      });
+        return { lat, lng }
+      })
 
-    setLoading(true);
-    const newSites: SiteCategoryInfo[] = [];
+    setLoading(true)
+    const newSites: SiteCategoryInfo[] = []
 
     for (const coord of coordinates) {
-      if (
-        !sites.some((site) => site.lat === coord.lat && site.lng === coord.lng)
-      ) {
-        const newSite = await fetchSiteCategory(coord.lat, coord.lng);
-        if (newSite) newSites.push(newSite);
+      if (!sites.some((site) => site.lat === coord.lat && site.lng === coord.lng)) {
+        const newSite = await fetchSiteCategory(coord.lat, coord.lng)
+        if (newSite) newSites.push(newSite)
       }
     }
 
     if (newSites.length > 0) {
-      setSites((prevSites) => [...prevSites, ...newSites]);
+      setSites((prevSites) => [...prevSites, ...newSites])
       toast({
         title: "Success",
         description: `Processed ${newSites.length} sites`,
-      });
+      })
     }
 
-    setManualInput("");
-    setLoading(false);
-  };
+    setManualInput("")
+    setLoading(false)
+  }
 
   const MapEvents = () => {
     useMapEvents({
       click: handleMapClick,
-    });
-    return null;
-  };
+    })
+    return null
+  }
 
   const downloadCSV = () => {
-    const csv = Papa.unparse(sites);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "site_categories.csv";
-    link.click();
-  };
+    const csv = Papa.unparse(sites)
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = "site_categories.csv"
+    link.click()
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -179,11 +166,7 @@ function SiteCategoryContent() {
       </Suspense>
       <div className="flex h-screen pt-16">
         <div className="flex-1">
-          <MapContainer
-            center={[1.3733, 32.2903]}
-            zoom={7}
-            className="h-full w-full"
-          >
+          <MapContainer center={[1.3733, 32.2903]} zoom={7} className="h-full w-full">
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -270,19 +253,20 @@ function SiteCategoryContent() {
 
       {loading && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white p-4 pr-50 rounded-lg flex items-center space-x-2">
-            <Loader2 className="fixed right-3 w-4 h-4 animate-spin" />
-            <span className="font-bold font-xl text-white-700 fixed right-11">Processing...</span>
+          <div className="bg-white p-6 rounded-lg flex items-center space-x-4">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+            <span className="font-medium text-gray-800">Processing locations...</span>
           </div>
         </div>
       )}
     </div>
-  );
+  )
 }
 export default function SiteCategory() {
   return (
     <Suspense fallback={<div>Loading site category...</div>}>
       <SiteCategoryContent />
     </Suspense>
-  );
+  )
 }
+
