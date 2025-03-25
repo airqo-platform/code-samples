@@ -29,12 +29,19 @@ export default function AirQualityCategorizationFeature() {
               Our advanced categorization system automatically classifies monitoring sites based on surrounding land
               use, traffic patterns, and environmental factors to provide context for your air quality data.
             </p>
-            <Link href="/categorize">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium inline-flex items-center">
-                Try Categorization Tool
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
+            <div className="flex flex-wrap gap-4">
+              <Link href="/categorize">
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium inline-flex items-center">
+                  Try Categorization Tool
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </Link>
+              <Link href="/#ai-technologies">
+                <Button variant="outline" className="px-6 py-3 rounded-lg font-medium inline-flex items-center">
+                  Learn About Our AI
+                </Button>
+              </Link>
+            </div>
           </div>
 
           <div className="relative h-[400px] rounded-xl overflow-hidden shadow-xl">
@@ -48,6 +55,78 @@ export default function AirQualityCategorizationFeature() {
                 e.currentTarget.src = "/placeholder.svg?height=400&width=600"
               }}
             />
+          </div>
+        </div>
+
+        {/* AI Technology Section */}
+        <div className="bg-blue-50 rounded-xl p-8 mb-12">
+          <h2 className="text-2xl font-bold mb-6">Categorization AI Technology</h2>
+          <div className="grid md:grid-cols-2 gap-8">
+            <div>
+              <p className="text-lg text-gray-700 mb-4">
+                Our Categorization AI uses machine learning to classify monitoring sites based on their surroundings.
+                The system analyzes:
+              </p>
+              <ul className="space-y-3 mb-6">
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Land use patterns (residential, commercial, industrial)</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Proximity to roads and traffic density</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Natural features like vegetation and water bodies</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Building density and urban morphology</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Known pollution sources in the vicinity</span>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-lg text-gray-700 mb-4">
+                The AI model categorizes sites into standardized classes including:
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>
+                    <strong>Urban Background:</strong> Residential areas away from major roads
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>
+                    <strong>Urban Traffic:</strong> Sites near major roads with high traffic
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>
+                    <strong>Industrial:</strong> Areas dominated by industrial activities
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>
+                    <strong>Rural:</strong> Areas with minimal human influence
+                  </span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>
+                    <strong>Mixed Use:</strong> Areas with multiple land use types
+                  </span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
 

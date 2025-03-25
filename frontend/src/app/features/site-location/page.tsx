@@ -29,12 +29,19 @@ export default function SiteLocationFeature() {
               Our AI-powered site location tool helps you determine the most effective places to position air quality
               monitors based on population density, pollution sources, and geographic factors.
             </p>
-            <Link href="/locate">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium inline-flex items-center">
-                Try Site Locator
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
+            <div className="flex flex-wrap gap-4">
+              <Link href="/locate">
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium inline-flex items-center">
+                  Try Site Locator
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </Link>
+              <Link href="/#ai-technologies">
+                <Button variant="outline" className="px-6 py-3 rounded-lg font-medium inline-flex items-center">
+                  Learn About Our AI
+                </Button>
+              </Link>
+            </div>
           </div>
 
           <div className="relative h-[400px] rounded-xl overflow-hidden shadow-xl">
@@ -48,6 +55,64 @@ export default function SiteLocationFeature() {
                 e.currentTarget.src = "/placeholder.svg?height=400&width=600"
               }}
             />
+          </div>
+        </div>
+
+        {/* AI Technology Section */}
+        <div className="bg-blue-50 rounded-xl p-8 mb-12">
+          <h2 className="text-2xl font-bold mb-6">Location AI Technology</h2>
+          <div className="grid md:grid-cols-2 gap-8">
+            <div>
+              <p className="text-lg text-gray-700 mb-4">
+                Our Location AI uses advanced spatial optimization algorithms to identify the most strategic positions
+                for air quality monitors. The system considers multiple factors:
+              </p>
+              <ul className="space-y-3 mb-6">
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Population density and distribution patterns</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Known pollution sources and emission patterns</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Geographical features that affect air flow</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Existing infrastructure and accessibility</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Coverage optimization to minimize redundancy</span>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-lg text-gray-700 mb-4">
+                The AI model has been trained on extensive datasets from across Africa, including:
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Historical air quality measurements from existing networks</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Satellite-derived pollution estimates</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Urban development and land use patterns</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2 font-bold">•</span>
+                  <span>Demographic and population data</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
 
