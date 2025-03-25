@@ -264,7 +264,7 @@ export default function AITechnologiesPage() {
         <div className="bg-blue-50 p-8 rounded-xl text-center mb-16">
           <h2 className="text-2xl font-bold mb-4">Future AI Developments</h2>
           <p className="text-lg text-gray-700 max-w-3xl mx-auto mb-6">
-            We're continuously advancing our AI capabilities to address emerging challenges in air quality management:
+            We&apos;re continuously advancing our AI capabilities to address emerging challenges in air quality management:
           </p>
           <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
             <div className="bg-white p-6 rounded-lg shadow-sm">
