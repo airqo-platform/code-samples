@@ -43,12 +43,7 @@ const Home: React.FC = () => {
                 className="relative h-[500px] w-full max-w-[900px] rounded-xl overflow-hidden shadow-2xl mx-auto"
                 onDoubleClick={() => (window.location.href = "/map")}
               >
-                <Image
-                  src="/images/homeMAP.png?height=2300&width=800"
-                  alt="Air quality monitoring dashboard"
-                  fill
-                  className="object-cover"
-                />
+                <Image src="/images/homeMAP.png" alt="Air quality monitoring dashboard" fill className="object-cover" />
               </div>
             </div>
           </div>
@@ -67,36 +62,48 @@ const Home: React.FC = () => {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <FeatureCard
-              icon={<MapPin className="h-10 w-10 text-blue-500" />}
-              title="Optimal Site Location"
-              description="Use AI algorithms to determine the best locations for air quality monitors based on population density, pollution sources, and geographic factors."
-            />
-            <FeatureCard
-              icon={<Wind className="h-10 w-10 text-blue-500" />}
-              title="Air Quality Categorization"
-              description="Automatically categorize monitoring sites based on surrounding land use, traffic patterns, and environmental factors."
-            />
-            <FeatureCard
-              icon={<BarChart3 className="h-10 w-10 text-blue-500" />}
-              title="Data Analytics"
-              description="Generate comprehensive reports with trends, forecasts, and actionable insights from air quality data."
-            />
-            <FeatureCard
-              icon={<BrainCircuit className="h-10 w-10 text-blue-500" />}
-              title="Machine Learning Models"
-              description="Continuously improving prediction models that account for seasonal variations, weather patterns, and human activities."
-            />
-            <FeatureCard
-              icon={<Shield className="h-10 w-10 text-blue-500" />}
-              title="Health Impact Assessment"
-              description="Evaluate potential health impacts of air pollution on different population groups and geographic areas."
-            />
-            <FeatureCard
-              icon={<MapPin className="h-10 w-10 text-blue-500" />}
-              title="Interactive Mapping"
-              description="Visualize air quality data across regions with interactive maps showing real-time pollution levels."
-            />
+            <Link href="/features/site-location">
+              <FeatureCard
+                icon={<MapPin className="h-10 w-10 text-blue-500" />}
+                title="Optimal Site Location"
+                description="Use AI algorithms to determine the best locations for air quality monitors based on population density, pollution sources, and geographic factors."
+              />
+            </Link>
+            <Link href="/features/air-quality-categorization">
+              <FeatureCard
+                icon={<Wind className="h-10 w-10 text-blue-500" />}
+                title="Air Quality Categorization"
+                description="Automatically categorize monitoring sites based on surrounding land use, traffic patterns, and environmental factors."
+              />
+            </Link>
+            <Link href="/features/data-analytics">
+              <FeatureCard
+                icon={<BarChart3 className="h-10 w-10 text-blue-500" />}
+                title="Data Analytics"
+                description="Generate comprehensive reports with trends, forecasts, and actionable insights from air quality data."
+              />
+            </Link>
+            <Link href="/features/machine-learning">
+              <FeatureCard
+                icon={<BrainCircuit className="h-10 w-10 text-blue-500" />}
+                title="Machine Learning Models"
+                description="Continuously improving prediction models that account for seasonal variations, weather patterns, and human activities."
+              />
+            </Link>
+            <Link href="/features/health-impact">
+              <FeatureCard
+                icon={<Shield className="h-10 w-10 text-blue-500" />}
+                title="Health Impact Assessment"
+                description="Evaluate potential health impacts of air pollution on different population groups and geographic areas."
+              />
+            </Link>
+            <Link href="/features/interactive-mapping">
+              <FeatureCard
+                icon={<MapPin className="h-10 w-10 text-blue-500" />}
+                title="Interactive Mapping"
+                description="Visualize air quality data across regions with interactive maps showing real-time pollution levels."
+              />
+            </Link>
           </div>
         </div>
       </section>
@@ -166,10 +173,10 @@ const Home: React.FC = () => {
   )
 }
 
-// Feature Card Component
+// Feature Card Component - Updated to be clickable
 const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => {
   return (
-    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
       <div className="mb-4">{icon}</div>
       <h3 className="text-xl font-bold mb-2">{title}</h3>
       <p className="text-gray-600">{description}</p>

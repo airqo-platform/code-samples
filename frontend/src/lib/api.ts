@@ -70,7 +70,6 @@ async function baseFetch<T>(
         }
       } catch (e) {
         // If not JSON, use the text as is
-        console.error("Error parsing API response:", e)
         if (errorText) {
           errorMessage += ` - ${errorText}`
         }
