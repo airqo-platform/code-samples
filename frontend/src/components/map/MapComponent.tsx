@@ -55,12 +55,7 @@ interface MapComponentProps {
   isDrawing: boolean
 }
 
-// Add map instance to window for global access
-declare global {
-  interface Window {
-    map: L.Map
-  }
-}
+
 
 function MapStyleControl() {
   const map = useMap()
