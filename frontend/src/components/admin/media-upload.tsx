@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import Image from "next/image"
 
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -43,15 +44,25 @@ export function MediaUpload({ currentImageUrl, onImageSelected, disabled = false
       const localPreview = URL.createObjectURL(file)
       setPreviewUrl(localPreview)
 
-      // In a real implementation, upload to Cloudinary
-      // For now, we'll simulate the upload with a delay
-      await simulateUpload(file)
+      // Create form data for upload
+      const formData = new FormData()
+      formData.append("file", file)
 
-      // In a real implementation, this would be the URL returned from Cloudinary
-      const uploadedUrl = `/placeholder.svg?height=400&width=800&text=${encodeURIComponent(file.name)}`
+      // Upload to the API
+      const response = await fetch("/api/admin/media/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Upload failed")
+      }
+
+      const data = await response.json()
 
       // Update the parent component with the new URL
-      onImageSelected(uploadedUrl)
+      onImageSelected(data.url)
 
       toast({
         title: "Upload successful",
@@ -59,26 +70,15 @@ export function MediaUpload({ currentImageUrl, onImageSelected, disabled = false
       })
     } catch (error) {
       console.error("Upload failed:", error)
-      setUploadError("Failed to upload image. Please try again.")
+      setUploadError(error instanceof Error ? error.message : "Failed to upload image. Please try again.")
       toast({
         title: "Upload failed",
-        description: "There was a problem uploading your image",
+        description: error instanceof Error ? error.message : "There was a problem uploading your image",
         variant: "destructive",
       })
     } finally {
       setIsUploading(false)
     }
-  }
-
-  // Simulate an upload to Cloudinary
-  const simulateUpload = async (file: File) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          secure_url: `/placeholder.svg?height=400&width=800&text=${encodeURIComponent(file.name)}`,
-        })
-      }, 1500)
-    })
   }
 
   const handleBrowseClick = () => {
@@ -93,6 +93,19 @@ export function MediaUpload({ currentImageUrl, onImageSelected, disabled = false
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
+  }
+
+  // Helper function to ensure image URLs are valid
+  const getImageUrl = (url: string) => {
+    if (!url) return ""
+
+    // If it's already a placeholder URL, return it
+    if (url.startsWith("/placeholder.svg")) {
+      return url
+    }
+
+    // For other URLs, add a fallback in case they fail to load
+    return url
   }
 
   return (
@@ -129,13 +142,14 @@ export function MediaUpload({ currentImageUrl, onImageSelected, disabled = false
                 </div>
               ) : previewUrl ? (
                 <div className="relative w-full h-full">
-                  <img
-                    src={previewUrl || "/placeholder.svg"}
+                  <Image
+                    src={getImageUrl(previewUrl) || "/placeholder.svg"}
                     alt="Preview"
-                    className="object-cover w-full h-full"
+                    fill
+                    className="object-cover"
                     onError={(e) => {
                       // If image fails to load, use a placeholder
-                      ;(e.target as HTMLImageElement).src = "/placeholder.svg?height=400&width=800&text=Image+Not+Found"
+                      ;(e.target as any).src = "/placeholder.svg?height=400&width=800&text=Image+Not+Found"
                     }}
                   />
                 </div>

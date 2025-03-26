@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/hooks/use-auth"
 import { canEditContent } from "@/lib/auth"
 import { MediaUpload } from "@/components/admin/media-upload"
+import Image from "next/image"
 
 interface MediaItem {
   id: string
@@ -31,7 +32,6 @@ export default function MediaLibraryPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState("all")
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
   const [newMediaUrl, setNewMediaUrl] = useState("")
   const { toast } = useToast()
   const { user } = useAuth()
@@ -305,15 +305,18 @@ export default function MediaLibraryPage() {
                         onClick={() => setSelectedItem(item)}
                       >
                         <div className="aspect-video relative bg-gray-100">
-                          <img
-                            src={item.url || "/placeholder.svg"}
-                            alt={item.name}
-                            className="object-cover w-full h-full"
-                            onError={(e) => {
-                              ;(e.target as HTMLImageElement).src =
-                                "/placeholder.svg?height=200&width=300&text=Preview+Not+Available"
-                            }}
-                          />
+                          <div className="relative w-full h-full">
+                            <Image
+                              src={item.url || "/placeholder.svg"}
+                              alt={item.name}
+                              fill
+                              className="object-cover"
+                              onError={(e) => {
+                                ;(e.target as any).src =
+                                  "/placeholder.svg?height=200&width=300&text=Preview+Not+Available"
+                              }}
+                            />
+                          </div>
                         </div>
                         <CardContent className="p-3">
                           <div className="flex justify-between items-start">
@@ -400,15 +403,18 @@ export default function MediaLibraryPage() {
                         onClick={() => setSelectedItem(item)}
                       >
                         <div className="aspect-video relative bg-gray-100">
-                          <img
-                            src={item.url || "/placeholder.svg"}
-                            alt={item.name}
-                            className="object-cover w-full h-full"
-                            onError={(e) => {
-                              ;(e.target as HTMLImageElement).src =
-                                "/placeholder.svg?height=200&width=300&text=Preview+Not+Available"
-                            }}
-                          />
+                          <div className="relative w-full h-full">
+                            <Image
+                              src={item.url || "/placeholder.svg"}
+                              alt={item.name}
+                              fill
+                              className="object-cover"
+                              onError={(e) => {
+                                ;(e.target as any).src =
+                                  "/placeholder.svg?height=200&width=300&text=Preview+Not+Available"
+                              }}
+                            />
+                          </div>
                         </div>
                         <CardContent className="p-3">
                           <div className="flex justify-between items-start">
@@ -476,15 +482,17 @@ export default function MediaLibraryPage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-gray-100 rounded-md overflow-hidden flex items-center justify-center">
-                <img
-                  src={selectedItem.url || "/placeholder.svg"}
-                  alt={selectedItem.name}
-                  className="max-w-full max-h-[300px] object-contain"
-                  onError={(e) => {
-                    ;(e.target as HTMLImageElement).src =
-                      "/placeholder.svg?height=300&width=400&text=Preview+Not+Available"
-                  }}
-                />
+                <div className="relative w-full h-[300px]">
+                  <Image
+                    src={selectedItem.url || "/placeholder.svg"}
+                    alt={selectedItem.name}
+                    fill
+                    className="object-contain"
+                    onError={(e) => {
+                      ;(e.target as any).src = "/placeholder.svg?height=300&width=400&text=Preview+Not+Available"
+                    }}
+                  />
+                </div>
               </div>
               <div className="space-y-4">
                 <div>

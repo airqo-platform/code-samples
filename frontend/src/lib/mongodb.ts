@@ -1,40 +1,44 @@
-import { MongoClient } from "mongodb"
+import { MongoClient, type Db } from "mongodb"
 
-const MONGODB_URI = process.env.MONGODB_URI || ""
-const MONGODB_DB = process.env.MONGODB_DB || "airqo"
-
-// Check if MongoDB URI is defined
-if (!MONGODB_URI) {
+if (!process.env.MONGODB_URI) {
   throw new Error("Please define the MONGODB_URI environment variable")
 }
 
-// Check if MongoDB DB is defined
-if (!MONGODB_DB) {
+if (!process.env.MONGODB_DB) {
   throw new Error("Please define the MONGODB_DB environment variable")
 }
 
-let cachedClient: MongoClient | null = null
-let cachedDb: any = null
+const uri = process.env.MONGODB_URI
+const dbName = process.env.MONGODB_DB
 
-export async function connectToDatabase() {
-  // If we have a cached connection, use it
+let cachedClient: MongoClient | null = null
+let cachedDb: Db | null = null
+
+export async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
+  // If we already have a connection, use it
   if (cachedClient && cachedDb) {
     return { client: cachedClient, db: cachedDb }
   }
 
-  // Create a new MongoDB client
-  const client = new MongoClient(MONGODB_URI)
+  // Create a new MongoDB client with the connection string
+  const client = new MongoClient(`mongodb://${uri}`)
 
   // Connect to the client
   await client.connect()
 
   // Get the database
-  const db = client.db(MONGODB_DB)
+  const db = client.db(dbName)
 
-  // Cache the client and db connections
+  // Cache the client and db connection
   cachedClient = client
   cachedDb = db
 
   return { client, db }
+}
+
+// Helper function to get a collection
+export async function getCollection(collectionName: string) {
+  const { db } = await connectToDatabase()
+  return db.collection(collectionName)
 }
 
