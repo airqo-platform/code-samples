@@ -5,6 +5,7 @@ import type React from "react"
 import { useEffect, useRef, useState, useMemo } from "react"
 import ReactDOM from "react-dom/client"
 import { MapContainer, TileLayer, useMap } from "react-leaflet"
+import Image from "next/image"
 import L from "leaflet"
 import { GeoSearchControl, OpenStreetMapProvider } from "leaflet-geosearch"
 import "leaflet-geosearch/dist/geosearch.css"
@@ -13,15 +14,14 @@ const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.p
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
 import { getSatelliteData, getMapNodes } from "@/services/apiService"
 
-import {
-  GoodAirIcon,
-  ModerateIcon,
-  UnhealthySGIcon,
-  UnhealthyIcon,
-  VeryUnhealthyIcon,
-  HazardousIcon,
-  InvalidIcon,
-} from "@/components/air-quality-icons"
+// Import air quality images from public directory
+const GoodAir = "/images/GoodAir.png"
+const Moderate = "/images/Moderate.png"
+const UnhealthySG = "/images/UnhealthySG.png"
+const Unhealthy = "/images/Unhealthy.png"
+const VeryUnhealthy = "/images/VeryUnhealthy.png"
+const Hazardous = "/images/Hazardous.png"
+const Invalid = "/images/Invalid.png"
 
 // Set default icon for markers
 const DefaultIcon = L.icon({
@@ -52,12 +52,13 @@ const isSatelliteData = (data: any): data is SatelliteData => {
   )
 }
 
+// Update the air quality info function to handle invalid values
 const getAirQualityInfo = (pm25: number | null) => {
   // Handle invalid or null PM2.5 values
   if (pm25 === null || isNaN(pm25)) {
     return {
       level: "Invalid Data",
-      icon: InvalidIcon,
+      image: Invalid,
       color: "bg-white border-gray-200",
     }
   }
@@ -65,46 +66,47 @@ const getAirQualityInfo = (pm25: number | null) => {
   if (pm25 <= 9)
     return {
       level: "Good",
-      icon: GoodAirIcon,
+      image: GoodAir,
       color: "bg-white border-green-200",
     }
   if (pm25 <= 35.4)
     return {
       level: "Moderate",
-      icon: ModerateIcon,
+      image: Moderate,
       color: "bg-white border-yellow-200",
     }
   if (pm25 <= 55.4)
     return {
       level: "Unhealthy for Sensitive Groups",
-      icon: UnhealthySGIcon,
+      image: UnhealthySG,
       color: "bg-white border-orange-200",
     }
   if (pm25 <= 125.4)
     return {
       level: "Unhealthy",
-      icon: UnhealthyIcon,
+      image: Unhealthy,
       color: "bg-white border-red-200",
     }
   if (pm25 <= 225.4)
     return {
       level: "Very Unhealthy",
-      icon: VeryUnhealthyIcon,
+      image: VeryUnhealthy,
       color: "bg-white border-purple-200",
     }
   return {
     level: "Hazardous",
-    icon: HazardousIcon,
+    image: Hazardous,
     color: "bg-white border-red-300",
   }
 }
 
+// Create a component for the popup content
 const PopupContent: React.FC<{
   label: string
   data: Partial<SatelliteData>
   onClose: () => void
 }> = ({ label, data, onClose }) => {
-  const { level, icon: IconComponent, color } = getAirQualityInfo(data.pm2_5_prediction ?? null)
+  const { level, image, color } = getAirQualityInfo(data.pm2_5_prediction ?? null)
 
   // Safely format timestamp
   const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : "Unknown"
@@ -113,7 +115,15 @@ const PopupContent: React.FC<{
     <div className={`min-w-[200px] p-3 rounded-lg ${color} border`}>
       <div className="flex items-center justify-between mb-2">
         <div className="w-12 h-12 relative">
-          <IconComponent size={48} />
+          <Image
+            src={image || "/placeholder.svg"}
+            alt={level}
+            width={48}
+            height={48}
+            className="w-full h-full"
+            quality={100}
+            priority
+          />
         </div>
         <button className="text-gray-500 hover:text-gray-700" onClick={onClose}>
           ✕
@@ -149,6 +159,7 @@ const LoadingPopupContent: React.FC<{
   </div>
 )
 
+// Create an error popup component
 const ErrorPopupContent: React.FC<{
   label: string
   onClose: () => void
@@ -157,7 +168,15 @@ const ErrorPopupContent: React.FC<{
   <div className="min-w-[200px] p-3 rounded-lg bg-gray-100 border border-gray-200">
     <div className="flex items-center justify-between mb-2">
       <div className="w-12 h-12 relative">
-        <InvalidIcon size={48} />
+        <Image
+          src={Invalid || "/placeholder.svg"}
+          alt="Error"
+          width={48}
+          height={48}
+          className="w-full h-full"
+          quality={100}
+          priority
+        />
       </div>
       <button className="text-gray-500 hover:text-gray-700" onClick={onClose}>
         ✕
@@ -556,38 +575,39 @@ const MapNodes: React.FC<{
   return null
 }
 
+// Update the Legend component with better tooltip styling
 const Legend: React.FC = () => {
   const pollutantLevels = useMemo(
     () => [
       {
         range: "0.0µg/m³ - 9.0µg/m³",
         label: "Air Quality is Good",
-        Icon: GoodAirIcon,
+        image: GoodAir,
       },
       {
         range: "9.1µg/m³ - 35.4µg/m³",
         label: "Air Quality is Moderate",
-        Icon: ModerateIcon,
+        image: Moderate,
       },
       {
         range: "35.5µg/m³ - 55.4µg/m³",
         label: "Air Quality is Unhealthy for Sensitive Groups",
-        Icon: UnhealthySGIcon,
+        image: UnhealthySG,
       },
       {
         range: "55.5µg/m³ - 125.4µg/m³",
         label: "Air Quality is Unhealthy",
-        Icon: UnhealthyIcon,
+        image: Unhealthy,
       },
       {
         range: "125.5µg/m³ - 225.4µg/m³",
         label: "Air Quality is Very Unhealthy",
-        Icon: VeryUnhealthyIcon,
+        image: VeryUnhealthy,
       },
       {
         range: "225.5+ µg/m³",
         label: "Air Quality is Hazardous",
-        Icon: HazardousIcon,
+        image: Hazardous,
       },
     ],
     [],
@@ -600,7 +620,7 @@ const Legend: React.FC = () => {
           {pollutantLevels.map((level, index) => (
             <div key={index} className="flex items-center gap-2 group relative">
               <div className="w-8 h-8 relative cursor-pointer">
-                <level.Icon size={32} />
+                <Image src={level.image || "/placeholder.svg"} alt={level.label} fill className="object-contain" />
                 <div className="opacity-0 group-hover:opacity-100 absolute left-full ml-2 bg-white text-gray-800 text-xs rounded-lg px-3 py-2 whitespace-nowrap transition-opacity duration-200 shadow-lg border border-gray-200 min-w-[200px]">
                   <div className="font-semibold mb-1">{level.label}</div>
                   <div className="text-gray-600">{level.range}</div>
@@ -642,37 +662,35 @@ const LeafletMap: React.FC = () => {
 
 // Create a custom icon based on AQI category
 const getCustomIcon = (aqiCategory: string) => {
-  let iconColor
+  let imageSrc
   switch (aqiCategory.toLowerCase()) {
     case "good":
-      iconColor = "#A8E05F"
+      imageSrc = GoodAir
       break
     case "moderate":
-      iconColor = "#FDD64B"
+      imageSrc = Moderate
       break
     case "unhealthy for sensitive groups":
-      iconColor = "#FF9B57"
+      imageSrc = UnhealthySG
       break
     case "unhealthy":
-      iconColor = "#FE6A69"
+      imageSrc = Unhealthy
       break
     case "very unhealthy":
-      iconColor = "#A97ABC"
+      imageSrc = VeryUnhealthy
       break
     case "hazardous":
-      iconColor = "#A87383"
+      imageSrc = Hazardous
       break
     default:
-      iconColor = "#CCCCCC"
+      imageSrc = Invalid
   }
 
-  // Create a custom div icon with the appropriate color
-  return L.divIcon({
-    className: "custom-air-quality-marker",
-    html: `<div style="background-color: ${iconColor}; width: 100%; height: 100%; border-radius: 50%; border: 2px solid white;"></div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
-    popupAnchor: [0, -15],
+  return L.icon({
+    iconUrl: imageSrc,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
   })
 }
 

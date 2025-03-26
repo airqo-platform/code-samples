@@ -40,17 +40,10 @@ const Home: React.FC = () => {
             </div>
             <div className="hidden md:block">
               <div
-                className="relative h-[400px] w-full max-w-[900px] rounded-xl overflow-hidden shadow-2xl mx-auto"
+                className="relative h-[500px] w-full max-w-[900px] rounded-xl overflow-hidden shadow-2xl mx-auto"
                 onDoubleClick={() => (window.location.href = "/map")}
               >
-                <Image
-                  src="/images/homeMAP.png"
-                  height={400}
-                  width={1000}
-                  alt="Air quality monitoring dashboard"
-                  className="object-cover"
-                  loading="lazy"
-                />
+                <Image src="/images/homeMAP.png" alt="Air quality monitoring dashboard" fill className="object-cover" />
               </div>
             </div>
           </div>
