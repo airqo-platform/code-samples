@@ -73,7 +73,9 @@ export async function POST(request: Request) {
     await usersCollection.updateOne({ _id: user._id }, { $set: { lastLogin: new Date().toISOString() } })
 
     // Create user session data (remove sensitive info)
-    const { password: dbPassword, ...userData } = user
+    // Using destructuring with a throwaway variable
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: passwordField, ...userData } = user
 
     const userSession = JSON.stringify({
       ...userData,

@@ -170,7 +170,7 @@ export default function CategorizePage() {
                       {!resultsReady ? (
                         <div className="text-center py-12">
                           <p className="text-gray-500">
-                            Enter pollutant values and click "Categorize Air Quality" to see results
+                            Enter pollutant values and click &quot;Categorize Air Quality&quot; to see results
                           </p>
                         </div>
                       ) : (
@@ -181,7 +181,7 @@ export default function CategorizePage() {
                               Air quality is acceptable but may cause concern for some sensitive individuals.
                             </p>
                             <div className="mt-4">
-                              <Badge variant="warning" className="text-lg py-1 px-3">
+                              <Badge variant={getBadgeVariant("Moderate")} className="text-lg py-1 px-3">
                                 AQI: 75
                               </Badge>
                             </div>
@@ -204,7 +204,7 @@ export default function CategorizePage() {
                                   <TableCell>15 μg/m³</TableCell>
                                   <TableCell>
                                     <Badge variant="warning" className="flex items-center">
-                                      <Info className="h-4 w-4 mr-1" />
+                                      {getBadgeIcon("Moderate")}
                                       Moderate
                                     </Badge>
                                   </TableCell>

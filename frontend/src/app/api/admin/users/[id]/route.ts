@@ -34,6 +34,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     }
 
     // Remove sensitive information
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, ...safeUser } = user
 
     return NextResponse.json(safeUser)
@@ -112,6 +113,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const updatedUser = await usersCollection.findOne({ _id: new ObjectId(id) })
 
     // Remove sensitive information
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, ...safeUser } = updatedUser || {}
 
     return NextResponse.json({

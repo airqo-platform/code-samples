@@ -49,6 +49,7 @@ export async function GET(request: Request) {
 
     // Remove sensitive information like password hashes
     const safeUsers = users.map((user) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password, ...safeUser } = user
       return safeUser
     })
@@ -116,6 +117,7 @@ export async function POST(request: Request) {
     const result = await usersCollection.insertOne(userToInsert)
 
     // Remove password from response
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, ...safeUser } = userToInsert
 
     return NextResponse.json({

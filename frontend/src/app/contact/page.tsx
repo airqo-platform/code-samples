@@ -12,7 +12,7 @@ export default function ContactPage() {
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">Contact Us</h1>
           <p className="text-xl max-w-3xl mx-auto">
-            Have questions about our AI-powered air quality monitoring solutions? We're here to help.
+            Have questions about our AI-powered air quality monitoring solutions? We&apos;re here to help.
           </p>
         </div>
       </section>
@@ -27,7 +27,7 @@ export default function ContactPage() {
                 <CardHeader>
                   <CardTitle>Send us a message</CardTitle>
                   <CardDescription>
-                    Fill out the form below and we'll get back to you as soon as possible.
+                    Fill out the form below and we&apos;ll get back to you as soon as possible.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -87,7 +87,7 @@ export default function ContactPage() {
             <div className="space-y-8">
               <div>
                 <h2 className="text-2xl font-bold mb-6">Contact Information</h2>
-                <p className="text-gray-600 mb-8">We'd love to hear from you. Here's how you can reach us.</p>
+                <p className="text-gray-600 mb-8">We&apos;d love to hear from you. Here&apos;s how you can reach us.</p>
 
                 <div className="space-y-6">
                   <div className="flex items-start">

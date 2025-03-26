@@ -11,7 +11,7 @@ export default function AboutPage() {
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">About AirQo</h1>
           <p className="text-xl max-w-3xl mx-auto">
-            We're on a mission to improve air quality monitoring through innovative AI technologies.
+            We&apos;re on a mission to improve air quality monitoring through innovative AI technologies.
           </p>
         </div>
       </section>
@@ -33,7 +33,7 @@ export default function AboutPage() {
                 analyzed.
               </p>
               <p className="text-lg text-gray-700">
-                Today, we're proud to offer a comprehensive platform that helps organizations around the world make
+                Today, we&apos;re proud to offer a comprehensive platform that helps organizations around the world make
                 data-driven decisions about air quality monitoring, public health interventions, and environmental
                 policies.
               </p>
@@ -165,7 +165,7 @@ export default function AboutPage() {
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">Our Team</h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Meet the passionate experts behind AirQo's innovative air quality solutions.
+              Meet the passionate experts behind AirQo&apos;s innovative air quality solutions.
             </p>
           </div>
 
@@ -292,8 +292,8 @@ export default function AboutPage() {
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold mb-4">Join us in our mission</h2>
           <p className="text-xl mb-8 max-w-3xl mx-auto">
-            Whether you're looking to implement our solutions, partner with us, or join our team, we'd love to hear from
-            you.
+            Whether you&apos;re looking to implement our solutions, partner with us, or join our team, we&apos;d love to
+            hear from you.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Button asChild size="lg" className="bg-white text-blue-700 hover:bg-gray-100">

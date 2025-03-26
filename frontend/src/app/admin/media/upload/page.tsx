@@ -13,13 +13,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { useState } from "react"
 
 export default function MediaUploadPage() {
-  const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
     if (selectedFile) {
-      setFile(selectedFile)
+      // Create object URL for preview
       setPreviewUrl(URL.createObjectURL(selectedFile))
     }
   }

@@ -60,7 +60,8 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     }
 
     // Delete from MongoDB
-    const result = await mediaCollection.deleteOne({ _id: new ObjectId(id) })
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    await mediaCollection.deleteOne({ _id: new ObjectId(id) })
 
     return NextResponse.json({ success: true })
   } catch (error) {

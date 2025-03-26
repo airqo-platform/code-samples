@@ -114,7 +114,7 @@ export default function SiteLocationPage() {
               <div>
                 <h3 className="text-xl font-bold mb-2">Cost Efficiency</h3>
                 <p className="text-gray-600">
-                  Optimize your resources by placing sensors where they'll provide the most valuable data.
+                  Optimize your resources by placing sensors where they&#39;ll provide the most valuable data.
                 </p>
               </div>
             </div>
