@@ -1,52 +1,39 @@
-"use client"
-import type React from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { ArrowRight, MapPin, Wind, BarChart3, BrainCircuit, Shield } from "lucide-react"
-import Navigation from "@/components/navigation/navigation"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { MapPin, Map, BarChart2, FileText, Info } from "lucide-react"
 
-const Home: React.FC = () => {
+export default function HomePage() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Navigation />
-
       {/* Hero Section */}
-      <section className="relative min-h-screen bg-blue-50 flex items-center p-8">
-        <div className="absolute inset-0 bg-cover bg-center opacity-10"></div>
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="text-black space-y-6">
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
-                AI-Powered Air Quality Monitoring
-              </h1>
-              <p className="text-lg md:text-xl text-black-100">
-                AirQo AI provides advanced tools for monitoring, analyzing, and optimizing air quality across African
-                cities using artificial intelligence.
+      <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-20">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center">
+            <div className="md:w-1/2 mb-10 md:mb-0">
+              <h1 className="text-4xl md:text-5xl font-bold mb-4">Empowering Air Quality Monitoring with AI</h1>
+              <p className="text-xl mb-8">
+                Innovative solutions for better air quality monitoring, forecasting, and analysis using cutting-edge AI
+                technologies.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <Link
-                  href="/map"
-                  className="bg-white text-blue-700 hover:bg-blue-50 px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
-                >
-                  Explore Air Quality Map <ArrowRight size={18} />
-                </Link>
-                <Link
-                  href="/locate"
-                  className="bg-blue-700 text-white hover:bg-blue-600 border border-blue-500 px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
-                >
-                  Try Site Locator
-                </Link>
+              <div className="flex flex-wrap gap-4">
+                <Button asChild size="lg" className="bg-white text-blue-700 hover:bg-gray-100">
+                  <Link href="/map">View Air Quality Map</Link>
+                </Button>
+                <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-blue-700">
+                  <Link href="/about">Learn More</Link>
+                </Button>
               </div>
             </div>
-            <div className="hidden md:block">
-              <div className="relative h-[500px] w-full max-w-[900px] rounded-xl overflow-hidden shadow-2xl mx-auto"
-              onDoubleClick={() => window.location.href = "/map"}
-              >
+            <div className="md:w-1/2 flex justify-center">
+              <div className="relative w-full max-w-md h-80">
                 <Image
-                  src="/images/homeMAP.png?height=2300&width=800"
-                  alt="Air quality monitoring dashboard"
+                  src="/placeholder.svg?height=400&width=600&text=Air+Quality+Monitoring"
+                  alt="Air Quality Monitoring"
                   fill
-                  className="object-cover"
+                  className="object-cover rounded-lg shadow-lg"
+                  priority
                 />
               </div>
             </div>
@@ -54,141 +41,146 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Key Features Section */}
-      <section className="py-16 md:py-24 bg-white">
+      {/* Main Features Section */}
+      <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Powered by Artificial Intelligence</h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              Our platform leverages cutting-edge AI to provide accurate, real-time air quality data and insights for
-              researchers, policymakers, and citizens.
+            <h2 className="text-3xl font-bold mb-4">Our Key Features</h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Discover how our AI-powered platform can revolutionize air quality monitoring and analysis.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <FeatureCard
-              icon={<MapPin className="h-10 w-10 text-blue-500" />}
-              title="Optimal Site Location"
-              description="Use AI algorithms to determine the best locations for air quality monitors based on population density, pollution sources, and geographic factors."
-            />
-            <FeatureCard
-              icon={<Wind className="h-10 w-10 text-blue-500" />}
-              title="Air Quality Categorization"
-              description="Automatically categorize monitoring sites based on surrounding land use, traffic patterns, and environmental factors."
-            />
-            <FeatureCard
-              icon={<BarChart3 className="h-10 w-10 text-blue-500" />}
-              title="Data Analytics"
-              description="Generate comprehensive reports with trends, forecasts, and actionable insights from air quality data."
-            />
-            <FeatureCard
-              icon={<BrainCircuit className="h-10 w-10 text-blue-500" />}
-              title="Machine Learning Models"
-              description="Continuously improving prediction models that account for seasonal variations, weather patterns, and human activities."
-            />
-            <FeatureCard
-              icon={<Shield className="h-10 w-10 text-blue-500" />}
-              title="Health Impact Assessment"
-              description="Evaluate potential health impacts of air pollution on different population groups and geographic areas."
-            />
-            <FeatureCard
-              icon={<MapPin className="h-10 w-10 text-blue-500" />}
-              title="Interactive Mapping"
-              description="Visualize air quality data across regions with interactive maps showing real-time pollution levels."
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Feature 1 */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="bg-blue-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                  <Map className="text-blue-600 h-6 w-6" />
+                </div>
+                <CardTitle>Interactive Air Quality Map</CardTitle>
+                <CardDescription>Visualize real-time air quality data across different regions.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Our interactive map provides real-time air quality information with intuitive color-coding and
+                  detailed pollutant data.
+                </p>
+              </CardContent>
+              <CardFooter>
+                <Button asChild variant="outline">
+                  <Link href="/map">View Map</Link>
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Feature 2 */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="bg-green-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                  <MapPin className="text-green-600 h-6 w-6" />
+                </div>
+                <CardTitle>Optimal Site Location</CardTitle>
+                <CardDescription>Find the best locations for air quality monitors.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Our AI algorithms help determine the most effective places to position air quality monitors based on
+                  various factors.
+                </p>
+              </CardContent>
+              <CardFooter>
+                <Button asChild variant="outline">
+                  <Link href="/locate">Locate Monitors</Link>
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Feature 3 */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="bg-purple-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                  <BarChart2 className="text-purple-600 h-6 w-6" />
+                </div>
+                <CardTitle>Air Quality Categorization</CardTitle>
+                <CardDescription>Categorize air quality based on various pollutants and standards.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Our platform categorizes air quality according to international standards and provides health
+                  recommendations.
+                </p>
+              </CardContent>
+              <CardFooter>
+                <Button asChild variant="outline">
+                  <Link href="/categorize">Categorize Air Quality</Link>
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Feature 4 */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="bg-red-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                  <FileText className="text-red-600 h-6 w-6" />
+                </div>
+                <CardTitle>Comprehensive Reports</CardTitle>
+                <CardDescription>Generate detailed reports on air quality trends and patterns.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Access comprehensive reports with insights on air quality trends, pollutant levels, and health
+                  impacts.
+                </p>
+              </CardContent>
+              <CardFooter>
+                <Button asChild variant="outline">
+                  <Link href="/reports">View Reports</Link>
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Feature 5 */}
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="bg-yellow-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+                  <Info className="text-yellow-600 h-6 w-6" />
+                </div>
+                <CardTitle>About Our Technology</CardTitle>
+                <CardDescription>
+                  Learn about the technology behind our air quality monitoring platform.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Discover the innovative AI technologies and methodologies that power our air quality monitoring
+                  solutions.
+                </p>
+              </CardContent>
+              <CardFooter>
+                <Button asChild variant="outline">
+                  <Link href="/about">Learn More</Link>
+                </Button>
+              </CardFooter>
+            </Card>
           </div>
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section className="py-16 md:py-24 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">How AirQo AI Works</h2>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              Our platform combines low-cost sensors, advanced algorithms, and user-friendly interfaces to democratize
-              air quality monitoring.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            <StepCard
-              number="01"
-              title="Data Collection"
-              description="Our network of sensors continuously collects air quality data across multiple locations."
-            />
-            <StepCard
-              number="02"
-              title="AI Processing"
-              description="Advanced algorithms clean, analyze, and interpret the data to generate insights."
-            />
-            <StepCard
-              number="03"
-              title="Actionable Insights"
-              description="Users access visualizations, reports, and recommendations through our platform."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-10 md:py-20 bg-blue-50 text-black">
+      {/* Call to Action */}
+      <section className="py-20 bg-blue-700 text-white">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Improve Air Quality?</h2>
-          <p className="text-xl text-black-100 max-w-3xl mx-auto mb-8">
-            Start using our AI-powered tools to make data-driven decisions for cleaner air.
+          <h2 className="text-3xl font-bold mb-4">Ready to improve air quality monitoring?</h2>
+          <p className="text-xl mb-8 max-w-3xl mx-auto">
+            Join organizations worldwide that are using our AI-powered platform to make a difference in air quality
+            monitoring and public health.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/map"
-              className="bg-white text-blue-700 hover:bg-blue-50 px-8 py-4 rounded-lg font-medium transition-colors"
-            >
-              Explore the Map
-            </Link>
-            <Link
-              href="/locate"
-              className="bg-blue-700 text-white hover:bg-blue-600 border border-blue-500 px-8 py-4 rounded-lg font-medium transition-colors"
-            >
-              Try Site Locator
-            </Link>
-          </div>
+          <Button asChild size="lg" className="bg-white text-blue-700 hover:bg-gray-100">
+            <Link href="/signup">Get Started Today</Link>
+          </Button>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="bg-blue-50 p-8 rounded-lg mb-12">
-        <div  className="border-t border-gray-800 mt-8 pt-8 text-sm text-center">
-            &copy; {new Date().getFullYear()} AirQo. All rights reserved.
-          
-        </div>
-      </footer>
     </div>
   )
 }
-
-// Feature Card Component
-const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => {
-  return (
-    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-      <div className="mb-4">{icon}</div>
-      <h3 className="text-xl font-bold mb-2">{title}</h3>
-      <p className="text-gray-600">{description}</p>
-    </div>
-  )
-}
-
-// Step Card Component
-const StepCard = ({ number, title, description }: { number: string; title: string; description: string }) => {
-  return (
-    <div className="text-center p-6">
-      <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xl font-bold mx-auto mb-4">
-        {number}
-      </div>
-      <h3 className="text-xl font-bold mb-2">{title}</h3>
-      <p className="text-gray-600">{description}</p>
-    </div>
-  )
-}
-
-export default Home
 

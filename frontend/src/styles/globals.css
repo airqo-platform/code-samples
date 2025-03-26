@@ -26,7 +26,7 @@ body {
 .custom-popup .leaflet-popup-content-wrapper {
   padding: 0;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   background: transparent;
 }
 
@@ -148,7 +148,7 @@ body {
 
 /* Style the clear button */
 .leaflet-control-geosearch form .reset {
-  margin-top: 4px !important;  /* Move button down slightly */
+  margin-top: 4px !important; /* Move button down slightly */
   background: none !important;
   border: none !important;
   padding: 8px !important;
@@ -166,7 +166,7 @@ body {
 
 /* Hide the default close icon and use a custom one */
 .leaflet-control-geosearch form .reset::after {
-  content: '' !important;
+  content: "" !important;
   font-size: 20px !important;
   line-height: 1 !important;
 }
@@ -193,13 +193,13 @@ body {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 8px 12px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   pointer-events: none;
 }
 
 .legend-tooltip::before {
-  content: '';
+  content: "";
   position: absolute;
   left: -5px;
   top: 50%;
@@ -210,3 +210,4 @@ body {
   border-left: 1px solid #e5e7eb;
   border-bottom: 1px solid #e5e7eb;
 }
+
