@@ -1,232 +1,231 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, Copy, Trash2, Filter, Grid, List } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Plus, Search, Trash2, Copy, FolderOpen } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { Badge } from "@/components/ui/badge"
+import { useAuth } from "@/hooks/use-auth"
+import { canEditContent } from "@/lib/auth"
+import { MediaUpload } from "@/components/admin/media-upload"
 
 interface MediaItem {
-  _id: string
-  filename: string
+  id: string
+  name: string
   url: string
-  type: "image" | "document" | "video" | "other"
+  type: string
   size: number
+  uploadedAt: string
   dimensions?: {
     width: number
     height: number
   }
-  uploadedAt: string
-  tags: string[]
 }
 
 export default function MediaLibraryPage() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const [selectedType, setSelectedType] = useState<string>("all")
+  const [activeTab, setActiveTab] = useState("all")
+  const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [newMediaUrl, setNewMediaUrl] = useState("")
   const { toast } = useToast()
+  const { user } = useAuth()
+
+  // Check if user has edit permissions
+  const canEdit = canEditContent(user)
 
   useEffect(() => {
-    const fetchMediaItems = async () => {
+    const fetchMedia = async () => {
       try {
-        const response = await fetch("/api/admin/media")
-        if (!response.ok) {
-          throw new Error("Failed to fetch media items")
-        }
-        const data = await response.json()
-        setMediaItems(data)
-      } catch (error) {
-        console.error("Error fetching media:", error)
-        // For demo purposes, use mock data if API fails
-        const mockMediaItems: MediaItem[] = [
+        // In a real implementation, this would fetch from an API
+        // For now, we'll simulate with static data
+        const mockMedia: MediaItem[] = [
           {
-            _id: "1",
-            filename: "site-location.jpg",
-            url: "/images/site-location.jpg",
-            type: "image",
+            id: "1",
+            name: "site-location.jpg",
+            url: "/placeholder.svg?height=400&width=800&text=Site+Location",
+            type: "image/jpeg",
             size: 245000,
-            dimensions: { width: 1200, height: 800 },
-            uploadedAt: "2023-05-15T10:30:00Z",
-            tags: ["feature", "location"],
+            uploadedAt: "2023-07-15T10:30:00Z",
+            dimensions: {
+              width: 1200,
+              height: 800,
+            },
           },
           {
-            _id: "2",
-            filename: "air-quality-categorization.jpg",
-            url: "/images/air-quality-categorization.jpg",
-            type: "image",
-            size: 320000,
-            dimensions: { width: 1200, height: 800 },
-            uploadedAt: "2023-05-16T14:45:00Z",
-            tags: ["feature", "air-quality"],
+            id: "2",
+            name: "air-quality-map.png",
+            url: "/placeholder.svg?height=400&width=800&text=Air+Quality+Map",
+            type: "image/png",
+            size: 350000,
+            uploadedAt: "2023-07-14T15:45:00Z",
+            dimensions: {
+              width: 1600,
+              height: 900,
+            },
           },
           {
-            _id: "3",
-            filename: "data-analytics.jpg",
-            url: "/images/data-analytics.jpg",
-            type: "image",
-            size: 280000,
-            dimensions: { width: 1200, height: 800 },
-            uploadedAt: "2023-05-17T09:15:00Z",
-            tags: ["feature", "analytics"],
-          },
-          {
-            _id: "4",
-            filename: "machine-learning.jpg",
-            url: "/images/machine-learning.jpg",
-            type: "image",
-            size: 310000,
-            dimensions: { width: 1200, height: 800 },
-            uploadedAt: "2023-05-18T11:20:00Z",
-            tags: ["feature", "ai"],
-          },
-          {
-            _id: "5",
-            filename: "health-impact.jpg",
-            url: "/images/health-impact.jpg",
-            type: "image",
-            size: 290000,
-            dimensions: { width: 1200, height: 800 },
-            uploadedAt: "2023-05-19T16:10:00Z",
-            tags: ["feature", "health"],
-          },
-          {
-            _id: "6",
-            filename: "interactive-mapping.jpg",
-            url: "/images/interactive-mapping.jpg",
-            type: "image",
-            size: 275000,
-            dimensions: { width: 1200, height: 800 },
-            uploadedAt: "2023-05-20T13:25:00Z",
-            tags: ["feature", "mapping"],
-          },
-          {
-            _id: "7",
-            filename: "homeMAP.png",
-            url: "/images/homeMAP.png",
-            type: "image",
+            id: "3",
+            name: "dashboard-preview.jpg",
+            url: "/placeholder.svg?height=400&width=800&text=Dashboard+Preview",
+            type: "image/jpeg",
             size: 420000,
-            dimensions: { width: 1600, height: 900 },
-            uploadedAt: "2023-05-21T10:15:00Z",
-            tags: ["home", "hero"],
+            uploadedAt: "2023-07-10T09:20:00Z",
+            dimensions: {
+              width: 1920,
+              height: 1080,
+            },
           },
           {
-            _id: "8",
-            filename: "airqo-report.pdf",
-            url: "/documents/airqo-report.pdf",
-            type: "document",
-            size: 1250000,
-            uploadedAt: "2023-05-22T14:30:00Z",
-            tags: ["report", "documentation"],
-          },
-          {
-            _id: "9",
-            filename: "sensor-deployment.mp4",
-            url: "/videos/sensor-deployment.mp4",
-            type: "video",
-            size: 8500000,
-            uploadedAt: "2023-05-23T09:45:00Z",
-            tags: ["tutorial", "deployment"],
-          },
-          {
-            _id: "10",
-            filename: "GoodAir.png",
-            url: "/images/GoodAir.png",
-            type: "image",
-            size: 45000,
-            dimensions: { width: 200, height: 200 },
-            uploadedAt: "2023-05-24T11:10:00Z",
-            tags: ["icon", "air-quality"],
-          },
-          {
-            _id: "11",
-            filename: "Moderate.png",
-            url: "/images/Moderate.png",
-            type: "image",
-            size: 48000,
-            dimensions: { width: 200, height: 200 },
-            uploadedAt: "2023-05-24T11:15:00Z",
-            tags: ["icon", "air-quality"],
-          },
-          {
-            _id: "12",
-            filename: "Unhealthy.png",
-            url: "/images/Unhealthy.png",
-            type: "image",
-            size: 47000,
-            dimensions: { width: 200, height: 200 },
-            uploadedAt: "2023-05-24T11:20:00Z",
-            tags: ["icon", "air-quality"],
+            id: "4",
+            name: "logo.svg",
+            url: "/placeholder.svg?height=400&width=400&text=Logo",
+            type: "image/svg+xml",
+            size: 15000,
+            uploadedAt: "2023-06-25T14:10:00Z",
           },
         ]
-        setMediaItems(mockMediaItems)
+
+        setMediaItems(mockMedia)
+      } catch (error) {
+        console.error("Failed to fetch media:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load media library",
+          variant: "destructive",
+        })
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchMediaItems()
-  }, [])
+    fetchMedia()
+  }, [toast])
 
-  const handleCopyUrl = (url: string) => {
-    navigator.clipboard.writeText(url)
-    toast({
-      title: "URL Copied",
-      description: "Media URL has been copied to clipboard",
-    })
-  }
+  const filteredItems = mediaItems.filter((item) => {
+    // Filter by search query
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase())
 
-  const handleDelete = async (id: string) => {
+    // Filter by type
+    if (activeTab === "all") return matchesSearch
+    if (activeTab === "images") return matchesSearch && item.type.startsWith("image/")
+    if (activeTab === "documents")
+      return (
+        matchesSearch &&
+        (item.type.includes("pdf") ||
+          item.type.includes("doc") ||
+          item.type.includes("xls") ||
+          item.type.includes("ppt"))
+      )
+
+    return matchesSearch
+  })
+
+  const handleDeleteMedia = async (id: string) => {
+    if (!canEdit) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to delete media",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (!confirm("Are you sure you want to delete this media item?")) {
       return
     }
 
     try {
       // In a real implementation, this would call an API
-      // const response = await fetch(`/api/admin/media/${id}`, {
-      //   method: 'DELETE',
-      // })
+      // Simulate API call
+      setMediaItems((prev) => prev.filter((item) => item.id !== id))
 
-      // if (!response.ok) {
-      //   throw new Error('Failed to delete media item')
-      // }
-
-      // Simulate successful deletion
-      setMediaItems((prev) => prev.filter((item) => item._id !== id))
+      if (selectedItem?.id === id) {
+        setSelectedItem(null)
+      }
 
       toast({
-        title: "Media Deleted",
-        description: "Media item has been deleted successfully",
+        title: "Success",
+        description: "Media deleted successfully",
       })
     } catch (error) {
-      console.error("Error deleting media:", error)
+      console.error("Failed to delete media:", error)
       toast({
         title: "Error",
-        description: "Failed to delete media item",
+        description: "Failed to delete media",
         variant: "destructive",
       })
     }
   }
 
-  const filteredMediaItems = mediaItems.filter((item) => {
-    const matchesSearch =
-      item.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+  const handleCopyUrl = (url: string) => {
+    navigator.clipboard.writeText(url)
+    toast({
+      title: "URL Copied",
+      description: "Media URL copied to clipboard",
+    })
+  }
 
-    const matchesType = selectedType === "all" || item.type === selectedType
+  const handleAddMedia = () => {
+    if (!canEdit) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to add media",
+        variant: "destructive",
+      })
+      return
+    }
 
-    return matchesSearch && matchesType
-  })
+    if (!newMediaUrl) {
+      toast({
+        title: "Error",
+        description: "Please provide a media URL or upload a file",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // In a real implementation, this would call an API to add the media
+    // For now, we'll simulate adding it to our local state
+    const newItem: MediaItem = {
+      id: `new-${Date.now()}`,
+      name: newMediaUrl.split("/").pop() || `media-${Date.now()}`,
+      url: newMediaUrl,
+      type: "image/jpeg", // Assuming it's an image
+      size: 100000, // Dummy size
+      uploadedAt: new Date().toISOString(),
+      dimensions: {
+        width: 800,
+        height: 600,
+      },
+    }
+
+    setMediaItems((prev) => [newItem, ...prev])
+    setNewMediaUrl("")
+
+    toast({
+      title: "Success",
+      description: "Media added successfully",
+    })
+  }
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + " B"
     else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB"
     else return (bytes / 1048576).toFixed(1) + " MB"
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
   }
 
   if (isLoading) {
@@ -241,354 +240,309 @@ export default function MediaLibraryPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Media Library</h1>
-        <Link href="/admin/media/upload">
-          <Button className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Upload Media
-          </Button>
-        </Link>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Media Assets</CardTitle>
-          <CardDescription>Manage images, videos, and documents used across your website</CardDescription>
+          <CardDescription>Manage your images and other media files</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <Input
-                placeholder="Search by filename or tag..."
-                className="pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-2">
-                    <Filter className="h-4 w-4" />
-                    {selectedType === "all" ? "All Types" : selectedType}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => setSelectedType("all")}>All Types</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSelectedType("image")}>Images</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSelectedType("document")}>Documents</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSelectedType("video")}>Videos</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSelectedType("other")}>Other</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <div className="border rounded-md flex">
-                <Button
-                  variant={viewMode === "grid" ? "default" : "ghost"}
-                  size="icon"
-                  onClick={() => setViewMode("grid")}
-                  className="rounded-none rounded-l-md"
-                >
-                  <Grid className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "list" ? "default" : "ghost"}
-                  size="icon"
-                  onClick={() => setViewMode("list")}
-                  className="rounded-none rounded-r-md"
-                >
-                  <List className="h-4 w-4" />
-                </Button>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <div className="flex justify-between items-center mb-6">
+              <TabsList>
+                <TabsTrigger value="all">All Media</TabsTrigger>
+                <TabsTrigger value="images">Images</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
+              </TabsList>
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <Input
+                  placeholder="Search media..."
+                  className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
             </div>
-          </div>
 
-          {filteredMediaItems.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No media items found</div>
-          ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {filteredMediaItems.map((item) => (
-                <div key={item._id} className="border rounded-md overflow-hidden">
-                  <div className="relative aspect-square bg-gray-100 flex items-center justify-center">
-                    {item.type === "image" ? (
-                      <img
-                        src={item.url || "/placeholder.svg"}
-                        alt={item.filename}
-                        className="object-cover w-full h-full"
-                        onError={(e) => {
-                          ;(e.target as HTMLImageElement).src = "/placeholder.svg?height=200&width=200"
-                        }}
-                      />
-                    ) : item.type === "document" ? (
-                      <div className="flex flex-col items-center justify-center p-4">
-                        <svg
-                          className="w-12 h-12 text-gray-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                          />
-                        </svg>
-                        <span className="mt-2 text-xs text-gray-500 truncate max-w-full">{item.filename}</span>
-                      </div>
-                    ) : item.type === "video" ? (
-                      <div className="flex flex-col items-center justify-center p-4">
-                        <svg
-                          className="w-12 h-12 text-gray-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                          />
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        <span className="mt-2 text-xs text-gray-500 truncate max-w-full">{item.filename}</span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center p-4">
-                        <svg
-                          className="w-12 h-12 text-gray-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                          />
-                        </svg>
-                        <span className="mt-2 text-xs text-gray-500 truncate max-w-full">{item.filename}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="text-sm font-medium truncate" title={item.filename}>
-                        {item.filename}
-                      </h3>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-500">{formatFileSize(item.size)}</span>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopyUrl(item.url)}>
-                          <Copy className="h-3.5 w-3.5" />
-                        </Button>
+            <TabsContent value="all" className="mt-0">
+              <div className="space-y-6">
+                {/* Upload Section */}
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Add New Media</h3>
+                      <MediaUpload currentImageUrl={newMediaUrl} onImageSelected={setNewMediaUrl} disabled={!canEdit} />
+                      <div className="flex justify-end">
                         <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-red-500"
-                          onClick={() => handleDelete(item._id)}
+                          onClick={handleAddMedia}
+                          disabled={!newMediaUrl || !canEdit}
+                          className="flex items-center gap-2"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Plus className="h-4 w-4" />
+                          Add to Library
                         </Button>
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+
+                {/* Media Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredItems.length === 0 ? (
+                    <div className="col-span-full text-center py-12 text-gray-500">
+                      <FolderOpen className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                      <p>No media items found</p>
+                    </div>
+                  ) : (
+                    filteredItems.map((item) => (
+                      <Card
+                        key={item.id}
+                        className={`overflow-hidden cursor-pointer transition-shadow hover:shadow-md ${
+                          selectedItem?.id === item.id ? "ring-2 ring-blue-500" : ""
+                        }`}
+                        onClick={() => setSelectedItem(item)}
+                      >
+                        <div className="aspect-video relative bg-gray-100">
+                          <img
+                            src={item.url || "/placeholder.svg"}
+                            alt={item.name}
+                            className="object-cover w-full h-full"
+                            onError={(e) => {
+                              ;(e.target as HTMLImageElement).src =
+                                "/placeholder.svg?height=200&width=300&text=Preview+Not+Available"
+                            }}
+                          />
+                        </div>
+                        <CardContent className="p-3">
+                          <div className="flex justify-between items-start">
+                            <div className="truncate">
+                              <p className="font-medium truncate" title={item.name}>
+                                {item.name}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {formatFileSize(item.size)} • {formatDate(item.uploadedAt)}
+                              </p>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleCopyUrl(item.url)
+                                }}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                              {canEdit && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-red-500"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteMedia(item.id)
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="images" className="mt-0">
+              {/* Same structure as "all" tab but filtered for images */}
+              <div className="space-y-6">
+                {/* Upload Section (same as above) */}
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Add New Image</h3>
+                      <MediaUpload currentImageUrl={newMediaUrl} onImageSelected={setNewMediaUrl} disabled={!canEdit} />
+                      <div className="flex justify-end">
+                        <Button
+                          onClick={handleAddMedia}
+                          disabled={!newMediaUrl || !canEdit}
+                          className="flex items-center gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add to Library
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Media Grid (filtered for images) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredItems.length === 0 ? (
+                    <div className="col-span-full text-center py-12 text-gray-500">
+                      <FolderOpen className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                      <p>No images found</p>
+                    </div>
+                  ) : (
+                    filteredItems.map((item) => (
+                      <Card
+                        key={item.id}
+                        className={`overflow-hidden cursor-pointer transition-shadow hover:shadow-md ${
+                          selectedItem?.id === item.id ? "ring-2 ring-blue-500" : ""
+                        }`}
+                        onClick={() => setSelectedItem(item)}
+                      >
+                        <div className="aspect-video relative bg-gray-100">
+                          <img
+                            src={item.url || "/placeholder.svg"}
+                            alt={item.name}
+                            className="object-cover w-full h-full"
+                            onError={(e) => {
+                              ;(e.target as HTMLImageElement).src =
+                                "/placeholder.svg?height=200&width=300&text=Preview+Not+Available"
+                            }}
+                          />
+                        </div>
+                        <CardContent className="p-3">
+                          <div className="flex justify-between items-start">
+                            <div className="truncate">
+                              <p className="font-medium truncate" title={item.name}>
+                                {item.name}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {formatFileSize(item.size)} • {formatDate(item.uploadedAt)}
+                              </p>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleCopyUrl(item.url)
+                                }}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                              {canEdit && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-red-500"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteMedia(item.id)
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="documents" className="mt-0">
+              {/* Similar structure for documents tab */}
+              <div className="col-span-full text-center py-12 text-gray-500">
+                <FolderOpen className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <p>No documents found</p>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* Media Details Panel (shows when an item is selected) */}
+      {selectedItem && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Media Details</CardTitle>
+            <CardDescription>Information about the selected media</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-gray-100 rounded-md overflow-hidden flex items-center justify-center">
+                <img
+                  src={selectedItem.url || "/placeholder.svg"}
+                  alt={selectedItem.name}
+                  className="max-w-full max-h-[300px] object-contain"
+                  onError={(e) => {
+                    ;(e.target as HTMLImageElement).src =
+                      "/placeholder.svg?height=300&width=400&text=Preview+Not+Available"
+                  }}
+                />
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm text-gray-500">File Name</Label>
+                  <p className="font-medium">{selectedItem.name}</p>
+                </div>
+                <div>
+                  <Label className="text-sm text-gray-500">URL</Label>
+                  <div className="flex gap-2 items-center">
+                    <Input value={selectedItem.url} readOnly className="bg-gray-50" />
+                    <Button variant="outline" size="icon" onClick={() => handleCopyUrl(selectedItem.url)}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-              ))}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm text-gray-500">Type</Label>
+                    <p>{selectedItem.type}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-gray-500">Size</Label>
+                    <p>{formatFileSize(selectedItem.size)}</p>
+                  </div>
+                  {selectedItem.dimensions && (
+                    <>
+                      <div>
+                        <Label className="text-sm text-gray-500">Width</Label>
+                        <p>{selectedItem.dimensions.width}px</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm text-gray-500">Height</Label>
+                        <p>{selectedItem.dimensions.height}px</p>
+                      </div>
+                    </>
+                  )}
+                  <div>
+                    <Label className="text-sm text-gray-500">Uploaded</Label>
+                    <p>{formatDate(selectedItem.uploadedAt)}</p>
+                  </div>
+                </div>
+                {canEdit && (
+                  <div className="pt-4">
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleDeleteMedia(selectedItem.id)}
+                      className="flex items-center gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Media
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="rounded-md border">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      File
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      Type
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      Size
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      Uploaded
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      Tags
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredMediaItems.map((item) => (
-                    <tr key={item._id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 bg-gray-100 rounded-md flex items-center justify-center">
-                            {item.type === "image" ? (
-                              <img
-                                src={item.url || "/placeholder.svg"}
-                                alt={item.filename}
-                                className="h-10 w-10 object-cover rounded-md"
-                                onError={(e) => {
-                                  ;(e.target as HTMLImageElement).src = "/placeholder.svg?height=40&width=40"
-                                }}
-                              />
-                            ) : item.type === "document" ? (
-                              <svg
-                                className="w-6 h-6 text-gray-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                                />
-                              </svg>
-                            ) : item.type === "video" ? (
-                              <svg
-                                className="w-6 h-6 text-gray-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                                />
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                />
-                              </svg>
-                            ) : (
-                              <svg
-                                className="w-6 h-6 text-gray-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                />
-                              </svg>
-                            )}
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900 truncate max-w-xs" title={item.filename}>
-                              {item.filename}
-                            </div>
-                            <div className="text-sm text-gray-500 truncate max-w-xs" title={item.url}>
-                              {item.url}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                          {item.type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatFileSize(item.size)}
-                        {item.dimensions && (
-                          <div className="text-xs text-gray-400">
-                            {item.dimensions.width} × {item.dimensions.height}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(item.uploadedAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-wrap gap-1">
-                          {item.tags.map((tag, index) => (
-                            <Badge key={index} variant="secondary" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="flex items-center gap-1"
-                            onClick={() => handleCopyUrl(item.url)}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                            Copy URL
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="flex items-center gap-1 text-red-500"
-                            onClick={() => handleDelete(item._id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <div className="text-sm text-gray-500">
-            Showing {filteredMediaItems.length} of {mediaItems.length} media items
-          </div>
-        </CardFooter>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

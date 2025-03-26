@@ -3,16 +3,41 @@ import { cookies } from "next/headers"
 
 export async function GET() {
   try {
-    const session = cookies().get("admin_session")
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get("admin_session")
 
-    if (session && session.value === "authenticated") {
-      return NextResponse.json({ authenticated: true })
+    if (sessionCookie && sessionCookie.value) {
+      try {
+        // Parse the JSON session data
+        const userData = JSON.parse(sessionCookie.value)
+
+        // Check if the user is active
+        if (userData && userData.isActive) {
+          return NextResponse.json({
+            authenticated: true,
+            user: userData,
+          })
+        }
+      } catch (error) {
+        console.error("Error parsing session cookie:", error)
+      }
     }
 
-    return NextResponse.json({ authenticated: false, message: "Not authenticated" }, { status: 401 })
+    return NextResponse.json(
+      {
+        authenticated: false,
+        message: "Not authenticated",
+      },
+      { status: 401 },
+    )
   } catch (error) {
     console.error("Auth check error:", error)
-    return NextResponse.json({ message: "An error occurred checking authentication" }, { status: 500 })
+    return NextResponse.json(
+      {
+        message: "An error occurred checking authentication",
+      },
+      { status: 500 },
+    )
   }
 }
 

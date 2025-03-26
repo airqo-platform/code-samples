@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Lock } from "lucide-react"
+import { Lock, AlertCircle } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function AdminLogin() {
   const [username, setUsername] = useState("")
@@ -18,13 +19,14 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const router = useRouter()
+  const { login, isAuthenticated, checkAuth } = useAuth()
 
   // Check if already authenticated
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuthStatus = async () => {
       try {
-        const response = await fetch("/api/admin/auth/check")
-        if (response.ok) {
+        const isAuthed = await checkAuth()
+        if (isAuthed) {
           // If already authenticated, redirect to admin dashboard
           router.push("/admin")
         }
@@ -35,8 +37,8 @@ export default function AdminLogin() {
       }
     }
 
-    checkAuth()
-  }, [router])
+    checkAuthStatus()
+  }, [router, checkAuth])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,19 +46,11 @@ export default function AdminLogin() {
     setIsLoading(true)
 
     try {
-      const response = await fetch("/api/admin/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ username, password }),
-      })
-
-      if (response.ok) {
+      const success = await login(username, password)
+      if (success) {
         router.push("/admin")
       } else {
-        const data = await response.json()
-        setError(data.message || "Login failed")
+        setError("Invalid username or password")
       }
     } catch (error) {
       setError("An error occurred. Please try again.")
@@ -74,6 +68,11 @@ export default function AdminLogin() {
     )
   }
 
+  if (isAuthenticated) {
+    router.push("/admin")
+    return null
+  }
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <Card className="w-full max-w-md">
@@ -85,6 +84,7 @@ export default function AdminLogin() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -113,7 +113,7 @@ export default function AdminLogin() {
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
                 <>
-                  <span className="animate-spin mr-2">⏳</span>
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
                   Logging in...
                 </>
               ) : (
@@ -129,7 +129,13 @@ export default function AdminLogin() {
           <div className="w-full">
             <p className="mb-2">Protected area. Unauthorized access is prohibited.</p>
             <p className="text-xs text-blue-600">
-              For demo purposes, use: <strong>admin</strong> / <strong>password123</strong>
+              For demo purposes, use:
+              <br />
+              <strong>admin</strong> / <strong>password123</strong> (Admin)
+              <br />
+              <strong>editor</strong> / <strong>editor123</strong> (Editor)
+              <br />
+              <strong>viewer</strong> / <strong>viewer123</strong> (Viewer)
             </p>
           </div>
         </CardFooter>

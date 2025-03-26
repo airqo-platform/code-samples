@@ -5,19 +5,30 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
-import { LayoutDashboard, FileText, BrainCircuit, ImageIcon, Settings, LogOut, Menu, X } from "lucide-react"
+import { LayoutDashboard, FileText, BrainCircuit, ImageIcon, Settings, LogOut, Menu, X, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/hooks/use-toast"
+import { type User, canAccessFeature } from "@/lib/auth"
+
+interface NavItem {
+  name: string
+  href: string
+  icon: React.ReactNode
+  feature: "users" | "features" | "ai-technologies" | "media" | "settings"
+}
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
+  const { toast } = useToast()
 
   // Skip authentication check for login page
   const isLoginPage = pathname === "/admin/login"
@@ -34,7 +45,14 @@ export default function AdminLayout({
       try {
         const response = await fetch("/api/admin/auth/check")
         if (response.ok) {
-          setIsAuthenticated(true)
+          const data = await response.json()
+          if (data.authenticated && data.user) {
+            setCurrentUser(data.user)
+            setIsAuthenticated(true)
+          } else {
+            // Redirect to login page if not authenticated
+            router.push("/admin/login")
+          }
         } else {
           // Redirect to login page if not authenticated
           router.push("/admin/login")
@@ -62,12 +80,24 @@ export default function AdminLayout({
       })
 
       if (response.ok) {
+        setCurrentUser(null)
+        setIsAuthenticated(false)
         router.push("/admin/login")
       } else {
         console.error("Logout failed: Server returned an error")
+        toast({
+          title: "Error",
+          description: "Failed to log out, please try again",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Logout failed:", error)
+      toast({
+        title: "Error",
+        description: "Failed to log out, please try again",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -90,13 +120,22 @@ export default function AdminLayout({
     return null // Will redirect to login in useEffect
   }
 
-  const navItems = [
-    { name: "Dashboard", href: "/admin", icon: <LayoutDashboard className="h-5 w-5" /> },
-    { name: "Features", href: "/admin/features", icon: <FileText className="h-5 w-5" /> },
-    { name: "AI Technologies", href: "/admin/ai-technologies", icon: <BrainCircuit className="h-5 w-5" /> },
-    { name: "Media Library", href: "/admin/media", icon: <ImageIcon className="h-5 w-5" /> },
-    { name: "Settings", href: "/admin/settings", icon: <Settings className="h-5 w-5" /> },
+  const navItems: NavItem[] = [
+    { name: "Dashboard", href: "/admin", icon: <LayoutDashboard className="h-5 w-5" />, feature: "features" },
+    { name: "Features", href: "/admin/features", icon: <FileText className="h-5 w-5" />, feature: "features" },
+    {
+      name: "AI Technologies",
+      href: "/admin/ai-technologies",
+      icon: <BrainCircuit className="h-5 w-5" />,
+      feature: "ai-technologies",
+    },
+    { name: "Media Library", href: "/admin/media", icon: <ImageIcon className="h-5 w-5" />, feature: "media" },
+    { name: "Users", href: "/admin/users", icon: <Users className="h-5 w-5" />, feature: "users" },
+    { name: "Settings", href: "/admin/settings", icon: <Settings className="h-5 w-5" />, feature: "settings" },
   ]
+
+  // Filter nav items based on user access
+  const allowedNavItems = navItems.filter((item) => currentUser && canAccessFeature(currentUser, item.feature))
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -116,9 +155,14 @@ export default function AdminLayout({
         <div className="flex flex-col h-full">
           <div className="p-6 border-b">
             <h1 className="text-xl font-bold text-blue-600">AirQo Admin</h1>
+            {currentUser && (
+              <div className="text-sm text-gray-500 mt-2">
+                <span className="font-medium capitalize">{currentUser.role}</span> · {currentUser.username}
+              </div>
+            )}
           </div>
           <nav className="flex-1 p-4 space-y-1">
-            {navItems.map((item) => (
+            {allowedNavItems.map((item) => (
               <Link
                 key={item.name}
                 href={item.href}

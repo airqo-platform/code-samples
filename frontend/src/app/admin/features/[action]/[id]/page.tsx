@@ -12,8 +12,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Save, Trash2, Upload, Eye } from "lucide-react"
+import { ArrowLeft, Save, Trash2, Eye, AlertCircle } from "lucide-react"
 import Link from "next/link"
+import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { canEditContent } from "@/lib/auth"
+import { useAuth } from "@/hooks/use-auth"
+import { MediaUpload } from "@/components/admin/media-upload"
 
 interface Feature {
   id: string
@@ -47,6 +52,7 @@ interface Feature {
     description: string
   }
   heroImage: string
+  updatedAt: string
 }
 
 const ICON_OPTIONS = [
@@ -64,10 +70,13 @@ export default function FeatureForm() {
   const { action, id } = params
   const isEditing = action === "edit"
   const isNew = action === "new"
+  const { user } = useAuth()
 
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState("general")
+  const [error, setError] = useState("")
+  const { toast } = useToast()
 
   const [feature, setFeature] = useState<Feature>({
     id: "",
@@ -104,7 +113,11 @@ export default function FeatureForm() {
       description: "",
     },
     heroImage: "",
+    updatedAt: new Date().toISOString(),
   })
+
+  // Check if user has edit permissions
+  const canEdit = canEditContent(user)
 
   useEffect(() => {
     const fetchFeature = async () => {
@@ -179,12 +192,14 @@ export default function FeatureForm() {
               description:
                 "Our AI-powered site location tool helps you determine the most effective places to position air quality monitors.",
             },
-            heroImage: "/images/site-location.jpg",
+            heroImage: "/placeholder.svg?height=400&width=800&text=Site+Location+Image",
+            updatedAt: "2023-07-15T10:30:00Z",
           }
           setFeature(mockFeature)
         }
       } catch (error) {
         console.error("Failed to fetch feature:", error)
+        setError("Failed to load feature data. Please try again.")
       } finally {
         setIsLoading(false)
       }
@@ -194,6 +209,8 @@ export default function FeatureForm() {
   }, [id, isEditing, isNew])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (!canEdit) return
+
     const { name, value } = e.target
     setFeature((prev) => ({
       ...prev,
@@ -202,6 +219,8 @@ export default function FeatureForm() {
   }
 
   const handleContentChange = (section: string, field: string, value: string) => {
+    if (!canEdit) return
+
     setFeature((prev) => ({
       ...prev,
       content: {
@@ -215,6 +234,8 @@ export default function FeatureForm() {
   }
 
   const handleStepChange = (index: number, field: string, value: string) => {
+    if (!canEdit) return
+
     setFeature((prev) => {
       const newSteps = [...prev.content.howItWorks.steps]
       newSteps[index] = {
@@ -235,6 +256,8 @@ export default function FeatureForm() {
   }
 
   const handleBenefitChange = (index: number, field: string, value: string) => {
+    if (!canEdit) return
+
     setFeature((prev) => {
       const newBenefits = [...prev.content.benefits.items]
       newBenefits[index] = {
@@ -255,6 +278,8 @@ export default function FeatureForm() {
   }
 
   const handleSeoChange = (field: string, value: string) => {
+    if (!canEdit) return
+
     setFeature((prev) => ({
       ...prev,
       seo: {
@@ -265,14 +290,53 @@ export default function FeatureForm() {
   }
 
   const handleStatusChange = (checked: boolean) => {
+    if (!canEdit) return
+
     setFeature((prev) => ({
       ...prev,
       status: checked ? "published" : "draft",
     }))
   }
 
+  const handleImageChange = (url: string) => {
+    if (!canEdit) return
+
+    setFeature((prev) => ({
+      ...prev,
+      heroImage: url,
+    }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!canEdit) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to make changes",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!feature.title) {
+      toast({
+        title: "Validation Error",
+        description: "Feature title is required",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!feature.slug) {
+      toast({
+        title: "Validation Error",
+        description: "Feature slug is required",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSaving(true)
 
     try {
@@ -285,12 +349,15 @@ export default function FeatureForm() {
       router.push("/admin/features")
     } catch (error) {
       console.error("Failed to save feature:", error)
+      setError("Failed to save feature. Please try again.")
     } finally {
       setIsSaving(false)
     }
   }
 
   const generateSlug = () => {
+    if (!canEdit) return
+
     const slug = feature.title
       .toLowerCase()
       .replace(/[^\w\s]/gi, "")
@@ -338,7 +405,7 @@ export default function FeatureForm() {
             <Trash2 className="h-4 w-4" />
             Cancel
           </Button>
-          <Button className="flex items-center gap-2" onClick={handleSubmit} disabled={isSaving}>
+          <Button className="flex items-center gap-2" onClick={handleSubmit} disabled={isSaving || !canEdit}>
             {isSaving ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
@@ -353,6 +420,22 @@ export default function FeatureForm() {
           </Button>
         </div>
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {!canEdit && (
+        <Alert variant="warning" className="bg-yellow-50 border-yellow-200">
+          <AlertCircle className="h-4 w-4 text-yellow-700" />
+          <AlertDescription className="text-yellow-700">
+            You are in view-only mode. Contact an administrator for edit access.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit}>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -380,15 +463,19 @@ export default function FeatureForm() {
                     onChange={handleInputChange}
                     placeholder="Feature title"
                     required
+                    readOnly={!canEdit}
+                    className={!canEdit ? "bg-gray-100" : ""}
                   />
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <Label htmlFor="slug">Slug</Label>
-                    <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={generateSlug}>
-                      Generate from title
-                    </Button>
+                    {canEdit && (
+                      <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={generateSlug}>
+                        Generate from title
+                      </Button>
+                    )}
                   </div>
                   <Input
                     id="slug"
@@ -397,6 +484,8 @@ export default function FeatureForm() {
                     onChange={handleInputChange}
                     placeholder="feature-slug"
                     required
+                    readOnly={!canEdit}
+                    className={!canEdit ? "bg-gray-100" : ""}
                   />
                 </div>
 
@@ -410,6 +499,8 @@ export default function FeatureForm() {
                     placeholder="Brief description of the feature"
                     rows={3}
                     required
+                    readOnly={!canEdit}
+                    className={!canEdit ? "bg-gray-100" : ""}
                   />
                 </div>
 
@@ -417,9 +508,10 @@ export default function FeatureForm() {
                   <Label htmlFor="icon">Icon</Label>
                   <Select
                     value={feature.icon}
-                    onValueChange={(value) => setFeature((prev) => ({ ...prev, icon: value }))}
+                    onValueChange={(value) => canEdit && setFeature((prev) => ({ ...prev, icon: value }))}
+                    disabled={!canEdit}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={!canEdit ? "bg-gray-100" : ""}>
                       <SelectValue placeholder="Select an icon" />
                     </SelectTrigger>
                     <SelectContent>
@@ -433,7 +525,12 @@ export default function FeatureForm() {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Switch id="status" checked={feature.status === "published"} onCheckedChange={handleStatusChange} />
+                  <Switch
+                    id="status"
+                    checked={feature.status === "published"}
+                    onCheckedChange={handleStatusChange}
+                    disabled={!canEdit}
+                  />
                   <Label htmlFor="status">{feature.status === "published" ? "Published" : "Draft"}</Label>
                 </div>
               </CardContent>
@@ -458,6 +555,8 @@ export default function FeatureForm() {
                       value={feature.content.heroTitle}
                       onChange={(e) => handleContentChange("heroTitle", "", e.target.value)}
                       placeholder="Main title for the feature page"
+                      readOnly={!canEdit}
+                      className={!canEdit ? "bg-gray-100" : ""}
                     />
                   </div>
 
@@ -469,6 +568,8 @@ export default function FeatureForm() {
                       onChange={(e) => handleContentChange("heroDescription", "", e.target.value)}
                       placeholder="Detailed description of the feature"
                       rows={4}
+                      readOnly={!canEdit}
+                      className={!canEdit ? "bg-gray-100" : ""}
                     />
                   </div>
                 </div>
@@ -483,6 +584,8 @@ export default function FeatureForm() {
                       value={feature.content.howItWorks.title}
                       onChange={(e) => handleContentChange("howItWorks", "title", e.target.value)}
                       placeholder="How It Works"
+                      readOnly={!canEdit}
+                      className={!canEdit ? "bg-gray-100" : ""}
                     />
                   </div>
 
@@ -497,6 +600,8 @@ export default function FeatureForm() {
                             value={step.title}
                             onChange={(e) => handleStepChange(index, "title", e.target.value)}
                             placeholder={`Step ${index + 1} title`}
+                            readOnly={!canEdit}
+                            className={!canEdit ? "bg-gray-100" : ""}
                           />
                         </div>
                         <div className="space-y-2 mt-2">
@@ -507,6 +612,8 @@ export default function FeatureForm() {
                             onChange={(e) => handleStepChange(index, "description", e.target.value)}
                             placeholder={`Step ${index + 1} description`}
                             rows={2}
+                            readOnly={!canEdit}
+                            className={!canEdit ? "bg-gray-100" : ""}
                           />
                         </div>
                       </div>
@@ -524,6 +631,8 @@ export default function FeatureForm() {
                       value={feature.content.benefits.title}
                       onChange={(e) => handleContentChange("benefits", "title", e.target.value)}
                       placeholder="Key Benefits"
+                      readOnly={!canEdit}
+                      className={!canEdit ? "bg-gray-100" : ""}
                     />
                   </div>
 
@@ -538,6 +647,8 @@ export default function FeatureForm() {
                             value={benefit.title}
                             onChange={(e) => handleBenefitChange(index, "title", e.target.value)}
                             placeholder={`Benefit ${index + 1} title`}
+                            readOnly={!canEdit}
+                            className={!canEdit ? "bg-gray-100" : ""}
                           />
                         </div>
                         <div className="space-y-2 mt-2">
@@ -548,6 +659,8 @@ export default function FeatureForm() {
                             onChange={(e) => handleBenefitChange(index, "description", e.target.value)}
                             placeholder={`Benefit ${index + 1} description`}
                             rows={2}
+                            readOnly={!canEdit}
+                            className={!canEdit ? "bg-gray-100" : ""}
                           />
                         </div>
                       </div>
@@ -565,6 +678,8 @@ export default function FeatureForm() {
                       value={feature.content.ctaTitle}
                       onChange={(e) => handleContentChange("ctaTitle", "", e.target.value)}
                       placeholder="Ready to try this feature?"
+                      readOnly={!canEdit}
+                      className={!canEdit ? "bg-gray-100" : ""}
                     />
                   </div>
 
@@ -575,6 +690,8 @@ export default function FeatureForm() {
                       value={feature.content.ctaButtonText}
                       onChange={(e) => handleContentChange("ctaButtonText", "", e.target.value)}
                       placeholder="Try Now"
+                      readOnly={!canEdit}
+                      className={!canEdit ? "bg-gray-100" : ""}
                     />
                   </div>
                 </div>
@@ -593,40 +710,11 @@ export default function FeatureForm() {
                 <div className="space-y-4">
                   <h3 className="text-lg font-medium">Hero Image</h3>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="heroImage">Image Path</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="heroImage"
-                        value={feature.heroImage}
-                        onChange={(e) => setFeature((prev) => ({ ...prev, heroImage: e.target.value }))}
-                        placeholder="/images/feature-image.jpg"
-                        className="flex-1"
-                      />
-                      <Button type="button" variant="outline" className="flex items-center gap-2">
-                        <Upload className="h-4 w-4" />
-                        Browse
-                      </Button>
-                    </div>
-                  </div>
-
-                  {feature.heroImage && (
-                    <div className="mt-4">
-                      <h4 className="text-sm font-medium mb-2">Preview</h4>
-                      <div className="relative h-[200px] w-full rounded-md overflow-hidden border">
-                        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                          <img
-                            src={feature.heroImage || "/placeholder.svg"}
-                            alt="Hero preview"
-                            className="object-cover w-full h-full"
-                            onError={(e) => {
-                              ;(e.target as HTMLImageElement).src = "/placeholder.svg?height=200&width=400"
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <MediaUpload
+                    currentImageUrl={feature.heroImage}
+                    onImageSelected={handleImageChange}
+                    disabled={!canEdit}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -647,6 +735,8 @@ export default function FeatureForm() {
                     value={feature.seo.title}
                     onChange={(e) => handleSeoChange("title", e.target.value)}
                     placeholder="SEO title (appears in browser tab)"
+                    readOnly={!canEdit}
+                    className={!canEdit ? "bg-gray-100" : ""}
                   />
                   <p className="text-xs text-gray-500">Recommended length: 50-60 characters</p>
                 </div>
@@ -659,6 +749,8 @@ export default function FeatureForm() {
                     onChange={(e) => handleSeoChange("description", e.target.value)}
                     placeholder="Brief description for search engines"
                     rows={3}
+                    readOnly={!canEdit}
+                    className={!canEdit ? "bg-gray-100" : ""}
                   />
                   <p className="text-xs text-gray-500">Recommended length: 150-160 characters</p>
                 </div>
