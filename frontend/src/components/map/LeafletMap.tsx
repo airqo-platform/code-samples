@@ -210,7 +210,7 @@ const SearchControl: React.FC<{
     const searchControl = new GeoSearchControl({
       provider,
       style: "bar",
-      position: "topleft",
+      position: "topright", // Changed from topleft to topright
     })
 
     map.addControl(searchControl)
@@ -219,6 +219,13 @@ const SearchControl: React.FC<{
     const searchBar = document.querySelector(".leaflet-control-geosearch form")
     if (searchBar) {
       searchBar.classList.add("bg-white", "text-black", "border", "border-gray-400", "rounded-md", "relative")
+
+      // Adjust the width and positioning
+      const searchContainer = document.querySelector(".leaflet-control-geosearch")
+      if (searchContainer) {
+        // Position the search bar on the right side
+        searchContainer.classList.add("!right-4", "!top-4", "!left-auto", "!transform-none", "!w-64")
+      }
 
       // Create and add the search icon
       const searchIcon = document.createElement("div")
