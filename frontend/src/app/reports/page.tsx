@@ -1,7 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card";
-import { Sparkles, BarChart3, BrainCircuit,HeartPulse, Globe  } from "lucide-react";
-import Navigation from "@/components/navigation/navigation";
-import { ReactNode } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card"
+import { Sparkles, BarChart3, BrainCircuit, HeartPulse, Globe } from "lucide-react"
+import Navigation from "@/components/navigation/navigation"
+import type { ReactNode } from "react"
 
 export default function ReportPage() {
   return (
@@ -9,7 +9,7 @@ export default function ReportPage() {
       <Navigation />
       <ReportContent />
     </div>
-  );
+  )
 }
 
 function ReportContent() {
@@ -20,9 +20,8 @@ function ReportContent() {
         <span>Coming Soon</span>
       </div>
       <p className="text-xl text-gray-600 max-w-2xl">
-        Our AI-powered air quality reports are on the way! Stay tuned for
-        real-time insights and advanced analytics to help you understand air
-        pollution trends like never before.
+        Our AI-powered air quality reports are on the way! Stay tuned for real-time insights and advanced analytics to
+        help you understand air pollution trends like never before.
       </p>
       <Card className="w-full max-w-4xl shadow-lg border border-blue-500 bg-white">
         <CardHeader className="text-center bg-blue-500 text-white rounded-t-lg">
@@ -33,51 +32,33 @@ function ReportContent() {
         </CardHeader>
         <CardContent className="p-6 space-y-6">
           <p className="text-gray-700 text-lg">
-            Leveraging artificial intelligence, we analyze real-time air
-            pollution data to provide accurate insights and actionable
-            recommendations. Our reports cover PM2.5 trends, pollution hotspots,
-            and seasonal variations.
+            Leveraging artificial intelligence, we analyze real-time air pollution data to provide accurate insights and
+            actionable recommendations. Our reports cover PM2.5 trends, pollution hotspots, and seasonal variations.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <InfoBox
-              title="PM2.5 Trends"
-              icon={<BarChart3 className="text-blue-500 w-10 h-10" />}
-            >
-              Analyze pollution levels over time to detect patterns and
-              anomalies.
+            <InfoBox title="PM2.5 Trends" icon={<BarChart3 className="text-blue-500 w-10 h-10" />}>
+              Analyze pollution levels over time to detect patterns and anomalies.
             </InfoBox>
-            <InfoBox
-              title="Regional Analysis"
-              icon={<Globe className="text-green-500 w-10 h-10" />}
-            >
-              Compare air quality across different locations with detailed
-              breakdowns.
+            <InfoBox title="Regional Analysis" icon={<Globe className="text-green-500 w-10 h-10" />}>
+              Compare air quality across different locations with detailed breakdowns.
             </InfoBox>
-            <InfoBox
-              title="Health Impact"
-              icon={<HeartPulse className="text-red-500 w-10 h-10" />}
-            >
-              Understand how pollution affects respiratory health and
-              well-being.
+            <InfoBox title="Health Impact" icon={<HeartPulse className="text-red-500 w-10 h-10" />}>
+              Understand how pollution affects respiratory health and well-being.
             </InfoBox>
-            <InfoBox
-              title="AI Insights"
-              icon={<BrainCircuit className="text-purple-500 w-10 h-10" />}
-            >
-              Smart predictions based on historical data to help communities
-              prepare in advance.
+            <InfoBox title="AI Insights" icon={<BrainCircuit className="text-purple-500 w-10 h-10" />}>
+              Smart predictions based on historical data to help communities prepare in advance.
             </InfoBox>
           </div>
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }
 
 interface InfoBoxProps {
-  title: string;
-  icon: ReactNode;
-  children: ReactNode;
+  title: string
+  icon: ReactNode
+  children: ReactNode
 }
 
 function InfoBox({ title, icon, children }: InfoBoxProps) {
@@ -89,5 +70,6 @@ function InfoBox({ title, icon, children }: InfoBoxProps) {
         <p className="text-gray-600 text-sm">{children}</p>
       </div>
     </div>
-  );
+  )
 }
+
