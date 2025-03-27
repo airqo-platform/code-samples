@@ -509,7 +509,7 @@ function ReportContent() {
       const totalPages = Math.ceil(imgHeight / contentHeight)
 
       // Function to add page number
-      const addPageNumber = (pageNum) => {
+      const addPageNumber = (pageNum: number) => {
         pdf.setFontSize(9) // Smaller font size
         pdf.setTextColor(100, 100, 100)
         pdf.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: "center" })
