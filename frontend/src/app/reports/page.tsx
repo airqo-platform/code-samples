@@ -603,7 +603,7 @@ function ReportContent() {
       <div className="flex flex-1 flex-col items-center px-4 py-12 space-y-10 text-center">
         <div className="text-3xl font-bold text-gray-800">{error || "No report data available"}</div>
         <p className="text-xl text-gray-600 max-w-2xl">
-          We couldn't load the air quality report data. Please try again later.
+          We couldn&apos;t load the air quality report data. Please try again later.
         </p>
       </div>
     )
@@ -696,6 +696,8 @@ function ReportContent() {
     return mostCommon
   }
 
+  const mostCommonCategory = getMostCommonCategory(filteredData)
+    
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="text-center mb-8">
@@ -773,7 +775,7 @@ function ReportContent() {
               </SelectContent>
             </Select>
           </div>
-
+         
           <div>
             <label className="text-sm font-medium mb-1 block">Category</label>
             <Select value={filters.category} onValueChange={(value) => handleFilterChange("category", value)}>
@@ -797,7 +799,7 @@ function ReportContent() {
       <div className="bg-blue-50 rounded-lg p-4 mb-8 border border-blue-100">
         <div className="flex flex-wrap gap-2 items-center">
           <span className="font-medium text-blue-800">Active Filters:</span>
-          {Object.entries(filters).some(([_, value]) => value) ? (
+          {Object.entries(filters).some(([, value]) => value) ? (
             <>
               {filters.country && (
                 <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
@@ -817,6 +819,9 @@ function ReportContent() {
                   Category: {filters.category}
                 </span>
               )}
+              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                Most Common AQI Category: {mostCommonCategory}
+              </span>
             </>
           ) : (
             <span className="text-blue-800 text-sm">None - showing all data</span>
@@ -1125,7 +1130,7 @@ function ReportContent() {
                   : filters.country || filters.city || filters.category
                     ? ` the selected region (${[filters.country, filters.city, filters.district, filters.category].filter(Boolean).join(", ")}).`
                     : " all monitored sites in the AirQo network."}{" "}
-                The data was collected using AirQo's network of low-cost air quality sensors, which measure particulate
+                The data was collected using AirQo&apos;s network of low-cost air quality sensors, which measure particulate
                 matter (PM2.5) and other pollutants in real-time. This report analyzes the current air quality status,
                 compares it with previous periods, and provides health recommendations based on the findings.
               </p>
@@ -1621,7 +1626,7 @@ function SiteCard({
           {onCheckboxChange && (
             <Checkbox
               checked={isCheckboxSelected}
-              onCheckedChange={(checked) => {
+              onCheckedChange={() => {
                 if (onCheckboxChange) onCheckboxChange()
               }}
               onClick={(e) => e.stopPropagation()}
@@ -1927,9 +1932,9 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
   const renderMoranAnalysis = () => (
     <div className="space-y-4">
       <div className="bg-blue-50 p-4 rounded-lg">
-        <h4 className="font-semibold text-blue-800 mb-2">About Local Moran's I</h4>
+        <h4 className="font-semibold text-blue-800 mb-2">About Local Moran&apos;s I</h4>
         <p className="text-blue-700 text-sm">
-          Local Moran's I is a spatial autocorrelation statistic that identifies clusters and spatial outliers. It helps
+          Local Moran&apos;s I is a spatial autocorrelation statistic that identifies clusters and spatial outliers. It helps
           identify areas with similar values clustered together (HH, LL) and areas that are different from their
           neighbors (HL, LH).
         </p>
@@ -1984,7 +1989,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
       </div>
 
       <div className="bg-white p-4 rounded-lg border border-gray-200">
-        <h4 className="font-semibold text-gray-700 mb-2">Key Insights from Local Moran's I Analysis</h4>
+        <h4 className="font-semibold text-gray-700 mb-2">Key Insights from Local Moran&apos;s I Analysis</h4>
         <ul className="list-disc list-inside space-y-1 text-gray-700 text-sm">
           <li>
             <strong>High-High Clusters:</strong> {moranData[0].count} sites show high PM2.5 values clustered together,
@@ -2167,7 +2172,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
               className="flex items-center gap-2"
             >
               <Layers className="h-4 w-4" />
-              Local Moran's I
+              Local Moran&apos;s I
             </Button>
             <Button
               variant={localActiveTab === "getis" ? "default" : "outline"}
@@ -2185,7 +2190,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
       {effectiveTab === "both" ? (
         <>
           <div className="mb-8">
-            <h3 className="text-2xl font-semibold text-blue-800 mb-4">Local Moran's I Analysis</h3>
+            <h3 className="text-2xl font-semibold text-blue-800 mb-4">Local Moran&apos;s I Analysis</h3>
             {renderMoranAnalysis()}
           </div>
           <div className="pt-8 border-t border-gray-200">
