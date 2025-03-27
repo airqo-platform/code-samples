@@ -2,18 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card"
-import {
-  BarChart3,
-  HeartPulse,
-  Globe,
-  ArrowDown,
-  ArrowUp,
-  Minus,
-  FileText,
-  Download,
-  Printer,
-  Share2,
-} from "lucide-react"
+import { BarChart3, HeartPulse, Globe, ArrowDown, ArrowUp, Minus, Download, Printer } from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
 import type { ReactNode } from "react"
 import { getReportData } from "@/services/apiService"
@@ -21,8 +10,6 @@ import { Skeleton } from "@/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
 import { Button } from "@/ui/button"
 import type { SiteData, Filters } from "@/lib/types"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs"
 import { jsPDF } from "jspdf"
 import html2canvas from "html2canvas"
 import { format } from "date-fns"
@@ -447,10 +434,28 @@ function ReportContent() {
         format: "a4",
       })
 
-      const imgWidth = 210 // A4 width in mm
+      const imgWidth = 190 // A4 width in mm minus margins
+      const pageHeight = 297 // A4 height in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width
+      const margins = 10 // 10mm margins on all sides
 
-      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight)
+      // If the report is longer than a page, create multiple pages
+      let heightLeft = imgHeight
+      let position = margins // Start with top margin
+      let pageCount = 1
+
+      // Add first page with margins
+      pdf.addImage(imgData, "PNG", margins, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight - margins * 2
+
+      // Add additional pages if content is longer than one page
+      while (heightLeft > 0) {
+        position = margins - pageHeight * pageCount // Start position for next page
+        pdf.addPage()
+        pdf.addImage(imgData, "PNG", margins, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight - margins * 2
+        pageCount++
+      }
 
       // Generate filename based on filters or selected site
       let filename = "air-quality-report"
@@ -471,6 +476,17 @@ function ReportContent() {
     } finally {
       setIsGeneratingPDF(false)
     }
+  }
+
+  // Add hotspots detection function
+  const getHotspotSites = (sites: SiteData[], limit = 3): SiteData[] => {
+    if (sites.length === 0) return []
+
+    // Sort sites by PM2.5 value in descending order and take the top 'limit' sites
+    return [...sites]
+      .filter((site) => site.pm2_5?.value !== undefined && site.pm2_5?.value !== null)
+      .sort((a, b) => (b.pm2_5?.value || 0) - (a.pm2_5?.value || 0))
+      .slice(0, limit)
   }
 
   if (loading) {
@@ -889,340 +905,11 @@ function ReportContent() {
         </div>
       </div>
 
-      {/* Generate Report Button */}
+      {/* Report Action Buttons */}
       <div className="flex justify-end mb-6">
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-              <FileText className="mr-2 h-4 w-4" />
-              Generate Written Report
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{getReportTitle()}</DialogTitle>
-              <DialogDescription>Generated on {format(new Date(), "MMMM d, yyyy")}</DialogDescription>
-            </DialogHeader>
-
-            <Tabs defaultValue="report" className="mt-4">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="report">Written Report</TabsTrigger>
-                <TabsTrigger value="actions">Actions</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="report" className="p-4">
-                <div ref={reportRef} className="space-y-6">
-                  {/* Report Header */}
-                  <div className="text-center mb-6 border-b pb-6">
-                    <h2 className="text-2xl font-bold text-gray-800">{getReportTitle()}</h2>
-                    <p className="text-gray-600 mt-2">
-                      {getLocationInfo().city}, {getLocationInfo().country}
-                    </p>
-                    <p className="text-gray-500 mt-1">Report Date: {format(new Date(), "MMMM d, yyyy")}</p>
-                  </div>
-
-                  {/* Introduction */}
-                  <div className="mb-8">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-3">Introduction</h3>
-                    <p className="text-gray-700">
-                      This report provides a comprehensive analysis of air quality data for
-                      {selectedSite
-                        ? ` ${selectedSite.siteDetails.name} in ${selectedSite.siteDetails.city || "Unknown City"}, ${selectedSite.siteDetails.country || "Unknown Country"}.`
-                        : filters.country || filters.city || filters.category
-                          ? ` the selected region (${[filters.country, filters.city, filters.district, filters.category].filter(Boolean).join(", ")}).`
-                          : " all monitored sites in the AirQo network."}{" "}
-                      The data was collected using AirQo's network of low-cost air quality sensors, which measure
-                      particulate matter (PM2.5) and other pollutants in real-time. This report analyzes the current air
-                      quality status, compares it with previous periods, and provides health recommendations based on
-                      the findings.
-                    </p>
-                  </div>
-
-                  {/* AQI Index Visualization */}
-                  <div className="mb-8">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-3">Current Air Quality Status</h3>
-                    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                      <AQIIndexVisual
-                        aqiCategory={selectedSite ? selectedSite.aqi_category || "Unknown" : avgAQICategory}
-                        pm25Value={selectedSite ? selectedSite.pm2_5?.value || 0 : avgPM25}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Results Section with Charts */}
-                  <div className="mb-8">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-3">Results</h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <h4 className="font-semibold text-gray-700 mb-1">Sites Analyzed</h4>
-                        <p className="text-2xl font-bold">{filteredData.length}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <h4 className="font-semibold text-gray-700 mb-1">Average PM2.5</h4>
-                        <p className="text-2xl font-bold">{calculateAveragePM25(filteredData).toFixed(1)} µg/m³</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                        <h4 className="font-semibold text-gray-700 mb-1">Weekly Change</h4>
-                        <p className="text-2xl font-bold flex items-center">
-                          {calculateAveragePercentageChange(filteredData).toFixed(1)}%
-                          {calculateAveragePercentageChange(filteredData) < 0 ? (
-                            <ArrowDown className="ml-1 w-5 h-5 text-green-500" />
-                          ) : calculateAveragePercentageChange(filteredData) > 0 ? (
-                            <ArrowUp className="ml-1 w-5 h-5 text-red-500" />
-                          ) : (
-                            <Minus className="ml-1 w-5 h-5 text-gray-500" />
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Charts */}
-                    <div className="space-y-6">
-                      <PM25BarChart sites={filteredData} />
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <AQICategoryChart sites={filteredData} />
-                        <WeeklyComparisonChart sites={filteredData} />
-                      </div>
-                    </div>
-
-                    <div className="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                      <h4 className="font-semibold text-gray-700 mb-2">Key Findings</h4>
-                      <ul className="list-disc list-inside space-y-2 text-gray-700">
-                        <li>
-                          The average PM2.5 concentration is{" "}
-                          <strong>{calculateAveragePM25(filteredData).toFixed(1)} µg/m³</strong>, which is classified as{" "}
-                          <strong>{avgAQICategory}</strong>.
-                        </li>
-                        <li>
-                          There has been a{" "}
-                          <strong>
-                            {Math.abs(calculateAveragePercentageChange(filteredData)).toFixed(1)}%{" "}
-                            {calculateAveragePercentageChange(filteredData) < 0 ? "decrease" : "increase"}
-                          </strong>{" "}
-                          in PM2.5 levels compared to the previous week.
-                        </li>
-                        {Object.entries(calculateAQICategoryCounts(filteredData)).length > 1 && (
-                          <li>
-                            The most common air quality category is{" "}
-                            <strong>{calculateMostCommonCategory(filteredData)}</strong>, representing{" "}
-                            {(
-                              (calculateAQICategoryCounts(filteredData)[calculateMostCommonCategory(filteredData)] /
-                                filteredData.length) *
-                              100
-                            ).toFixed(0)}
-                            % of all sites.
-                          </li>
-                        )}
-                        {selectedSite && (
-                          <li>
-                            {selectedSite.siteDetails.name} has a PM2.5 reading of{" "}
-                            <strong>{(selectedSite.pm2_5?.value || 0).toFixed(1)} µg/m³</strong>, which is{" "}
-                            {compareToAverage(selectedSite.pm2_5?.value || 0, calculateAveragePM25(filteredData))} the
-                            regional average.
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Conclusion */}
-                  <div className="mb-8">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-3">Conclusion</h3>
-                    <p className="text-gray-700 mb-4">{getConclusion(selectedSite, filters, filteredData)}</p>
-
-                    <p className="text-gray-700">{getRegionalInsights(filters, filteredData)}</p>
-                  </div>
-
-                  {/* Recommendations */}
-                  <div className="mb-8">
-                    <h3 className="text-xl font-semibold text-gray-800 mb-3">Recommendations</h3>
-
-                    <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                      <h4 className="font-semibold text-yellow-800 mb-2">Health Recommendations</h4>
-                      <ul className="list-disc list-inside text-yellow-700 space-y-2">
-                        {getHealthRecommendations(
-                          selectedSite ? selectedSite.aqi_category : getAverageAQICategory(filteredData),
-                        ).map((rec, index) => (
-                          <li key={index}>{rec}</li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
-                      <h4 className="font-semibold text-blue-800 mb-2">Policy Recommendations</h4>
-                      <ul className="list-disc list-inside text-blue-700 space-y-2">
-                        {getPolicyRecommendations(
-                          selectedSite ? selectedSite.aqi_category : getAverageAQICategory(filteredData),
-                          filters,
-                        ).map((rec, index) => (
-                          <li key={index}>{rec}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Footer */}
-                  <div className="text-xs text-gray-500 border-t pt-4 mt-6">
-                    <p>
-                      Report generated by AirQo AI Platform on {format(new Date(), "MMMM d, yyyy")} at{" "}
-                      {format(new Date(), "h:mm a")}.
-                    </p>
-                    <p>
-                      Data is based on readings from the AirQo monitoring network. For more information, visit
-                      airqo.net.
-                    </p>
-                  </div>
-
-                  {/* Jump to Categories Button */}
-                  <div className="mt-8 text-center">
-                    <Button
-                      onClick={() => {
-                        const categoriesElement = document.getElementById("categories-section")
-                        if (categoriesElement) {
-                          categoriesElement.scrollIntoView({ behavior: "smooth" })
-                        }
-                      }}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Jump to Device Categories
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="actions" className="p-4">
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Report Actions</h3>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Button
-                      onClick={generatePDF}
-                      disabled={isGeneratingPDF}
-                      className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      {isGeneratingPDF ? (
-                        <>
-                          <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                          Generating PDF...
-                        </>
-                      ) : (
-                        <>
-                          <Download className="mr-2 h-4 w-4" />
-                          Download PDF
-                        </>
-                      )}
-                    </Button>
-
-                    <Button
-                      onClick={() => window.print()}
-                      className="flex items-center justify-center bg-gray-600 hover:bg-gray-700 text-white"
-                    >
-                      <Printer className="mr-2 h-4 w-4" />
-                      Print Report
-                    </Button>
-
-                    <Button
-                      className="flex items-center justify-center bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => {
-                        const reportTitle = getReportTitle()
-                        const url = window.location.href
-                        navigator.clipboard.writeText(`${reportTitle} - ${url}`)
-                        alert("Link copied to clipboard!")
-                      }}
-                    >
-                      <Share2 className="mr-2 h-4 w-4" />
-                      Share Report
-                    </Button>
-                  </div>
-
-                  <div className="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <h4 className="font-medium text-gray-700 mb-2">Select Devices for Detailed Report</h4>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Choose specific monitoring devices to generate detailed reports.
-                    </p>
-
-                    <div className="space-y-4">
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Search devices by name, city, or country"
-                          value={deviceSearch}
-                          onChange={(e) => handleDeviceSearch(e.target.value)}
-                          className="flex-1"
-                        />
-                        <Button variant="outline" onClick={selectAllDevices} className="whitespace-nowrap">
-                          Select All
-                        </Button>
-                        <Button variant="outline" onClick={clearDeviceSelection} className="whitespace-nowrap">
-                          Clear All
-                        </Button>
-                      </div>
-
-                      <div className="max-h-60 overflow-y-auto border rounded-md p-2">
-                        {getFilteredDevices().length > 0 ? (
-                          getFilteredDevices().map((site) => (
-                            <div key={site._id} className="flex items-center space-x-2 py-2 border-b last:border-b-0">
-                              <Checkbox
-                                id={`device-${site._id}`}
-                                checked={selectedDevices.includes(site._id)}
-                                onCheckedChange={() => toggleDeviceSelection(site._id)}
-                              />
-                              <label htmlFor={`device-${site._id}`} className="text-sm flex-1 cursor-pointer">
-                                <div className="font-medium">
-                                  {site.siteDetails.name || site.siteDetails.formatted_name || "Unknown Site"}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {site.siteDetails.city || "Unknown City"},{" "}
-                                  {site.siteDetails.country || "Unknown Country"}
-                                </div>
-                              </label>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setSelectedSite(site)}
-                                className="text-blue-600 hover:text-blue-800"
-                              >
-                                View
-                              </Button>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="py-4 text-center text-gray-500">No devices match your search</div>
-                        )}
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <div className="text-sm text-gray-600">
-                          {selectedDevices.length} of {filteredData.length} devices selected
-                        </div>
-                        <Button
-                          onClick={() => {
-                            if (selectedDevices.length === 1) {
-                              const site = filteredData.find((s) => s._id === selectedDevices[0])
-                              if (site) setSelectedSite(site)
-                            } else if (selectedDevices.length > 0) {
-                              // Handle multiple device selection - could show a summary report
-                              // For now, we'll just use the first selected device
-                              const site = filteredData.find((s) => s._id === selectedDevices[0])
-                              if (site) setSelectedSite(site)
-                            }
-                          }}
-                          disabled={selectedDevices.length === 0}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          Generate Report for Selected
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </DialogContent>
-        </Dialog>
         <Button
           onClick={() => setShowReportOnPage(!showReportOnPage)}
-          className="bg-green-600 hover:bg-green-700 text-white ml-2"
+          className="bg-green-600 hover:bg-green-700 text-white"
         >
           {showReportOnPage ? "Hide Report" : "View Report"}
         </Button>
@@ -1407,6 +1094,18 @@ function ReportContent() {
                       <strong>{(selectedSite.pm2_5?.value || 0).toFixed(1)} µg/m³</strong>, which is{" "}
                       {compareToAverage(selectedSite.pm2_5?.value || 0, calculateAveragePM25(filteredData))} the
                       regional average.
+                    </li>
+                  )}
+                  {filteredData.length > 1 && getHotspotSites(filteredData).length > 0 && (
+                    <li>
+                      <strong>Pollution Hotspots:</strong>{" "}
+                      {getHotspotSites(filteredData).map((site, index, arr) => (
+                        <span key={site._id}>
+                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(1)} µg/m³)
+                          {index < arr.length - 1 ? ", " : ""}
+                        </span>
+                      ))}
+                      {" are the areas with the highest pollution levels."}
                     </li>
                   )}
                 </ul>
@@ -1624,7 +1323,30 @@ function ReportContent() {
                   <SiteCard
                     key={site._id}
                     site={site}
-                    onSelect={() => setSelectedSite(site)}
+                    onSelect={() => {
+                      setSelectedSite(site)
+
+                      // Generate report for this single device
+                      setReportGenerating(true)
+
+                      // Filter data to only include this device
+                      const selectedSitesData = [site]
+
+                      // Update filtered data to only show this device in the report
+                      setFilteredData(selectedSitesData)
+
+                      // Show the report on page with a slight delay for visual effect
+                      setTimeout(() => {
+                        setShowReportOnPage(true)
+                        setReportGenerating(false)
+
+                        // Scroll to the report
+                        const reportElement = document.getElementById("report-section")
+                        if (reportElement) {
+                          reportElement.scrollIntoView({ behavior: "smooth" })
+                        }
+                      }, 800)
+                    }}
                     isSelected={selectedSite?._id === site._id}
                     isCheckboxSelected={isSiteSelected}
                     onCheckboxChange={() => toggleDeviceSelection(site._id)}
@@ -1756,7 +1478,6 @@ function SiteCard({
       } ${isCheckboxSelected ? "relative overflow-hidden" : ""} ${isCheckboxSelected ? "animate-pulse-subtle" : ""} ${
         site._id === lastSelectedId ? "scale-105 shadow-xl z-10" : ""
       }`}
-      onClick={onSelect}
     >
       {isCheckboxSelected && (
         <div className="absolute -top-1 -right-1 transform rotate-45 bg-blue-500 text-white px-8 py-1 shadow-md">
@@ -1838,7 +1559,7 @@ function SiteCard({
             size="sm"
             onClick={(e) => {
               e.stopPropagation()
-              onSelect()
+              if (onSelect) onSelect()
             }}
             className="w-full mt-4 text-blue-600 border-blue-200 hover:bg-blue-50"
           >
