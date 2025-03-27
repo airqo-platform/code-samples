@@ -1,17 +1,17 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { Button } from "@/ui/button";
-import { Input } from "@/ui/input";
-import { SearchBar } from "./SearchBar";
-import { FileUpload } from "./FileUpload";
-import type { Location, ControlPanelProps } from "@/lib/types";
-import { useToast } from "@/ui/use-toast";
-import { Loader2 } from "lucide-react";
+import { useState } from "react"
+import { Button } from "@/ui/button"
+import { Input } from "@/ui/input"
+import { SearchBar } from "./SearchBar"
+import { FileUpload } from "./FileUpload"
+import type { Location, ControlPanelProps } from "@/lib/types"
+import { useToast } from "@/ui/use-toast"
+import { Loader2 } from "lucide-react"
 
 // Extend ControlPanelProps to include onBoundaryFound
 interface ExtendedControlPanelProps extends ControlPanelProps {
-  onBoundaryFound: (boundary: Location[]) => void;
+  onBoundaryFound: (boundary: Location[]) => void
 }
 
 export function ControlPanel({
@@ -21,12 +21,12 @@ export function ControlPanel({
   onMustHaveLocationsChange,
   onBoundaryFound,
 }: ExtendedControlPanelProps) {
-  const [minDistance, setMinDistance] = useState("0.5"); // Default value for min_distance_km
-  const [numSensors, setNumSensors] = useState("5"); // Default value for num_sensors
-  const [newLat, setNewLat] = useState("");
-  const [newLng, setNewLng] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  const [minDistance, setMinDistance] = useState("0.5") // Default value for min_distance_km
+  const [numSensors, setNumSensors] = useState("5") // Default value for num_sensors
+  const [newLat, setNewLat] = useState("")
+  const [newLng, setNewLng] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
 
   // Validation helper function
   const validateInputs = () => {
@@ -35,95 +35,81 @@ export function ControlPanel({
         title: "Error",
         description: "Please draw a polygon on the map",
         variant: "destructive",
-      });
-      return false;
+      })
+      return false
     }
     if (!numSensors || Number.parseInt(numSensors) < 1) {
       toast({
         title: "Error",
         description: "Please enter a valid number of sensors",
         variant: "destructive",
-      });
-      return false;
+      })
+      return false
     }
-    return true;
-  };
+    return true
+  }
 
   // Handle form submission
   const handleSubmit = async () => {
-    if (!validateInputs()) return;
+    if (!validateInputs()) return
 
     const payload: any = {
       polygon: {
         coordinates: [
-          [
-            ...polygon.map((loc) => [loc.lng, loc.lat]),
-            [polygon[0].lng, polygon[0].lat],
-          ], // Close the polygon
+          [...polygon.map((loc) => [loc.lng, loc.lat]), [polygon[0].lng, polygon[0].lat]], // Close the polygon
         ],
       },
-      must_have_locations:
-        mustHaveLocations.length > 0
-          ? mustHaveLocations.map((loc) => [loc.lat, loc.lng])
-          : [],
+      must_have_locations: mustHaveLocations.length > 0 ? mustHaveLocations.map((loc) => [loc.lat, loc.lng]) : [],
       num_sensors: Number.parseInt(numSensors, 10),
-    };
-
-    // Ensure min_distance_km is only included if valid
-    const minDistanceValue = Number.parseFloat(minDistance);
-    if (!isNaN(minDistanceValue)) {
-      payload.min_distance_km = minDistanceValue;
     }
 
-    setIsLoading(true);
+    // Ensure min_distance_km is only included if valid
+    const minDistanceValue = Number.parseFloat(minDistance)
+    if (!isNaN(minDistanceValue)) {
+      payload.min_distance_km = minDistanceValue
+    }
+
+    setIsLoading(true)
     try {
-      await onSubmit(payload);
+      await onSubmit(payload)
       toast({
         title: "Success",
         description: "Locations submitted successfully",
-      });
+      })
     } catch (error) {
-      console.log(error);
+      console.log(error)
       toast({
         title: "Error",
         description: "Failed to submit locations",
         variant: "destructive",
-      });
+      })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   // Add a new must-have location
   const handleAddLocation = () => {
-    const lat = Number.parseFloat(newLat);
-    const lng = Number.parseFloat(newLng);
+    const lat = Number.parseFloat(newLat)
+    const lng = Number.parseFloat(newLng)
 
-    if (
-      isNaN(lat) ||
-      isNaN(lng) ||
-      lat < -90 ||
-      lat > 90 ||
-      lng < -180 ||
-      lng > 180
-    ) {
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
       toast({
         title: "Error",
-        description:
-          "Please enter valid latitude (-90 to 90) and longitude (-180 to 180)",
+        description: "Please enter valid latitude (-90 to 90) and longitude (-180 to 180)",
         variant: "destructive",
-      });
-      return;
+      })
+      return
     }
 
-    onMustHaveLocationsChange([...mustHaveLocations, { lat, lng }]);
-    setNewLat("");
-    setNewLng("");
+    onMustHaveLocationsChange([...mustHaveLocations, { lat, lng }])
+    setNewLat("")
+    setNewLng("")
     toast({
       title: "Success",
       description: "Location added successfully",
-    });
-  };
+    })
+  }
 
   return (
     <div className="control-panel space-y-4 mt-9" style={{ width: "400px" }}>
@@ -134,9 +120,7 @@ export function ControlPanel({
 
       {/* Must-Have Locations */}
       <div className="space-y-2">
-        <label className="text-sm font-medium">
-          Must-Have Locations (Optional)
-        </label>
+        <label className="text-sm font-medium">Must-Have Locations (Optional)</label>
         <div className="flex gap-2">
           <Input
             type="number"
@@ -159,16 +143,12 @@ export function ControlPanel({
           </Button>
         </div>
         <FileUpload onUpload={onMustHaveLocationsChange} />
-        <div className="text-sm text-muted-foreground">
-          {mustHaveLocations.length} locations added
-        </div>
+        <div className="text-sm text-muted-foreground">{mustHaveLocations.length} locations added</div>
       </div>
 
       {/* Minimum Distance */}
       <div className="space-y-2">
-        <label className="text-sm font-medium">
-          Minimum Distance (km) (Optional)
-        </label>
+        <label className="text-sm font-medium">Minimum Distance (km) (Optional)</label>
         <Input
           type="number"
           min="0.1"
@@ -181,9 +161,7 @@ export function ControlPanel({
 
       {/* Number of Sensors */}
       <div className="space-y-2">
-        <label className="text-sm font-medium">
-          Number of Sensors (Required)
-        </label>
+        <label className="text-sm font-medium">Number of Sensors (Required)</label>
         <Input
           type="number"
           min="1"
@@ -211,5 +189,6 @@ export function ControlPanel({
         )}
       </Button>
     </div>
-  );
+  )
 }
+
