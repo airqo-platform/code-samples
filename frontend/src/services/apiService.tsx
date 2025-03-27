@@ -97,3 +97,25 @@ export const getMapNodes = async (): Promise<MapNode[] | null> => {
   }
 }
 
+// Add this function to fetch report data
+export const getReportData = async (): Promise<MapNode[] | null> => {
+  try {
+    const response = await apiService.get("/devices/readings/map", {
+      params: {
+        token: apiToken,
+      },
+    })
+
+    // Only check if measurements array exists and has data
+    if (!response.data?.measurements?.length) {
+      console.error("No measurements found in response")
+      return null
+    }
+
+    return response.data.measurements
+  } catch (error) {
+    console.error("Error fetching report data:", error)
+    return null
+  }
+}
+
