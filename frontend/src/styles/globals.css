@@ -26,7 +26,7 @@ body {
 .custom-popup .leaflet-popup-content-wrapper {
   padding: 0;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   background: transparent;
 }
 
@@ -54,40 +54,41 @@ body {
   animation: spin 1s linear infinite;
 }
 
-/* Add these styles for the search box */
+/* Update the search box styles to position it on the right side */
 .leaflet-control-geosearch {
   position: absolute !important;
   top: 20px !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
+  right: 20px !important; /* Position on the right side */
+  left: auto !important; /* Override any left positioning */
+  transform: none !important;
   z-index: 1000 !important;
-  width: 400px !important;
+  width: 250px !important; /* Slightly smaller width */
 }
 
 .leaflet-control-geosearch form {
   position: relative !important;
   background: white !important;
-  border-radius: 12px !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-  border: 2px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid #e5e7eb !important;
   width: 100% !important;
   transition: all 0.2s ease !important;
 }
 
 .leaflet-control-geosearch form:hover,
 .leaflet-control-geosearch form:focus-within {
-  box-shadow: 0 8px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
   border-color: #93c5fd !important;
 }
 
 .leaflet-control-geosearch form input {
   width: 100% !important;
-  height: 44px !important;
-  padding: 2px 16px !important;
-  font-size: 16px !important;
+  height: 36px !important; /* Slightly smaller height */
+  padding: 2px 12px !important;
+  font-size: 14px !important;
   color: #1f2937 !important;
   background: transparent !important;
-  border-radius: 12px !important;
+  border-radius: 8px !important;
   outline: none !important;
 }
 
@@ -103,17 +104,17 @@ body {
   right: 0 !important;
   margin-top: 8px !important;
   margin-bottom: 8px !important;
-  border-radius: 12px !important;
+  border-radius: 8px !important;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
   background: white !important;
-  max-height: 400px !important;
+  max-height: 300px !important;
   overflow-y: auto !important;
   z-index: 1000 !important;
 }
 
 .leaflet-control-geosearch .results > * {
-  padding: 12px 16px !important;
-  font-size: 14px !important;
+  padding: 10px 12px !important;
+  font-size: 13px !important;
   color: #4b5563 !important;
   transition: all 0.2s ease !important;
 }
@@ -148,7 +149,7 @@ body {
 
 /* Style the clear button */
 .leaflet-control-geosearch form .reset {
-  margin-top: 4px !important;  /* Move button down slightly */
+  margin-top: 4px !important;
   background: none !important;
   border: none !important;
   padding: 8px !important;
@@ -166,7 +167,7 @@ body {
 
 /* Hide the default close icon and use a custom one */
 .leaflet-control-geosearch form .reset::after {
-  content: '' !important;
+  content: "" !important;
   font-size: 20px !important;
   line-height: 1 !important;
 }
@@ -193,13 +194,13 @@ body {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 8px 12px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   pointer-events: none;
 }
 
 .legend-tooltip::before {
-  content: '';
+  content: "";
   position: absolute;
   left: -5px;
   top: 50%;
@@ -210,3 +211,10 @@ body {
   border-left: 1px solid #e5e7eb;
   border-bottom: 1px solid #e5e7eb;
 }
+
+/* Custom air quality marker styles */
+.custom-air-quality-marker {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px white, 0 0 5px rgba(0, 0, 0, 0.3);
+}
+

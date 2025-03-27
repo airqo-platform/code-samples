@@ -39,15 +39,11 @@ const Home: React.FC = () => {
               </div>
             </div>
             <div className="hidden md:block">
-              <div className="relative h-[500px] w-full max-w-[900px] rounded-xl overflow-hidden shadow-2xl mx-auto"
-              onDoubleClick={() => window.location.href = "/map"}
+              <div
+                className="relative h-[500px] w-full max-w-[900px] rounded-xl overflow-hidden shadow-2xl mx-auto"
+                onDoubleClick={() => (window.location.href = "/map")}
               >
-                <Image
-                  src="/images/homeMAP.png?height=2300&width=800"
-                  alt="Air quality monitoring dashboard"
-                  fill
-                  className="object-cover"
-                />
+                <Image src="/images/homeMAP.png" alt="Air quality monitoring dashboard" fill className="object-cover" />
               </div>
             </div>
           </div>
@@ -157,9 +153,8 @@ const Home: React.FC = () => {
 
       {/* Footer */}
       <footer className="bg-blue-50 p-8 rounded-lg mb-12">
-        <div  className="border-t border-gray-800 mt-8 pt-8 text-sm text-center">
-            &copy; {new Date().getFullYear()} AirQo. All rights reserved.
-          
+        <div className="border-t border-gray-800 mt-8 pt-8 text-sm text-center">
+          &copy; {new Date().getFullYear()} AirQo. All rights reserved.
         </div>
       </footer>
     </div>
