@@ -32,6 +32,8 @@ import {
   WeeklyComparisonChart,
   AQIIndexVisual,
 } from "@/components/charts/AirQualityChart"
+import { Input } from "@/ui/input"
+import { Checkbox } from "@/ui/checkbox"
 
 export default function ReportPage() {
   return (
@@ -54,6 +56,9 @@ function ReportContent() {
   // Add a state to control whether the report is visible on the page
   const [showReportOnPage, setShowReportOnPage] = useState(false)
 
+  // Add a state to track collapsed categories
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({})
+
   // Filter states
   const [filters, setFilters] = useState<Filters>({
     country: "",
@@ -74,6 +79,191 @@ function ReportContent() {
     districts: [],
     categories: [],
   })
+
+  // Add a search state for devices
+  const [deviceSearch, setDeviceSearch] = useState<string>("")
+  const [selectedDevices, setSelectedDevices] = useState<string[]>([])
+
+  // Add a visual indicator for the report generation process
+  const [reportGenerating, setReportGenerating] = useState(false)
+
+  // Add a new state for tracking selection animation:
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
+
+  // Helper functions for calculations and recommendations
+  const calculateAveragePM25 = (sites: SiteData[]): number => {
+    if (sites.length === 0) return 0
+    const sum = sites.reduce((acc, site) => acc + (site.pm2_5?.value || 0), 0)
+    return sum / sites.length
+  }
+
+  const getAverageAQICategory = (sites: SiteData[]): string => {
+    if (sites.length === 0) return "Good" // Default value
+    const aqiCategories = sites.map((site) => site.aqi_category || "Unknown")
+    const categoryCounts: { [key: string]: number } = {}
+    aqiCategories.forEach((category) => {
+      categoryCounts[category] = (categoryCounts[category] || 0) + 1
+    })
+
+    let mostFrequentCategory = "Good"
+    let maxCount = 0
+    for (const category in categoryCounts) {
+      if (categoryCounts[category] > maxCount) {
+        mostFrequentCategory = category
+        maxCount = categoryCounts[category]
+      }
+    }
+    return mostFrequentCategory
+  }
+
+  const calculateAveragePercentageChange = (sites: SiteData[]): number => {
+    if (sites.length === 0) return 0
+    const sum = sites.reduce((acc, site) => acc + (site.averages?.percentageDifference || 0), 0)
+    return sum / sites.length
+  }
+
+  const calculateAQICategoryCounts = (sites: SiteData[]): { [key: string]: number } => {
+    const categoryCounts: { [key: string]: number } = {}
+    sites.forEach((site) => {
+      const category = site.aqi_category || "Unknown"
+      categoryCounts[category] = (categoryCounts[category] || 0) + 1
+    })
+    return categoryCounts
+  }
+
+  const calculateMostCommonCategory = (sites: SiteData[]): string => {
+    const categoryCounts = calculateAQICategoryCounts(sites)
+    let mostCommon = ""
+    let maxCount = 0
+    for (const category in categoryCounts) {
+      if (categoryCounts[category] > maxCount) {
+        mostCommon = category
+        maxCount = categoryCounts[category]
+      }
+    }
+    return mostCommon
+  }
+
+  const compareToAverage = (value: number, average: number): string => {
+    if (value > average) {
+      return "higher than"
+    } else if (value < average) {
+      return "lower than"
+    } else {
+      return "equal to"
+    }
+  }
+
+  const getConclusion = (selectedSite: SiteData | null, filters: Filters, filteredData: SiteData[]): string => {
+    if (selectedSite) {
+      return `In conclusion, the air quality at ${selectedSite.siteDetails.name} requires attention. Further investigation and mitigation strategies are recommended.`
+    }
+
+    if (filters.country || filters.city || filters.category) {
+      return `In conclusion, the air quality in the selected region requires attention. Further investigation and mitigation strategies are recommended.`
+    }
+
+    if (filteredData.length === 0) {
+      return "In conclusion, no data is available for the selected criteria."
+    }
+
+    return "In conclusion, this report provides an overview of the air quality across the AirQo network. Continued monitoring and proactive measures are essential to ensure public health."
+  }
+
+  const getRegionalInsights = (filters: Filters, filteredData: SiteData[]): string => {
+    if (filters.country) {
+      return `The air quality in ${filters.country} shows varying levels of pollution, with some areas exceeding recommended limits. Targeted interventions are needed to address specific pollution sources.`
+    }
+
+    if (filters.city) {
+      return `The air quality in ${filters.city} is a concern, with PM2.5 levels frequently exceeding WHO guidelines. Local authorities should implement measures to reduce emissions from traffic and industry.`
+    }
+
+    if (filters.category) {
+      return `The air quality at ${filters.category} sites is generally poorer than at other locations. Specific measures should be taken to protect vulnerable populations in these areas.`
+    }
+
+    if (filteredData.length === 0) {
+      return "No regional insights are available due to lack of data."
+    }
+
+    return "Regional insights indicate that air pollution is a widespread problem, with significant variations across different areas. A coordinated approach is needed to tackle this issue effectively."
+  }
+
+  const getHealthRecommendations = (aqiCategory: string): string[] => {
+    switch (aqiCategory.toLowerCase()) {
+      case "good":
+        return ["Enjoy your usual outdoor activities."]
+      case "moderate":
+        return ["Sensitive groups should reduce prolonged or heavy outdoor exertion."]
+      case "unhealthy for sensitive groups":
+        return [
+          "Sensitive groups should avoid prolonged outdoor exertion.",
+          "Everyone else should reduce prolonged or heavy outdoor exertion.",
+        ]
+      case "unhealthy":
+        return ["Sensitive groups should avoid all outdoor exertion.", "Everyone else should reduce outdoor exertion."]
+      case "very unhealthy":
+        return ["Everyone should avoid all outdoor exertion.", "Sensitive groups should remain indoors."]
+      case "hazardous":
+        return ["Everyone should remain indoors.", "Keep windows and doors closed.", "Use air purifiers if available."]
+      default:
+        return ["Air quality data is unavailable. Please check later."]
+    }
+  }
+
+  const getPolicyRecommendations = (aqiCategory: string, filters: Filters): string[] => {
+    const recommendations: string[] = []
+
+    if (filters.country) {
+      recommendations.push(`Implement stricter emission standards for vehicles and industries in ${filters.country}.`)
+    }
+
+    if (filters.city) {
+      recommendations.push(`Invest in public transportation and promote cycling and walking in ${filters.city}.`)
+    }
+
+    if (filters.category) {
+      recommendations.push(`Implement targeted measures to reduce pollution at ${filters.category} sites.`)
+    }
+
+    switch (aqiCategory.toLowerCase()) {
+      case "good":
+        recommendations.push("Maintain current air quality standards.")
+        break
+      case "moderate":
+        recommendations.push("Monitor air quality closely and take action if pollution levels rise.")
+        break
+      case "unhealthy for sensitive groups":
+        recommendations.push("Issue health advisories and take steps to reduce pollution levels.")
+        break
+      case "unhealthy":
+        recommendations.push("Implement emergency measures to reduce pollution levels and protect public health.")
+        break
+      case "very unhealthy":
+        recommendations.push("Declare a public health emergency and take immediate action to reduce pollution levels.")
+        break
+      case "hazardous":
+        recommendations.push(
+          "Evacuate vulnerable populations and take all possible measures to reduce pollution levels.",
+        )
+        break
+      default:
+        recommendations.push("Air quality data is unavailable. Please check later.")
+    }
+
+    return recommendations
+  }
+
+  const getChangeIcon = (trend: number): ReactNode => {
+    if (trend < 0) {
+      return <ArrowDown className="text-green-500 w-8 h-8" />
+    } else if (trend > 0) {
+      return <ArrowUp className="text-red-500 w-8 h-8" />
+    } else {
+      return <Minus className="text-gray-500 w-8 h-8" />
+    }
+  }
 
   useEffect(() => {
     async function fetchData() {
@@ -196,6 +386,45 @@ function ReportContent() {
     setSelectedSite(null)
   }
 
+  // Add this function after the resetFilters function
+  const handleDeviceSearch = (searchTerm: string) => {
+    setDeviceSearch(searchTerm)
+  }
+
+  const toggleDeviceSelection = (deviceId: string) => {
+    setLastSelectedId(deviceId)
+    setTimeout(() => setLastSelectedId(null), 1000)
+
+    setSelectedDevices((prev) => (prev.includes(deviceId) ? prev.filter((id) => id !== deviceId) : [...prev, deviceId]))
+  }
+
+  const selectAllDevices = () => {
+    const allDeviceIds = filteredData.map((site) => site._id)
+    setSelectedDevices(allDeviceIds)
+  }
+
+  const clearDeviceSelection = () => {
+    setSelectedDevices([])
+  }
+
+  // Add this function to get filtered devices based on search
+  const getFilteredDevices = () => {
+    if (!deviceSearch.trim()) return filteredData
+
+    return filteredData.filter((site) => {
+      const siteName = site.siteDetails?.name || site.siteDetails?.formatted_name || ""
+      const city = site.siteDetails?.city || ""
+      const country = site.siteDetails?.country || ""
+      const searchTerm = deviceSearch.toLowerCase()
+
+      return (
+        siteName.toLowerCase().includes(searchTerm) ||
+        city.toLowerCase().includes(searchTerm) ||
+        country.toLowerCase().includes(searchTerm)
+      )
+    })
+  }
+
   // Generate PDF report
   const generatePDF = async () => {
     if (!reportRef.current) return
@@ -281,6 +510,10 @@ function ReportContent() {
       return `Air Quality Report for ${selectedSite.siteDetails.name}`
     }
 
+    if (selectedDevices.length > 0 && selectedDevices.length < filteredData.length) {
+      return `Air Quality Report for ${selectedDevices.length} Selected Devices`
+    }
+
     const parts = []
     if (filters.country) parts.push(filters.country)
     if (filters.city) parts.push(filters.city)
@@ -289,6 +522,14 @@ function ReportContent() {
       parts.push(filters.category === "Urban Background" ? "Urban Background Sites" : `${filters.category} Sites`)
 
     return parts.length > 0 ? `Air Quality Report for ${parts.join(", ")}` : "Comprehensive Air Quality Report"
+  }
+
+  // Add a function to toggle category collapse state
+  const toggleCategoryCollapse = (category: string) => {
+    setCollapsedCategories((prev) => ({
+      ...prev,
+      [category]: !prev[category],
+    }))
   }
 
   // Get location information for report
@@ -311,6 +552,28 @@ function ReportContent() {
   // Calculate average PM2.5 for AQI index visualization
   const avgPM25 = calculateAveragePM25(filteredData)
   const avgAQICategory = getAverageAQICategory(filteredData)
+
+  const getAQICategoryCounts = (sites: SiteData[]): { [key: string]: number } => {
+    const categoryCounts: { [key: string]: number } = {}
+    sites.forEach((site) => {
+      const category = site.aqi_category || "Unknown"
+      categoryCounts[category] = (categoryCounts[category] || 0) + 1
+    })
+    return categoryCounts
+  }
+
+  const getMostCommonCategory = (sites: SiteData[]): string => {
+    const categoryCounts = getAQICategoryCounts(sites)
+    let mostCommon = ""
+    let maxCount = 0
+    for (const category in categoryCounts) {
+      if (categoryCounts[category] > maxCount) {
+        mostCommon = category
+        maxCount = categoryCounts[category]
+      }
+    }
+    return mostCommon
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -443,6 +706,189 @@ function ReportContent() {
         </div>
       </div>
 
+      {/* Selected Devices Counter */}
+      {selectedDevices.length > 0 && (
+        <div className="bg-blue-600 text-white rounded-lg p-4 mb-8 shadow-lg transform transition-all duration-300 hover:scale-105">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
+              <div className="bg-white text-blue-600 rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mr-4">
+                {selectedDevices.length}
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Devices Selected</h3>
+                <p className="text-blue-100">
+                  {selectedDevices.length === 1
+                    ? "1 device selected for reporting"
+                    : `${selectedDevices.length} devices selected for reporting`}
+                </p>
+              </div>
+            </div>
+            <div>
+              <Button
+                variant="outline"
+                onClick={clearDeviceSelection}
+                className="bg-transparent border-white text-white hover:bg-blue-700"
+              >
+                Clear All
+              </Button>
+            </div>
+          </div>
+
+          {/* Category Breakdown */}
+          {selectedDevices.length > 1 && (
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              {Object.entries(sitesByCategory).map(([category, sites]) => {
+                const selectedCount = sites.filter((site) => selectedDevices.includes(site._id)).length
+                if (selectedCount === 0) return null
+
+                return (
+                  <div key={`selected-${category}`} className="bg-blue-700 rounded-lg p-2 text-center">
+                    <div className="text-sm text-blue-200">{category}</div>
+                    <div className="text-lg font-bold">{selectedCount} selected</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="mt-4 pt-4 border-t border-blue-500">
+            <div className="flex justify-between items-center">
+              <p className="text-blue-100">Generate a report with your selected devices</p>
+              <Button
+                onClick={() => {
+                  setReportGenerating(true)
+
+                  // Filter data to only include selected devices
+                  const selectedSitesData = filteredData.filter((site) => selectedDevices.includes(site._id))
+
+                  // Update filtered data to only show selected devices in the report
+                  setFilteredData(selectedSitesData)
+
+                  // If only one device is selected, set it as the selected site
+                  if (selectedDevices.length === 1) {
+                    const site = selectedSitesData[0]
+                    if (site) setSelectedSite(site)
+                  }
+
+                  // Show the report on page with a slight delay for visual effect
+                  setTimeout(() => {
+                    setShowReportOnPage(true)
+                    setReportGenerating(false)
+
+                    // Scroll to the report
+                    const reportElement = document.getElementById("report-section")
+                    if (reportElement) {
+                      reportElement.scrollIntoView({ behavior: "smooth" })
+                    }
+                  }, 800)
+                }}
+                disabled={reportGenerating}
+                className="bg-white text-blue-600 hover:bg-blue-50"
+              >
+                {reportGenerating ? (
+                  <>
+                    <div className="animate-spin mr-2 h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                    Generating...
+                  </>
+                ) : (
+                  <>Generate Report</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Device Search and Selection */}
+      <div className="bg-white rounded-lg shadow-md p-4 mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold mb-2 md:mb-0">Device Selection</h2>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={selectAllDevices} size="sm">
+              Select All
+            </Button>
+            <Button variant="outline" onClick={clearDeviceSelection} size="sm">
+              Clear All
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Search devices by name, city, or country"
+              value={deviceSearch}
+              onChange={(e) => handleDeviceSearch(e.target.value)}
+              className="flex-1"
+            />
+            <Button
+              onClick={() => {
+                if (selectedDevices.length > 0) {
+                  setReportGenerating(true)
+
+                  // Filter data to only include selected devices
+                  const selectedSitesData = filteredData.filter((site) => selectedDevices.includes(site._id))
+
+                  // Update filtered data to only show selected devices in the report
+                  setFilteredData(selectedSitesData)
+
+                  // If only one device is selected, set it as the selected site
+                  if (selectedDevices.length === 1) {
+                    const site = selectedSitesData[0]
+                    if (site) setSelectedSite(site)
+                  }
+
+                  // Show the report on page with a slight delay for visual effect
+                  setTimeout(() => {
+                    setShowReportOnPage(true)
+                    setReportGenerating(false)
+                  }, 800)
+                }
+              }}
+              disabled={selectedDevices.length === 0 || reportGenerating}
+              className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+            >
+              {reportGenerating ? (
+                <>
+                  <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  Generating...
+                </>
+              ) : (
+                "Generate Report"
+              )}
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-60 overflow-y-auto">
+            {getFilteredDevices()
+              .slice(0, 9)
+              .map((site) => (
+                <div key={site._id} className="flex items-center space-x-2 p-2 border rounded-md">
+                  <Checkbox
+                    id={`main-device-${site._id}`}
+                    checked={selectedDevices.includes(site._id)}
+                    onCheckedChange={() => toggleDeviceSelection(site._id)}
+                  />
+                  <label htmlFor={`main-device-${site._id}`} className="text-sm flex-1 cursor-pointer truncate">
+                    {site.siteDetails.name || site.siteDetails.formatted_name || "Unknown Site"}
+                    <span className="text-xs text-gray-500 ml-1">({site.siteDetails.city || "Unknown"})</span>
+                  </label>
+                </div>
+              ))}
+          </div>
+
+          {getFilteredDevices().length > 9 && (
+            <div className="text-center text-sm text-blue-600">
+              {getFilteredDevices().length - 9} more devices available. Refine your search to see more.
+            </div>
+          )}
+
+          <div className="text-sm text-gray-600">
+            {selectedDevices.length} of {filteredData.length} devices selected
+          </div>
+        </div>
+      </div>
+
       {/* Generate Report Button */}
       <div className="flex justify-end mb-6">
         <Dialog>
@@ -556,12 +1002,12 @@ function ReportContent() {
                           </strong>{" "}
                           in PM2.5 levels compared to the previous week.
                         </li>
-                        {Object.entries(getAQICategoryCounts(filteredData)).length > 1 && (
+                        {Object.entries(calculateAQICategoryCounts(filteredData)).length > 1 && (
                           <li>
                             The most common air quality category is{" "}
-                            <strong>{getMostCommonCategory(filteredData)}</strong>, representing{" "}
+                            <strong>{calculateMostCommonCategory(filteredData)}</strong>, representing{" "}
                             {(
-                              (getAQICategoryCounts(filteredData)[getMostCommonCategory(filteredData)] /
+                              (calculateAQICategoryCounts(filteredData)[calculateMostCommonCategory(filteredData)] /
                                 filteredData.length) *
                               100
                             ).toFixed(0)}
@@ -627,6 +1073,21 @@ function ReportContent() {
                       airqo.net.
                     </p>
                   </div>
+
+                  {/* Jump to Categories Button */}
+                  <div className="mt-8 text-center">
+                    <Button
+                      onClick={() => {
+                        const categoriesElement = document.getElementById("categories-section")
+                        if (categoriesElement) {
+                          categoriesElement.scrollIntoView({ behavior: "smooth" })
+                        }
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Jump to Device Categories
+                    </Button>
+                  </div>
                 </div>
               </TabsContent>
 
@@ -676,31 +1137,83 @@ function ReportContent() {
                   </div>
 
                   <div className="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <h4 className="font-medium text-gray-700 mb-2">Select a Device for Detailed Report</h4>
+                    <h4 className="font-medium text-gray-700 mb-2">Select Devices for Detailed Report</h4>
                     <p className="text-sm text-gray-600 mb-4">
-                      Choose a specific monitoring device to generate a detailed report for that location.
+                      Choose specific monitoring devices to generate detailed reports.
                     </p>
 
-                    <Select
-                      value={selectedSite?._id || ""}
-                      onValueChange={(value) => {
-                        const site = filteredData.find((s) => s._id === value)
-                        setSelectedSite(site || null)
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a device" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Devices</SelectItem>
-                        {filteredData.map((site) => (
-                          <SelectItem key={site._id} value={site._id}>
-                            {site.siteDetails.name || site.siteDetails.formatted_name || "Unknown Site"} (
-                            {site.siteDetails.city || "Unknown City"})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Search devices by name, city, or country"
+                          value={deviceSearch}
+                          onChange={(e) => handleDeviceSearch(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button variant="outline" onClick={selectAllDevices} className="whitespace-nowrap">
+                          Select All
+                        </Button>
+                        <Button variant="outline" onClick={clearDeviceSelection} className="whitespace-nowrap">
+                          Clear All
+                        </Button>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto border rounded-md p-2">
+                        {getFilteredDevices().length > 0 ? (
+                          getFilteredDevices().map((site) => (
+                            <div key={site._id} className="flex items-center space-x-2 py-2 border-b last:border-b-0">
+                              <Checkbox
+                                id={`device-${site._id}`}
+                                checked={selectedDevices.includes(site._id)}
+                                onCheckedChange={() => toggleDeviceSelection(site._id)}
+                              />
+                              <label htmlFor={`device-${site._id}`} className="text-sm flex-1 cursor-pointer">
+                                <div className="font-medium">
+                                  {site.siteDetails.name || site.siteDetails.formatted_name || "Unknown Site"}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {site.siteDetails.city || "Unknown City"},{" "}
+                                  {site.siteDetails.country || "Unknown Country"}
+                                </div>
+                              </label>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setSelectedSite(site)}
+                                className="text-blue-600 hover:text-blue-800"
+                              >
+                                View
+                              </Button>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="py-4 text-center text-gray-500">No devices match your search</div>
+                        )}
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <div className="text-sm text-gray-600">
+                          {selectedDevices.length} of {filteredData.length} devices selected
+                        </div>
+                        <Button
+                          onClick={() => {
+                            if (selectedDevices.length === 1) {
+                              const site = filteredData.find((s) => s._id === selectedDevices[0])
+                              if (site) setSelectedSite(site)
+                            } else if (selectedDevices.length > 0) {
+                              // Handle multiple device selection - could show a summary report
+                              // For now, we'll just use the first selected device
+                              const site = filteredData.find((s) => s._id === selectedDevices[0])
+                              if (site) setSelectedSite(site)
+                            }
+                          }}
+                          disabled={selectedDevices.length === 0}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          Generate Report for Selected
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </TabsContent>
@@ -713,10 +1226,49 @@ function ReportContent() {
         >
           {showReportOnPage ? "Hide Report" : "View Report"}
         </Button>
+        {showReportOnPage && selectedDevices.length > 0 && selectedDevices.length < siteData.length && (
+          <Button
+            onClick={() => {
+              // Reset to show all filtered data based on current filters
+              let result = [...siteData]
+
+              // Apply country filter
+              if (filters.country) {
+                result = result.filter((site) => site.siteDetails?.country === filters.country)
+              }
+
+              // Apply city filter
+              if (filters.city) {
+                result = result.filter((site) => site.siteDetails?.city === filters.city)
+              }
+
+              // Apply district filter
+              if (filters.district) {
+                result = result.filter((site) => site.siteDetails?.district === filters.district)
+              }
+
+              // Apply category filter
+              if (filters.category) {
+                result = result.filter((site) => {
+                  const category = site.siteDetails?.site_category?.category || "Uncategorized"
+                  if (filters.category === "Urban Background") {
+                    return category === "Urban Background" || category === "Water Body"
+                  }
+                  return category === filters.category
+                })
+              }
+
+              setFilteredData(result)
+            }}
+            className="bg-gray-600 hover:bg-gray-700 text-white ml-2"
+          >
+            Back to All Data
+          </Button>
+        )}
       </div>
 
       {showReportOnPage && (
-        <div className="mb-8 bg-white rounded-lg shadow-lg p-6 border border-gray-200">
+        <div id="report-section" className="mb-8 bg-white rounded-lg shadow-lg p-6 border border-gray-200">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800">{getReportTitle()}</h2>
             <div className="flex space-x-2">
@@ -837,12 +1389,12 @@ function ReportContent() {
                     </strong>{" "}
                     in PM2.5 levels compared to the previous week.
                   </li>
-                  {Object.entries(getAQICategoryCounts(filteredData)).length > 1 && (
+                  {Object.entries(calculateAQICategoryCounts(filteredData)).length > 1 && (
                     <li>
-                      The most common air quality category is <strong>{getMostCommonCategory(filteredData)}</strong>,
-                      representing{" "}
+                      The most common air quality category is{" "}
+                      <strong>{calculateMostCommonCategory(filteredData)}</strong>, representing{" "}
                       {(
-                        (getAQICategoryCounts(filteredData)[getMostCommonCategory(filteredData)] /
+                        (calculateAQICategoryCounts(filteredData)[calculateMostCommonCategory(filteredData)] /
                           filteredData.length) *
                         100
                       ).toFixed(0)}
@@ -905,6 +1457,21 @@ function ReportContent() {
               </p>
               <p>Data is based on readings from the AirQo monitoring network. For more information, visit airqo.net.</p>
             </div>
+
+            {/* Jump to Categories Button */}
+            <div className="mt-8 text-center">
+              <Button
+                onClick={() => {
+                  const categoriesElement = document.getElementById("categories-section")
+                  if (categoriesElement) {
+                    categoriesElement.scrollIntoView({ behavior: "smooth" })
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Jump to Device Categories
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -943,19 +1510,129 @@ function ReportContent() {
         </div>
       )}
 
+      {/* Categories Controls */}
+      <div id="categories-section" className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold text-gray-800">Device Categories</h2>
+        <Button
+          variant="outline"
+          onClick={() => {
+            const allCollapsed = Object.keys(sitesByCategory).every((category) => collapsedCategories[category])
+
+            if (allCollapsed) {
+              // Expand all
+              const expanded = {}
+              Object.keys(sitesByCategory).forEach((category) => {
+                expanded[category] = false
+              })
+              setCollapsedCategories(expanded)
+            } else {
+              // Collapse all
+              const collapsed = {}
+              Object.keys(sitesByCategory).forEach((category) => {
+                collapsed[category] = true
+              })
+              setCollapsedCategories(collapsed)
+            }
+          }}
+          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+        >
+          {Object.keys(sitesByCategory).every((category) => collapsedCategories[category])
+            ? "Expand All Categories"
+            : "Collapse All Categories"}
+        </Button>
+      </div>
+
       {/* Site Categories */}
       {Object.entries(sitesByCategory).map(([category, sites]) => (
-        <div key={category} className="mb-10">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">{category} Sites</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {sites.map((site) => (
-              <SiteCard
-                key={site._id}
-                site={site}
-                onSelect={() => setSelectedSite(site)}
-                isSelected={selectedSite?._id === site._id}
-              />
-            ))}
+        <div
+          key={category}
+          className="mb-6 bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 ease-in-out"
+        >
+          <div className="p-4 flex justify-between items-center cursor-pointer bg-gradient-to-r from-blue-50 to-white hover:from-blue-100">
+            <div className="flex items-center">
+              <div onClick={() => toggleCategoryCollapse(category)} className="flex items-center cursor-pointer">
+                <h2 className="text-2xl font-bold text-gray-800">{category} Sites</h2>
+                <div className="ml-3 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                  {sites.length} {sites.length === 1 ? "device" : "devices"}
+                </div>
+                <div className="ml-3 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                  {sites.filter((site) => selectedDevices.includes(site._id)).length} selected
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  // Get all site IDs in this category
+                  const categoryDeviceIds = sites.map((site) => site._id)
+
+                  // Check if all devices in this category are already selected
+                  const allSelected = categoryDeviceIds.every((id) => selectedDevices.includes(id))
+
+                  if (allSelected) {
+                    // If all are selected, deselect all in this category
+                    setSelectedDevices((prev) => prev.filter((id) => !categoryDeviceIds.includes(id)))
+                  } else {
+                    // Otherwise, select all in this category
+                    const newSelectedDevices = [...selectedDevices]
+                    categoryDeviceIds.forEach((id) => {
+                      if (!newSelectedDevices.includes(id)) {
+                        newSelectedDevices.push(id)
+                      }
+                    })
+                    setSelectedDevices(newSelectedDevices)
+                  }
+                }}
+                className="mr-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+              >
+                {sites.every((site) => selectedDevices.includes(site._id)) ? "Deselect All" : "Select All"}
+              </Button>
+              <div
+                onClick={() => toggleCategoryCollapse(category)}
+                className={`transform transition-transform duration-300 ${collapsedCategories[category] ? "rotate-180" : ""}`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-blue-500"
+                >
+                  <path d="m18 15-6-6-6 6" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className={`transition-all duration-500 ease-in-out overflow-hidden ${
+              collapsedCategories[category] ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
+            }`}
+          >
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {sites.map((site) => {
+                const isSiteSelected = selectedDevices.includes(site._id)
+                return (
+                  <SiteCard
+                    key={site._id}
+                    site={site}
+                    onSelect={() => setSelectedSite(site)}
+                    isSelected={selectedSite?._id === site._id}
+                    isCheckboxSelected={isSiteSelected}
+                    onCheckboxChange={() => toggleDeviceSelection(site._id)}
+                    lastSelectedId={lastSelectedId}
+                  />
+                )
+              })}
+            </div>
           </div>
         </div>
       ))}
@@ -1031,10 +1708,16 @@ function SiteCard({
   site,
   onSelect,
   isSelected,
+  isCheckboxSelected,
+  onCheckboxChange,
+  lastSelectedId,
 }: {
   site: SiteData
   onSelect?: () => void
   isSelected?: boolean
+  isCheckboxSelected?: boolean
+  onCheckboxChange?: () => void
+  lastSelectedId?: string | null
 }) {
   const pm25Value = site.pm2_5?.value ?? 0
   const aqiCategory = site.aqi_category || "Unknown"
@@ -1042,7 +1725,7 @@ function SiteCard({
   const areaName = site.siteDetails?.site_category?.area_name || "Unknown Area"
   const percentChange = site.averages?.percentageDifference ?? 0
   const currentWeek = site.averages?.weeklyAverages?.currentWeek ?? 0
-  const previousWeek = site.averages?.weeklyAverages?.previousWeek ?? 0
+  const previousWeek = site.averages?.weeklyAverages?.currentWeek ?? 0
   const country = site.siteDetails?.country || "Unknown"
   const city = site.siteDetails?.city || "Unknown"
 
@@ -1068,15 +1751,38 @@ function SiteCard({
 
   return (
     <Card
-      className={`w-full shadow-md hover:shadow-lg transition-shadow ${getColorByCategory(aqiCategory)} ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+      className={`w-full shadow-md hover:shadow-lg transition-all duration-300 ${getColorByCategory(aqiCategory)} ${
+        isSelected ? "ring-2 ring-blue-500" : ""
+      } ${isCheckboxSelected ? "relative overflow-hidden" : ""} ${isCheckboxSelected ? "animate-pulse-subtle" : ""} ${
+        site._id === lastSelectedId ? "scale-105 shadow-xl z-10" : ""
+      }`}
       onClick={onSelect}
     >
+      {isCheckboxSelected && (
+        <div className="absolute -top-1 -right-1 transform rotate-45 bg-blue-500 text-white px-8 py-1 shadow-md">
+          Selected
+        </div>
+      )}
       <CardContent className="p-6">
-        <h3 className="text-lg font-bold mb-1">{siteName}</h3>
-        <p className="text-sm mb-1">{areaName}</p>
-        <p className="text-xs text-gray-600 mb-3">
-          {city}, {country}
-        </p>
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h3 className="text-lg font-bold mb-1">{siteName}</h3>
+            <p className="text-sm mb-1">{areaName}</p>
+            <p className="text-xs text-gray-600 mb-3">
+              {city}, {country}
+            </p>
+          </div>
+          {onCheckboxChange && (
+            <Checkbox
+              checked={isCheckboxSelected}
+              onCheckedChange={(checked) => {
+                if (onCheckboxChange) onCheckboxChange()
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="mt-1"
+            />
+          )}
+        </div>
 
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -1188,312 +1894,5 @@ function HealthTipBox({ title, description }: { title: string; description: stri
       <p className="text-blue-700 text-sm">{description}</p>
     </div>
   )
-}
-
-// Helper functions
-function calculateAveragePM25(sites: SiteData[]): number {
-  const validSites = sites.filter((site) => site.pm2_5?.value !== null && site.pm2_5?.value !== undefined)
-  if (validSites.length === 0) return 0
-
-  const sum = validSites.reduce((acc, site) => acc + (site.pm2_5?.value || 0), 0)
-  return sum / validSites.length
-}
-
-function calculateAveragePercentageChange(sites: SiteData[]): number {
-  const sitesWithAverages = sites.filter(
-    (site) => site.averages?.percentageDifference !== undefined && site.averages?.percentageDifference !== null,
-  )
-
-  if (sitesWithAverages.length === 0) return 0
-
-  const sum = sitesWithAverages.reduce((acc, site) => acc + (site.averages?.percentageDifference || 0), 0)
-  return sum / sitesWithAverages.length
-}
-
-function getChangeIcon(percentChange: number) {
-  if (percentChange < 0) {
-    return <ArrowDown className="text-green-500 w-8 h-8" />
-  } else if (percentChange > 0) {
-    return <ArrowUp className="text-red-500 w-8 h-8" />
-  } else {
-    return <Minus className="text-gray-500 w-8 h-8" />
-  }
-}
-
-// Get counts of sites by AQI category
-function getAQICategoryCounts(sites: SiteData[]): Record<string, number> {
-  const counts: Record<string, number> = {}
-
-  sites.forEach((site) => {
-    const category = site.aqi_category || "Unknown"
-    counts[category] = (counts[category] || 0) + 1
-  })
-
-  return counts
-}
-
-// Get most common AQI category
-function getMostCommonCategory(sites: SiteData[]): string {
-  const counts = getAQICategoryCounts(sites)
-  return Object.entries(counts).reduce((a, b) => (a[1] > b[1] ? a : b))[0]
-}
-
-// Compare a value to the average
-function compareToAverage(value: number, average: number): string {
-  if (Math.abs(value - average) < 0.1) return "equal to"
-  const percentDiff = ((value - average) / average) * 100
-
-  if (percentDiff <= -20) return "significantly below"
-  if (percentDiff < 0) return "below"
-  if (percentDiff >= 20) return "significantly above"
-  return "above"
-}
-
-// Get average AQI category based on PM2.5 values
-function getAverageAQICategory(sites: SiteData[]): string {
-  const avgPM25 = calculateAveragePM25(sites)
-
-  if (avgPM25 <= 12) return "Good"
-  if (avgPM25 <= 35.4) return "Moderate"
-  if (avgPM25 <= 55.4) return "Unhealthy for Sensitive Groups"
-  if (avgPM25 <= 150.4) return "Unhealthy"
-  if (avgPM25 <= 250.4) return "Very Unhealthy"
-  return "Hazardous"
-}
-
-// Get health implications based on AQI category
-function getHealthImplications(aqiCategory: string): string {
-  switch (aqiCategory.toLowerCase()) {
-    case "good":
-      return "Air quality is considered satisfactory, and air pollution poses little or no risk to public health."
-    case "moderate":
-      return "Air quality is acceptable; however, there may be some health concerns for a small number of people who are unusually sensitive to air pollution."
-    case "unhealthy for sensitive groups":
-      return "Members of sensitive groups may experience health effects. The general public is less likely to be affected."
-    case "unhealthy":
-      return "Everyone may begin to experience health effects; members of sensitive groups may experience more serious health effects."
-    case "very unhealthy":
-      return "Health warnings of emergency conditions. The entire population is more likely to be affected."
-    case "hazardous":
-      return "Health alert: everyone may experience more serious health effects."
-    default:
-      return "Health implications cannot be determined due to insufficient data."
-  }
-}
-
-// Get health recommendations based on AQI category
-function getHealthRecommendations(aqiCategory: string): string[] {
-  switch (aqiCategory.toLowerCase()) {
-    case "good":
-      return [
-        "Enjoy outdoor activities",
-        "Keep windows open for fresh air when weather permits",
-        "Continue monitoring air quality for any changes",
-      ]
-    case "moderate":
-      return [
-        "Sensitive individuals should consider reducing prolonged outdoor exertion",
-        "Keep windows closed during peak traffic hours",
-        "Stay hydrated when outdoors",
-      ]
-    case "unhealthy for sensitive groups":
-      return [
-        "People with respiratory or heart conditions should limit outdoor activity",
-        "Children and elderly should reduce prolonged or heavy exertion",
-        "Consider using air purifiers indoors",
-        "Keep windows closed",
-      ]
-    case "unhealthy":
-      return [
-        "Avoid prolonged outdoor activities",
-        "Reschedule outdoor exercises",
-        "Use masks (N95 or better) if outdoor activities are unavoidable",
-        "Keep windows closed and use air purifiers",
-        "Stay hydrated",
-      ]
-    case "very unhealthy":
-      return [
-        "Avoid all outdoor physical activities",
-        "Stay indoors with windows closed",
-        "Use air purifiers",
-        "Wear masks (N95 or better) if going outdoors is necessary",
-        "Check on elderly neighbors and those with respiratory conditions",
-      ]
-    case "hazardous":
-      return [
-        "Remain indoors and keep activity levels low",
-        "Close all windows and doors",
-        "Run air purifiers continuously",
-        "Avoid driving to reduce pollution",
-        "Follow public health emergency instructions",
-        "Seek medical help if experiencing respiratory symptoms",
-      ]
-    default:
-      return [
-        "Monitor official air quality updates",
-        "Follow general air quality guidelines",
-        "Consult health professionals if experiencing respiratory symptoms",
-      ]
-  }
-}
-
-// Get policy recommendations based on AQI category and filters
-function getPolicyRecommendations(aqiCategory: string, filters: Filters): string[] {
-  const baseRecommendations = [
-    "Continue air quality monitoring and expand the sensor network for better coverage",
-    "Develop early warning systems for pollution events",
-    "Promote public awareness about air quality and its health impacts",
-  ]
-
-  let specificRecommendations: string[] = []
-
-  switch (aqiCategory.toLowerCase()) {
-    case "good":
-      specificRecommendations = [
-        "Maintain current air quality management practices",
-        "Develop preventive measures to maintain good air quality",
-      ]
-      break
-    case "moderate":
-      specificRecommendations = [
-        "Implement traffic management strategies during peak hours",
-        "Encourage use of public transportation and carpooling",
-      ]
-      break
-    case "unhealthy for sensitive groups":
-      specificRecommendations = [
-        "Issue health advisories for sensitive populations",
-        "Restrict high-emission industrial activities during unfavorable weather conditions",
-        "Promote clean cooking technologies in residential areas",
-      ]
-      break
-    case "unhealthy":
-    case "very unhealthy":
-    case "hazardous":
-      specificRecommendations = [
-        "Implement emergency response plans for severe pollution events",
-        "Temporarily restrict vehicle use and industrial activities",
-        "Provide clean air shelters for vulnerable populations",
-        "Consider school closures and work-from-home policies during severe episodes",
-      ]
-      break
-    default:
-      specificRecommendations = [
-        "Establish comprehensive air quality monitoring systems",
-        "Develop baseline data for future policy interventions",
-      ]
-  }
-
-  // Add location-specific recommendations if filters are applied
-  if (filters.country || filters.city) {
-    specificRecommendations.push(
-      `Develop a localized air quality management plan for ${filters.city || filters.country}`,
-      `Engage local stakeholders in air quality improvement initiatives`,
-    )
-  }
-
-  return [...baseRecommendations, ...specificRecommendations]
-}
-
-// Get regional insights based on filters and data
-function getRegionalInsights(filters: Filters, sites: SiteData[]): string {
-  if (sites.length === 0) return "No data available for regional insights."
-
-  const avgPM25 = calculateAveragePM25(sites)
-  const percentChange = calculateAveragePercentageChange(sites)
-
-  let regionText = ""
-  if (filters.country) {
-    regionText += filters.country
-    if (filters.city) regionText += `, specifically in ${filters.city}`
-    if (filters.district) regionText += ` (${filters.district} district)`
-  } else {
-    regionText = "the monitored region"
-  }
-
-  let categoryText = ""
-  if (filters.category) {
-    categoryText = `, particularly at ${filters.category} sites,`
-  }
-
-  let trendText = ""
-  if (percentChange < -5) {
-    trendText = "showing significant improvement"
-  } else if (percentChange < 0) {
-    trendText = "showing slight improvement"
-  } else if (percentChange === 0) {
-    trendText = "remaining stable"
-  } else if (percentChange < 5) {
-    trendText = "showing slight deterioration"
-  } else {
-    trendText = "showing significant deterioration"
-  }
-
-  return `Air quality in ${regionText}${categoryText} is currently averaging ${avgPM25.toFixed(1)} µg/m³ for PM2.5, ${trendText} compared to the previous week (${Math.abs(percentChange).toFixed(1)}% ${percentChange < 0 ? "decrease" : "increase"}). ${getAQIContextByValue(avgPM25)}`
-}
-
-// Get conclusion based on selected site, filters, and data
-function getConclusion(selectedSite: SiteData | null, filters: Filters, sites: SiteData[]): string {
-  if (selectedSite) {
-    const pm25 = selectedSite.pm2_5?.value || 0
-    const category = selectedSite.aqi_category || "Unknown"
-    const percentChange = selectedSite.averages?.percentageDifference || 0
-
-    return `The air quality at ${selectedSite.siteDetails.name} is currently ${category.toLowerCase()} with a PM2.5 reading of ${pm25.toFixed(1)} µg/m³. This represents a ${Math.abs(percentChange).toFixed(1)}% ${percentChange < 0 ? "improvement" : "deterioration"} compared to the previous week. ${getRecommendationByCategory(category)}`
-  }
-
-  const avgPM25 = calculateAveragePM25(sites)
-  const category = getAverageAQICategory(sites)
-  const percentChange = calculateAveragePercentageChange(sites)
-
-  let regionText = "the monitored region"
-  if (filters.country) {
-    regionText = filters.country
-    if (filters.city) regionText += `, specifically in ${filters.city}`
-  }
-
-  let categoryText = ""
-  if (filters.category) {
-    categoryText = ` at ${filters.category} sites`
-  }
-
-  return `Overall, the air quality in ${regionText}${categoryText} is ${category.toLowerCase()} with an average PM2.5 reading of ${avgPM25.toFixed(1)} µg/m³. This represents a ${Math.abs(percentChange).toFixed(1)}% ${percentChange < 0 ? "improvement" : "deterioration"} compared to the previous week. ${getRecommendationByCategory(category)}`
-}
-
-// Get AQI context by PM2.5 value
-function getAQIContextByValue(pm25: number): string {
-  if (pm25 <= 12) {
-    return "This is considered good air quality according to international standards."
-  } else if (pm25 <= 35.4) {
-    return "This is considered moderate air quality, which may affect unusually sensitive individuals."
-  } else if (pm25 <= 55.4) {
-    return "This is considered unhealthy for sensitive groups, including children, elderly, and those with respiratory conditions."
-  } else if (pm25 <= 150.4) {
-    return "This is considered unhealthy and may cause health effects for the general population."
-  } else if (pm25 <= 250.4) {
-    return "This is considered very unhealthy and may cause significant health effects for all groups."
-  } else {
-    return "This is considered hazardous and may cause serious health effects for the entire population."
-  }
-}
-
-// Get recommendation by AQI category
-function getRecommendationByCategory(category: string): string {
-  switch (category.toLowerCase()) {
-    case "good":
-      return "Residents can continue normal outdoor activities."
-    case "moderate":
-      return "Unusually sensitive people should consider reducing prolonged outdoor activities."
-    case "unhealthy for sensitive groups":
-      return "Sensitive groups should reduce outdoor activities and monitor their health."
-    case "unhealthy":
-      return "Everyone should reduce outdoor activities, especially those with respiratory conditions."
-    case "very unhealthy":
-      return "Everyone should avoid outdoor activities and use protective measures when outdoors."
-    case "hazardous":
-      return "Everyone should stay indoors and follow emergency health advisories."
-    default:
-      return "Follow general air quality guidelines and stay informed about changes."
-  }
 }
 
