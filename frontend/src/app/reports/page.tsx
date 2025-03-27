@@ -1349,14 +1349,14 @@ function ReportContent() {
 
             if (allCollapsed) {
               // Expand all
-              const expanded = {}
+              const expanded: Record<string, boolean> = {}
               Object.keys(sitesByCategory).forEach((category) => {
                 expanded[category] = false
               })
               setCollapsedCategories(expanded)
             } else {
               // Collapse all
-              const collapsed = {}
+              const collapsed: Record<string, boolean> = {}
               Object.keys(sitesByCategory).forEach((category) => {
                 collapsed[category] = true
               })
