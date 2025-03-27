@@ -18,7 +18,7 @@ import {
 import type { SiteData } from "@/lib/types"
 
 // AQI colors
-const AQI_COLORS = {
+const AQI_COLORS: Record<string, string> = {
   Good: "#A8E05F",
   Moderate: "#FDD64B",
   "Unhealthy for Sensitive Groups": "#FF9B57",
