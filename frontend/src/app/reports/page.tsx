@@ -38,6 +38,8 @@ export default function ReportPage() {
 }
 
 function ReportContent() {
+  // Add this state at the top of the ReportContent function, near the other state declarations
+  const [activeTab, setActiveTab] = useState("moran")
   const [siteData, setSiteData] = useState<SiteData[]>([])
   const [filteredData, setFilteredData] = useState<SiteData[]>([])
   const [loading, setLoading] = useState(true)
@@ -425,42 +427,131 @@ function ReportContent() {
     setIsGeneratingPDF(true)
 
     try {
+      // If advanced analysis is enabled but only one tab is visible,
+      // temporarily show both tabs for the PDF
+      const originalTab = activeTab
+      let tempShowBothTabs = false
+
+      if (showAdvancedAnalysis) {
+        tempShowBothTabs = true
+        // Force render both tabs for PDF
+        setActiveTab("both")
+      }
+
+      // Wait a moment for the UI to update with both tabs if needed
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
       const reportElement = reportRef.current
+
+      // Reduce scale to decrease file size (from 2 to 1.5)
       const canvas = await html2canvas(reportElement, {
-        scale: 2,
+        scale: 1.5, // Reduced from 2 to 1.5 to decrease file size
         logging: false,
         useCORS: true,
         allowTaint: true,
       })
 
-      const imgData = canvas.toDataURL("image/png")
+      const imgData = canvas.toDataURL("image/png", 0.7) // Added compression quality parameter (0.7)
+
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a4",
+        compress: true, // Enable compression
       })
 
-      const imgWidth = 190 // A4 width in mm minus margins
+      // Define margins
+      const pageWidth = 210 // A4 width in mm
       const pageHeight = 297 // A4 height in mm
+      const marginLeft = 15 // Left margin in mm
+      const marginRight = 15 // Right margin in mm
+      const marginTop = 20 // Top margin in mm
+      const marginBottom = 25 // Bottom margin in mm (extra space for footer)
+
+      const contentWidth = pageWidth - marginLeft - marginRight
+      const contentHeight = pageHeight - marginTop - marginBottom
+
+      const imgWidth = contentWidth
       const imgHeight = (canvas.height * imgWidth) / canvas.width
-      const margins = 10 // 10mm margins on all sides
+
+      // Find sections in the report to create page breaks
+      const sections = []
+      const footerSection = reportElement.querySelector(".text-xs.text-gray-500.border-t")
+      if (footerSection) {
+        const footerRect = footerSection.getBoundingClientRect()
+        const reportRect = reportElement.getBoundingClientRect()
+        const footerPosition = (footerRect.top - reportRect.top) / reportRect.height
+        sections.push(footerPosition)
+      }
+
+      // Add advanced analysis section break if it exists
+      if (showAdvancedAnalysis) {
+        const advancedSection = reportElement.querySelector(".pt-8.border-t.border-gray-200")
+        if (advancedSection) {
+          const advancedRect = advancedSection.getBoundingClientRect()
+          const reportRect = reportElement.getBoundingClientRect()
+          const advancedPosition = (advancedRect.top - reportRect.top) / reportRect.height
+          sections.push(advancedPosition)
+        }
+      }
+
+      // Sort sections by position
+      sections.sort((a, b) => a - b)
 
       // If the report is longer than a page, create multiple pages
       let heightLeft = imgHeight
-      let position = margins // Start with top margin
+      let position = marginTop // Start with top margin
       let pageCount = 1
+      let currentPage = 0
+      let lastSection = 0
+
+      // Calculate how many pages we'll need
+      const totalPages = Math.ceil(imgHeight / contentHeight)
+
+      // Function to add page number
+      const addPageNumber = (pageNum) => {
+        pdf.setFontSize(9) // Smaller font size
+        pdf.setTextColor(100, 100, 100)
+        pdf.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: "center" })
+      }
 
       // Add first page with margins
-      pdf.addImage(imgData, "PNG", margins, position, imgWidth, imgHeight)
-      heightLeft -= pageHeight - margins * 2
+      pdf.addImage(imgData, "PNG", marginLeft, position, imgWidth, imgHeight)
+      addPageNumber(pageCount)
+
+      heightLeft -= contentHeight
+      currentPage += contentHeight / imgHeight
 
       // Add additional pages if content is longer than one page
       while (heightLeft > 0) {
-        position = margins - pageHeight * pageCount // Start position for next page
+        // Check if we need to force a page break at a section
+        let forceSectionBreak = false
+        for (const section of sections) {
+          if (section > lastSection && section <= currentPage) {
+            // This section falls on the current page, force a break
+            forceSectionBreak = true
+            lastSection = section
+            break
+          }
+        }
+
+        // Add a new page
         pdf.addPage()
-        pdf.addImage(imgData, "PNG", margins, position, imgWidth, imgHeight)
-        heightLeft -= pageHeight - margins * 2
         pageCount++
+
+        // Calculate position for next page
+        // If we're forcing a section break, align to the section
+        if (forceSectionBreak) {
+          position = marginTop - lastSection * canvas.height * (imgWidth / canvas.width)
+        } else {
+          position = marginTop - pageHeight * (pageCount - 1)
+        }
+
+        pdf.addImage(imgData, "PNG", marginLeft, position, imgWidth, imgHeight)
+        addPageNumber(pageCount)
+
+        heightLeft -= contentHeight
+        currentPage += contentHeight / imgHeight
       }
 
       // Generate filename based on filters or selected site
@@ -476,6 +567,11 @@ function ReportContent() {
       }
 
       pdf.save(`${filename}-${format(new Date(), "yyyy-MM-dd")}.pdf`)
+
+      // Restore original tab state if we temporarily changed it
+      if (tempShowBothTabs) {
+        setActiveTab(originalTab)
+      }
     } catch (error) {
       console.error("Error generating PDF:", error)
       alert("Failed to generate PDF. Please try again.")
@@ -1137,7 +1233,7 @@ function ReportContent() {
 
             {showAdvancedAnalysis && (
               <div className="mb-8">
-                <AdvancedAnalysisSection sites={filteredData} />
+                <AdvancedAnalysisSection sites={filteredData} activeTab={activeTab} />
               </div>
             )}
 
@@ -1647,10 +1743,18 @@ function HealthTipBox({ title, description }: { title: string; description: stri
 }
 
 // Add this new component after the HealthTipBox component at the end of the file
-function AdvancedAnalysisSection({ sites }: { sites: SiteData[] }) {
-  const [activeTab, setActiveTab] = useState("moran")
+// Modify the AdvancedAnalysisSection component to accept and use an activeTab prop
+// Modify the AdvancedAnalysisSection component to make it more compact for PDF
+function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteData[]; activeTab?: string }) {
+  const [localActiveTab, setLocalActiveTab] = useState(activeTab)
 
-  // Simulated data for Local Moran's I analysis
+  // Use the passed activeTab if it's "both", otherwise use local state
+  const effectiveTab = activeTab === "both" ? "both" : localActiveTab
+
+  // Colors for the charts
+  const moranColors = ["#ff6b6b", "#4ecdc4", "#ffd166", "#6a0572", "#cccccc"]
+  const getisOrdColors = ["#d00000", "#e85d04", "#faa307", "#48cae4", "#0077b6", "#023e8a", "#cccccc"]
+
   // Simulated data for Local Moran's I analysis with device names
   const moranData = [
     {
@@ -1714,7 +1818,6 @@ function AdvancedAnalysisSection({ sites }: { sites: SiteData[] }) {
     },
   ]
 
-  // Simulated data for Getis-Ord Gi* analysis
   // Simulated data for Getis-Ord Gi* analysis with device names
   const getisOrdData = [
     {
@@ -1764,7 +1867,10 @@ function AdvancedAnalysisSection({ sites }: { sites: SiteData[] }) {
       description: "Statistically significant cold spots with 95% confidence",
       devices: sites
         .slice(
-          Math.floor(sites.length * 0.1) + Math.floor(sites.length * 0.15) + Math.floor(sites.length * 0.1),
+          Math.floor(sites.length * 0.1) +
+            Math.floor(sites.length * 0.15) +
+            Math.floor(sites.length * 0.1) +
+            Math.floor(sites.length * 0.1),
           Math.floor(sites.length * 0.1) +
             Math.floor(sites.length * 0.15) +
             Math.floor(sites.length * 0.1) +
@@ -1782,7 +1888,8 @@ function AdvancedAnalysisSection({ sites }: { sites: SiteData[] }) {
           Math.floor(sites.length * 0.1) +
             Math.floor(sites.length * 0.15) +
             Math.floor(sites.length * 0.1) +
-            Math.floor(sites.length * 0.1),
+            Math.floor(sites.length * 0.1) +
+            Math.floor(sites.length * 0.15),
           Math.floor(sites.length * 0.1) +
             Math.floor(sites.length * 0.15) +
             Math.floor(sites.length * 0.1) +
@@ -1816,272 +1923,280 @@ function AdvancedAnalysisSection({ sites }: { sites: SiteData[] }) {
     },
   ]
 
-  // Colors for the charts
-  const moranColors = ["#ff6b6b", "#4ecdc4", "#ffd166", "#6a0572", "#cccccc"]
-  const getisOrdColors = ["#d00000", "#e85d04", "#faa307", "#48cae4", "#0077b6", "#023e8a", "#cccccc"]
+  // Render the Moran's I analysis section
+  const renderMoranAnalysis = () => (
+    <div className="space-y-4">
+      <div className="bg-blue-50 p-4 rounded-lg">
+        <h4 className="font-semibold text-blue-800 mb-2">About Local Moran's I</h4>
+        <p className="text-blue-700 text-sm">
+          Local Moran's I is a spatial autocorrelation statistic that identifies clusters and spatial outliers. It helps
+          identify areas with similar values clustered together (HH, LL) and areas that are different from their
+          neighbors (HL, LH).
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="py-3">
+            <CardTitle className="text-base">Cluster and Outlier Analysis</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[250px] p-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={moranData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="type" />
+                <YAxis />
+                <Tooltip formatter={(value, name, props) => [`${value} sites`, props.payload.type]} />
+                <Legend />
+                <Bar dataKey="count" name="Number of Sites" fill="#8884d8">
+                  {moranData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={moranColors[index % moranColors.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="py-3">
+            <CardTitle className="text-base">Interpretation</CardTitle>
+          </CardHeader>
+          <CardContent className="p-3">
+            <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2">
+              {moranData.map((item, index) => (
+                <div key={index} className="flex items-start gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full mt-1 flex-shrink-0"
+                    style={{ backgroundColor: moranColors[index % moranColors.length] }}
+                  />
+                  <div>
+                    <div className="font-medium text-sm">
+                      {item.type}: {item.count} sites
+                    </div>
+                    <div className="text-xs text-gray-600">{item.description}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="bg-white p-4 rounded-lg border border-gray-200">
+        <h4 className="font-semibold text-gray-700 mb-2">Key Insights from Local Moran's I Analysis</h4>
+        <ul className="list-disc list-inside space-y-1 text-gray-700 text-sm">
+          <li>
+            <strong>High-High Clusters:</strong> {moranData[0].count} sites show high PM2.5 values clustered together,
+            indicating potential pollution hotspots that require immediate attention.
+          </li>
+          <li>
+            <strong>Spatial Outliers:</strong> {moranData[2].count + moranData[3].count} sites are spatial outliers (HL
+            or LH), suggesting localized emission sources or unique geographical factors affecting air quality.
+          </li>
+          <li>
+            <strong>Low-Low Clusters:</strong> {moranData[1].count} sites show low PM2.5 values clustered together,
+            representing areas with consistently better air quality.
+          </li>
+        </ul>
+      </div>
+
+      <Card className="mt-4">
+        <CardHeader className="py-3">
+          <CardTitle className="text-base">Device Details by Category</CardTitle>
+        </CardHeader>
+        <CardContent className="p-3">
+          <div className="space-y-3 max-h-[200px] overflow-y-auto">
+            {moranData.map((item, index) => (
+              <div key={index} className="border-b pb-2 last:border-b-0 last:pb-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <div
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: moranColors[index % moranColors.length] }}
+                  />
+                  <h4 className="font-semibold text-sm">{item.type}</h4>
+                </div>
+                {item.devices && item.devices.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1 mt-1">
+                    {item.devices.slice(0, 4).map((device, idx) => (
+                      <div key={idx} className="text-xs bg-gray-50 p-1 rounded">
+                        {device}
+                      </div>
+                    ))}
+                    {item.devices.length > 4 && (
+                      <div className="text-xs text-gray-500">+{item.devices.length - 4} more devices</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-500">No devices in this category</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+
+  // Render the Getis-Ord analysis section
+  const renderGetisOrdAnalysis = () => (
+    <div className="space-y-4">
+      <div className="bg-blue-50 p-4 rounded-lg">
+        <h4 className="font-semibold text-blue-800 mb-2">About Getis-Ord Gi* (Hot Spot Analysis)</h4>
+        <p className="text-blue-700 text-sm">
+          Getis-Ord Gi* is a spatial statistic that identifies statistically significant hot spots (high values) and
+          cold spots (low values) in your data. The analysis shows where features with high or low values cluster
+          spatially, with different confidence levels (90%, 95%, 99%).
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="py-3">
+            <CardTitle className="text-base">Hot Spot Analysis</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[250px] p-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={getisOrdData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="type" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 10 }} />
+                <YAxis />
+                <Tooltip formatter={(value, name, props) => [`${value} sites`, props.payload.type]} />
+                <Legend />
+                <Bar dataKey="count" name="Number of Sites" fill="#8884d8">
+                  {getisOrdData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={getisOrdColors[index % getisOrdColors.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="py-3">
+            <CardTitle className="text-base">Interpretation</CardTitle>
+          </CardHeader>
+          <CardContent className="p-3">
+            <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2">
+              {getisOrdData.map((item, index) => (
+                <div key={index} className="flex items-start gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full mt-1 flex-shrink-0"
+                    style={{ backgroundColor: getisOrdColors[index % getisOrdColors.length] }}
+                  />
+                  <div>
+                    <div className="font-medium text-sm">
+                      {item.type}: {item.count} sites
+                    </div>
+                    <div className="text-xs text-gray-600">{item.description}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="bg-white p-4 rounded-lg border border-gray-200">
+        <h4 className="font-semibold text-gray-700 mb-2">Key Insights from Getis-Ord Gi* Analysis</h4>
+        <ul className="list-disc list-inside space-y-1 text-gray-700 text-sm">
+          <li>
+            <strong>Significant Hot Spots:</strong>{" "}
+            {getisOrdData[0].count + getisOrdData[1].count + getisOrdData[2].count} sites are identified as
+            statistically significant hot spots, with varying confidence levels.
+          </li>
+          <li>
+            <strong>Significant Cold Spots:</strong>{" "}
+            {getisOrdData[3].count + getisOrdData[4].count + getisOrdData[5].count} sites are identified as
+            statistically significant cold spots, representing areas with consistently lower pollution levels.
+          </li>
+          <li>
+            <strong>Highest Confidence Hot Spots:</strong> {getisOrdData[0].count} sites show hot spots with 99%
+            confidence, indicating areas that should be prioritized for intervention.
+          </li>
+        </ul>
+      </div>
+
+      <Card className="mt-4">
+        <CardHeader className="py-3">
+          <CardTitle className="text-base">Device Details by Category</CardTitle>
+        </CardHeader>
+        <CardContent className="p-3">
+          <div className="space-y-3 max-h-[200px] overflow-y-auto">
+            {getisOrdData.map((item, index) => (
+              <div key={index} className="border-b pb-2 last:border-b-0 last:pb-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <div
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: getisOrdColors[index % getisOrdColors.length] }}
+                  />
+                  <h4 className="font-semibold text-sm">{item.type}</h4>
+                </div>
+                {item.devices && item.devices.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1 mt-1">
+                    {item.devices.slice(0, 4).map((device, idx) => (
+                      <div key={idx} className="text-xs bg-gray-50 p-1 rounded">
+                        {device}
+                      </div>
+                    ))}
+                    {item.devices.length > 4 && (
+                      <div className="text-xs text-gray-500">+{item.devices.length - 4} more devices</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-500">No devices in this category</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-xl font-semibold text-gray-800">Advanced Spatial Analysis</h3>
-        <div className="flex space-x-2">
-          <Button
-            variant={activeTab === "moran" ? "default" : "outline"}
-            onClick={() => setActiveTab("moran")}
-            className="flex items-center gap-2"
-          >
-            <Layers className="h-4 w-4" />
-            Local Moran's I
-          </Button>
-          <Button
-            variant={activeTab === "getis" ? "default" : "outline"}
-            onClick={() => setActiveTab("getis")}
-            className="flex items-center gap-2"
-          >
-            <Zap className="h-4 w-4" />
-            Getis-Ord Gi*
-          </Button>
-        </div>
+        {effectiveTab !== "both" && (
+          <div className="flex space-x-2">
+            <Button
+              variant={localActiveTab === "moran" ? "default" : "outline"}
+              onClick={() => setLocalActiveTab("moran")}
+              className="flex items-center gap-2"
+            >
+              <Layers className="h-4 w-4" />
+              Local Moran's I
+            </Button>
+            <Button
+              variant={localActiveTab === "getis" ? "default" : "outline"}
+              onClick={() => setLocalActiveTab("getis")}
+              className="flex items-center gap-2"
+            >
+              <Zap className="h-4 w-4" />
+              Getis-Ord Gi*
+            </Button>
+          </div>
+        )}
       </div>
 
-      {activeTab === "moran" && (
-        <div className="space-y-4">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-semibold text-blue-800 mb-2">About Local Moran's I</h4>
-            <p className="text-blue-700 text-sm">
-              Local Moran's I is a spatial autocorrelation statistic that identifies clusters and spatial outliers. It
-              helps identify areas with similar values clustered together (HH, LL) and areas that are different from
-              their neighbors (HL, LH).
-            </p>
+      {/* Render based on the active tab */}
+      {effectiveTab === "both" ? (
+        <>
+          <div className="mb-8">
+            <h3 className="text-2xl font-semibold text-blue-800 mb-4">Local Moran's I Analysis</h3>
+            {renderMoranAnalysis()}
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Cluster and Outlier Analysis</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={moranData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="type" />
-                    <YAxis />
-                    <Tooltip formatter={(value, name, props) => [`${value} sites`, props.payload.type]} />
-                    <Legend />
-                    <Bar dataKey="count" name="Number of Sites" fill="#8884d8">
-                      {moranData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={moranColors[index % moranColors.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Interpretation</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-                  {moranData.map((item, index) => (
-                    <div key={index} className="flex items-start gap-2">
-                      <div
-                        className="w-4 h-4 rounded-full mt-1 flex-shrink-0"
-                        style={{ backgroundColor: moranColors[index % moranColors.length] }}
-                      />
-                      <div>
-                        <div className="font-medium">
-                          {item.type}: {item.count} sites
-                        </div>
-                        <div className="text-sm text-gray-600">{item.description}</div>
-                        {item.devices && item.devices.length > 0 && (
-                          <div className="mt-1">
-                            <div className="text-xs font-medium text-gray-500">Devices:</div>
-                            <div className="text-xs text-gray-600 mt-1">
-                              {item.devices.slice(0, 5).join(", ")}
-                              {item.devices.length > 5 && `, and ${item.devices.length - 5} more...`}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+          <div className="pt-8 border-t border-gray-200">
+            <h3 className="text-2xl font-semibold text-blue-800 mb-4">Getis-Ord Gi* Analysis</h3>
+            {renderGetisOrdAnalysis()}
           </div>
-
-          <div className="bg-white p-4 rounded-lg border border-gray-200">
-            <h4 className="font-semibold text-gray-700 mb-2">Key Insights from Local Moran's I Analysis</h4>
-            <ul className="list-disc list-inside space-y-2 text-gray-700">
-              <li>
-                <strong>High-High Clusters:</strong> {moranData[0].count} sites show high PM2.5 values clustered
-                together, indicating potential pollution hotspots that require immediate attention.
-              </li>
-              <li>
-                <strong>Spatial Outliers:</strong> {moranData[2].count + moranData[3].count} sites are spatial outliers
-                (HL or LH), suggesting localized emission sources or unique geographical factors affecting air quality.
-              </li>
-              <li>
-                <strong>Low-Low Clusters:</strong> {moranData[1].count} sites show low PM2.5 values clustered together,
-                representing areas with consistently better air quality.
-              </li>
-            </ul>
-          </div>
-          <Card className="mt-4">
-            <CardHeader>
-              <CardTitle>Device Details by Category</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {moranData.map((item, index) => (
-                  <div key={index} className="border-b pb-4 last:border-b-0 last:pb-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div
-                        className="w-4 h-4 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: moranColors[index % moranColors.length] }}
-                      />
-                      <h4 className="font-semibold">{item.type}</h4>
-                    </div>
-                    {item.devices && item.devices.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
-                        {item.devices.map((device, idx) => (
-                          <div key={idx} className="text-sm bg-gray-50 p-2 rounded">
-                            {device}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-500">No devices in this category</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {activeTab === "getis" && (
-        <div className="space-y-4">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-semibold text-blue-800 mb-2">About Getis-Ord Gi* (Hot Spot Analysis)</h4>
-            <p className="text-blue-700 text-sm">
-              Getis-Ord Gi* is a spatial statistic that identifies statistically significant hot spots (high values) and
-              cold spots (low values) in your data. The analysis shows where features with high or low values cluster
-              spatially, with different confidence levels (90%, 95%, 99%).
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Hot Spot Analysis</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={getisOrdData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="type" angle={-45} textAnchor="end" height={100} />
-                    <YAxis />
-                    <Tooltip formatter={(value, name, props) => [`${value} sites`, props.payload.type]} />
-                    <Legend />
-                    <Bar dataKey="count" name="Number of Sites" fill="#8884d8">
-                      {getisOrdData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={getisOrdColors[index % getisOrdColors.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Interpretation</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-                  {getisOrdData.map((item, index) => (
-                    <div key={index} className="flex items-start gap-2">
-                      <div
-                        className="w-4 h-4 rounded-full mt-1 flex-shrink-0"
-                        style={{ backgroundColor: getisOrdColors[index % getisOrdColors.length] }}
-                      />
-                      <div>
-                        <div className="font-medium">
-                          {item.type}: {item.count} sites
-                        </div>
-                        <div className="text-sm text-gray-600">{item.description}</div>
-                        {item.devices && item.devices.length > 0 && (
-                          <div className="mt-1">
-                            <div className="text-xs font-medium text-gray-500">Devices:</div>
-                            <div className="text-xs text-gray-600 mt-1">
-                              {item.devices.slice(0, 5).join(", ")}
-                              {item.devices.length > 5 && `, and ${item.devices.length - 5} more...`}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="bg-white p-4 rounded-lg border border-gray-200">
-            <h4 className="font-semibold text-gray-700 mb-2">Key Insights from Getis-Ord Gi* Analysis</h4>
-            <ul className="list-disc list-inside space-y-2 text-gray-700">
-              <li>
-                <strong>Significant Hot Spots:</strong>{" "}
-                {getisOrdData[0].count + getisOrdData[1].count + getisOrdData[2].count} sites are identified as
-                statistically significant hot spots, with varying confidence levels.
-              </li>
-              <li>
-                <strong>Significant Cold Spots:</strong>{" "}
-                {getisOrdData[3].count + getisOrdData[4].count + getisOrdData[5].count} sites are identified as
-                statistically significant cold spots, representing areas with consistently lower pollution levels.
-              </li>
-              <li>
-                <strong>Highest Confidence Hot Spots:</strong> {getisOrdData[0].count} sites show hot spots with 99%
-                confidence, indicating areas that should be prioritized for intervention.
-              </li>
-            </ul>
-          </div>
-          <Card className="mt-4">
-            <CardHeader>
-              <CardTitle>Device Details by Category</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {getisOrdData.map((item, index) => (
-                  <div key={index} className="border-b pb-4 last:border-b-0 last:pb-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div
-                        className="w-4 h-4 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: getisOrdColors[index % getisOrdColors.length] }}
-                      />
-                      <h4 className="font-semibold">{item.type}</h4>
-                    </div>
-                    {item.devices && item.devices.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
-                        {item.devices.map((device, idx) => (
-                          <div key={idx} className="text-sm bg-gray-50 p-2 rounded">
-                            {device}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-500">No devices in this category</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        </>
+      ) : localActiveTab === "moran" ? (
+        renderMoranAnalysis()
+      ) : (
+        renderGetisOrdAnalysis()
       )}
     </div>
   )
