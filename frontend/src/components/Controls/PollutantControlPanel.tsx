@@ -139,9 +139,7 @@ export function PollutantControlPanel({
 
   
         
-        <div className="text-sm text-muted-foreground">
-          {mustHaveLocations.length} locations identified
-        </div>
+        
       </div>
 
   
