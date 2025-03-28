@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup,useMap, } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import markerIconUrl from "leaflet/dist/images/marker-icon.png";
 import markerShadowUrl from "leaflet/dist/images/marker-shadow.png";
+import { Button } from "@/ui/button";
+import { MapIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover";
 
 // Set default icon for markers
 const DefaultIcon = L.icon({
@@ -37,6 +40,89 @@ interface PollutionFeatureCollection {
   type: "FeatureCollection";
   features: PollutionFeature[];
 }
+
+const mapStyles = {
+    streets: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    satellite:
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  };
+  
+  type MapStyle = keyof typeof mapStyles;
+  
+  interface MapComponentProps {
+    polygon: Location[];
+    mustHaveLocations: Location[];
+    suggestedLocations: Location[];
+    onPolygonChange: (locations: Location[]) => void;
+    onLocationClick: (location: Location) => void;
+    isDrawing: boolean;
+  }
+  
+  // Add map instance to window for global access
+  declare global {
+    interface Window {
+      map: L.Map;
+    }
+  }
+  
+  function MapStyleControl() {
+    const map = useMap();
+    const [currentStyle, setCurrentStyle] = useState<MapStyle>("streets");
+  
+    const changeStyle = (style: MapStyle) => {
+      setCurrentStyle(style);
+      // Find and remove the existing tile layer
+      map.eachLayer((layer) => {
+        if (layer instanceof L.TileLayer) {
+          map.removeLayer(layer);
+        }
+      });
+      // Add the new tile layer
+      L.tileLayer(mapStyles[style], {
+        attribution:
+          style === "satellite"
+            ? '&copy; <a href="https://www.arcgis.com/">ESRI</a>'
+            : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+    };
+  
+    return (
+      <div className="absolute top-4 right-4 z-[1000]">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 bg-white shadow-lg"
+            >
+              <MapIcon className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-40 p-2" style={{ zIndex: 2000 }}>
+            {Object.keys(mapStyles).map((style) => (
+              <Button
+                key={style}
+                variant={currentStyle === style ? "secondary" : "ghost"}
+                className="w-full justify-start text-sm capitalize mb-1"
+                onClick={() => changeStyle(style as MapStyle)}
+              >
+                {style}
+              </Button>
+            ))}
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
+  }
+  
+  function MapController() {
+    const map = useMap();
+    useEffect(() => {
+      window.map = map;
+    }, [map]);
+    return null;
+  }
+
 
 const fetchPollutionData = async (): Promise<PollutionProperties[] | null> => {
   try {
@@ -82,13 +168,15 @@ const PollutantMap: React.FC = () => {
   return (
     <div style={{ display: "flex" }}>
       {/* Side Panel */}
-      <div style={{ width: "300px", padding: "10px", backgroundColor: "#f4f4f4", borderRight: "1px solid #ccc" }}>
+      <div style={{ width: "300px", padding: "10px", backgroundColor: "#000000", color: "#ffffff", borderRight: "1px solid #ccc" }}>
         <h2>Pollutants Summary</h2>
         <p>Total Pollutants Identified: {pollutantCount}</p>
       </div>
 
       {/* Map */}
       <MapContainer center={[1.3733, 32.2903]} zoom={7} style={{ height: "100vh", width: "100%" }}>
+      <MapController />
+        <MapStyleControl />
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

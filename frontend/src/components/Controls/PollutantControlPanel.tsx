@@ -147,22 +147,7 @@ export function PollutantControlPanel({
   
 
 
-      {/* Submit Button */}
-      <Button
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-        onClick={handleSubmit}
-        disabled={isLoading}
-        aria-label="Submit"
-      >
-        {isLoading ? (
-          <div className="flex items-center justify-center">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            <span>Submitting...</span>
-          </div>
-        ) : (
-          "Submit"
-        )}
-      </Button>
+  
     </div>
   );
 }
