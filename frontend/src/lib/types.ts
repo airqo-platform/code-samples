@@ -147,3 +147,19 @@ export interface SiteInformation {
     lastActive: string; // Last active timestamp
   }
   
+  export interface PollutionProperties {
+    latitude: number;
+    longitude: number;
+    confidence_score: number;
+    timestamp: string;
+    total_road_length: number;
+    road_density: number;
+    intersection_count: number;
+    number_of_buildings: number;
+    building_density: number;
+    service: number;
+    mean_AOD: number;
+    mean_CO: number;
+    mean_NO2: number;
+  }
+  

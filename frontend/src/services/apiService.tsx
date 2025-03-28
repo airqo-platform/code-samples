@@ -57,6 +57,22 @@ interface MapNode {
   updatedAt: string;
 }
 
+interface PollutionProperties {
+  latitude: number;
+  longitude: number;
+  confidence_score: number;
+  timestamp: string;
+  total_road_length: number;
+  road_density: number;
+  intersection_count: number;
+  number_of_buildings: number;
+  building_density: number;
+  service: number;
+  mean_AOD: number;
+  mean_CO: number;
+  mean_NO2: number;
+}
+
 
 // Satellite API service to fetch data with POST request
 export const getSatelliteData = async (body = {}) => {
@@ -94,6 +110,30 @@ export const getMapNodes = async (): Promise<MapNode[] | null> => {
     return response.data.measurements;
   } catch (error) {
     console.error('Error fetching map nodes:', error);
+    return null;
+  }
+};
+
+
+
+
+
+export const fetchPollutionData = async (): Promise<PollutionProperties[] | null> => {
+  try {
+    const response = await apiService.get("/spatial/get-all-data");
+
+    // Validate if features exist in the response
+    if (!response.data?.features?.length) {
+      console.error('No features found in response');
+      return null;
+    }
+
+    // Extract and map properties from features
+    const pollutionProperties = response.data.features.map((feature: any) => feature.properties);
+
+    return pollutionProperties as PollutionProperties[];
+  } catch (error) {
+    console.error('Error fetching pollution data:', error);
     return null;
   }
 };
