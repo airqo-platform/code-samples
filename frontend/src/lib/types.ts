@@ -147,3 +147,41 @@ export interface Site {
   lastActive: string // Last active timestamp
 }
 
+export interface SiteData {
+  _id: string
+  site_id: string
+  time: string
+  aqi_category: string
+  aqi_color: string
+  pm2_5: { value: number | null }
+  averages?: {
+    percentageDifference: number
+    weeklyAverages: {
+      currentWeek: number
+      previousWeek: number
+    }
+  }
+  siteDetails: {
+    name: string
+    formatted_name?: string
+    location_name?: string
+    approximate_latitude: number
+    approximate_longitude: number
+    city?: string
+    district?: string
+    country?: string
+    site_category?: {
+      category: string
+      area_name: string
+    }
+  }
+}
+
+// Filter interface for reports page
+export interface Filters {
+  country: string
+  city: string
+  district: string
+  category: string
+}
+
