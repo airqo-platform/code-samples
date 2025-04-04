@@ -185,3 +185,36 @@ export interface Filters {
   category: string
 }
 
+// New interfaces for historical data
+export interface DateRange {
+  startDate: Date
+  endDate: Date
+}
+
+export interface HistoricalDataPoint {
+  timestamp: string | number | Date | null | undefined;
+  pm2_5: number
+  pm10: number
+  temperature?: number
+  humidity?: number
+  site_id: string
+}
+
+export interface HistoricalDataResponse {
+  success: boolean
+  data: HistoricalDataPoint[]
+  dateRange: {
+    startDate: string
+    endDate: string
+  }
+  error?: string
+}
+
+
+
+export interface DateRangeOption {
+  label: string
+  value: string
+  days: number
+}
+

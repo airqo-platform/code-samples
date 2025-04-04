@@ -12,6 +12,7 @@ const navItems = [
   { name: "Locate", href: "/locate" },
   { name: "Categorize", href: "/categorize" },
   { name: "Reports", href: "/reports" },
+  { name: "Historical", href: "/historical" },
   { name: "About", href: "/about" },
 ]
 

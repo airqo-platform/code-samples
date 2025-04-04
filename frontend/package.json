@@ -9,6 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google-cloud/bigquery": "^7.9.3",
+    "@heroui/calendar": "^2.2.16",
+    "@heroui/system": "^2.4.12",
+    "@heroui/theme": "^2.4.12",
     "@radix-ui/react-checkbox": "^1.1.4",
     "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-label": "^2.1.2",
@@ -23,6 +27,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "framer-motion": "^12.6.3",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.1",
     "leaflet": "^1.9.4",
@@ -31,13 +36,15 @@
     "lucide-react": "^0.475.0",
     "next": "^15.1.7",
     "papaparse": "^5.5.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.1.0",
+    "react-day-picker": "^8.10.1",
+    "react-dom": "^19.1.0",
     "react-icons": "^5.3.0",
     "react-leaflet": "^4.2.1",
-    "recharts": "^2.15.1",
+    "recharts": "^2.15.2",
     "tailwind-merge": "^3.0.2",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.14",
