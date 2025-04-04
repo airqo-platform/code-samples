@@ -697,7 +697,7 @@ function ReportContent() {
   }
 
   const mostCommonCategory = getMostCommonCategory(filteredData)
-    
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="text-center mb-8">
@@ -775,7 +775,7 @@ function ReportContent() {
               </SelectContent>
             </Select>
           </div>
-         
+
           <div>
             <label className="text-sm font-medium mb-1 block">Category</label>
             <Select value={filters.category} onValueChange={(value) => handleFilterChange("category", value)}>
@@ -1130,9 +1130,10 @@ function ReportContent() {
                   : filters.country || filters.city || filters.category
                     ? ` the selected region (${[filters.country, filters.city, filters.district, filters.category].filter(Boolean).join(", ")}).`
                     : " all monitored sites in the AirQo network."}{" "}
-                The data was collected using AirQo&apos;s network of low-cost air quality sensors, which measure particulate
-                matter (PM2.5) and other pollutants in real-time. This report analyzes the current air quality status,
-                compares it with previous periods, and provides health recommendations based on the findings.
+                The data was collected using AirQo&apos;s network of low-cost air quality sensors, which measure
+                particulate matter (PM2.5) and other pollutants in real-time. This report analyzes the current air
+                quality status, compares it with previous periods, and provides health recommendations based on the
+                findings.
               </p>
             </div>
 
@@ -1934,8 +1935,8 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
       <div className="bg-blue-50 p-4 rounded-lg">
         <h4 className="font-semibold text-blue-800 mb-2">About Local Moran&apos;s I</h4>
         <p className="text-blue-700 text-sm">
-          Local Moran&apos;s I is a spatial autocorrelation statistic that identifies clusters and spatial outliers. It helps
-          identify areas with similar values clustered together (HH, LL) and areas that are different from their
+          Local Moran&apos;s I is a spatial autocorrelation statistic that identifies clusters and spatial outliers. It
+          helps identify areas with similar values clustered together (HH, LL) and areas that are different from their
           neighbors (HL, LH).
         </p>
       </div>
