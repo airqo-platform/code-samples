@@ -41,6 +41,7 @@ AirQo AI Platform [https://ai.airqo.net/](https://ai.airqo.net/).
    ```
     NEXT_PUBLIC_API_TOKEN=your_api_token_here   
     NEXT_PUBLIC_API_URL=https://analytics.airqo.net/api/v2/
+    NEXT_PUBLIC_GOOGLE_ANALYTICS_ID=G-**********
    ```
 
 4. Run the development server:
