@@ -139,8 +139,6 @@ export default function Index() {
           <div className="mt-8 flex justify-center gap-4">
             
 
-
-
           </div>
         </div>
       </div>
