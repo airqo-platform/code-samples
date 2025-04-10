@@ -11,6 +11,7 @@ import Navigation from "@/components/navigation/navigation";
 import dynamic from "next/dynamic";
 import Loading from "../Loading";
 
+
 const PollutantMap = dynamic(() => import("@/components/map/PollutantMap"), {
   ssr: false,
   loading: () => <Loading />,
@@ -124,7 +125,14 @@ export default function Index() {
       {/* Navigation */}
       <Navigation />
       <div className="relative flex-1">
-      <PollutantMap />
+      <PollutantMap 
+          polygon={polygon}
+          mustHaveLocations={mustHaveLocations}
+          suggestedLocations={suggestedLocations}
+          onPolygonChange={setPolygon}
+          onLocationClick={handleLocationClick}
+          isDrawing={isDrawing}      
+      />
         {/* Control Panel */}
         <div className="absolute right-4 top-4 z-[1000]">
           <PollutantControlPanel
@@ -138,7 +146,18 @@ export default function Index() {
           {/* Action Buttons */}
           <div className="mt-8 flex justify-center gap-4">
             
-
+                        {/* Draw Polygon Button */}
+              <Button
+              onClick={toggleDrawing}
+              aria-label={isDrawing ? "Finish drawing polygon" : "Start drawing polygon"}
+              className={`${
+                isDrawing
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-blue-600 hover:bg-blue-700"
+              } flex items-center gap-2 text-white px-4 py-2 rounded-lg`}
+            >
+              {isDrawing ? "Finish Drawing" : "Draw Polygon"}
+            </Button>
           </div>
         </div>
       </div>
