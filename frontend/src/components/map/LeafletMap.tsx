@@ -686,7 +686,13 @@ const Legend: React.FC = () => {
 // Map Layer Control Component
 const MapLayerButton: React.FC = () => {
   const map = useMap()
-  const [currentStyle, setCurrentStyle] = useState<string>("streets")
+  const [currentStyle, setCurrentStyle] = useState<string>(() => {
+    // Try to get the saved style from localStorage, default to "streets" if not found
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("mapStyle") || "streets"
+    }
+    return "streets"
+  })
 
   // Define available Mapbox styles
   const mapStyles = {
@@ -701,6 +707,11 @@ const MapLayerButton: React.FC = () => {
   const handleStyleChange = (style: string) => {
     console.log("Changing map style to:", style)
     setCurrentStyle(style)
+
+    // Save the selected style to localStorage
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mapStyle", style)
+    }
 
     // Find and remove the existing tile layer
     map.eachLayer((layer) => {
@@ -742,6 +753,9 @@ const LeafletMap: React.FC = () => {
     console.warn("Mapbox token is not set in environment variables. Map functionality may be limited.")
   }
 
+  // Get the initial map style from localStorage
+  const initialMapStyle = typeof window !== "undefined" ? localStorage.getItem("mapStyle") || "streets" : "streets"
+
   // Define available Mapbox styles
   const mapStyles = {
     streets: `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
@@ -757,7 +771,7 @@ const LeafletMap: React.FC = () => {
       <LoadingIndicator isLoading={loadingState.isLoading} error={loadingState.error} />
       <MapContainer center={defaultCenter} zoom={defaultZoom} style={{ height: "100vh", width: "100%" }}>
         <TileLayer
-          url={mapStyles.streets}
+          url={mapStyles[initialMapStyle as keyof typeof mapStyles]}
           attribution='&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           tileSize={512}
           zoomOffset={-1}
