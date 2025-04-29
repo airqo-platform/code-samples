@@ -32,9 +32,10 @@ const greenIcon = new L.Icon({
   shadowSize: [41, 41],
 })
 
+// Update the mapStyles object to use Mapbox
 const mapStyles = {
-  streets: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  streets: `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
+  satellite: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v11/tiles/{z}/{x}/{y}?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
 }
 
 type MapStyle = keyof typeof mapStyles
@@ -67,12 +68,12 @@ function MapStyleControl() {
         map.removeLayer(layer)
       }
     })
-    // Add the new tile layer
+    // Add the new tile layer with Mapbox-specific options
     L.tileLayer(mapStyles[style], {
       attribution:
-        style === "satellite"
-          ? '&copy; <a href="https://www.arcgis.com/">ESRI</a>'
-          : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      tileSize: 512,
+      zoomOffset: -1,
     }).addTo(map)
   }
 
@@ -142,6 +143,7 @@ function DrawControl({
   return null
 }
 
+// Add a check for the Mapbox token at the beginning of the component
 export default function MapComponent({
   polygon,
   mustHaveLocations,
@@ -150,6 +152,12 @@ export default function MapComponent({
   // onLocationClick,
   isDrawing,
 }: MapComponentProps) {
+  // Check if Mapbox token is available
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+  if (!mapboxToken) {
+    console.warn("Mapbox token is not set in environment variables. Map functionality may be limited.")
+  }
+
   return (
     <div className="relative pr-[420px]">
       <MapContainer
@@ -160,8 +168,10 @@ export default function MapComponent({
         <MapController />
         <MapStyleControl />
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          attribution='&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url={mapStyles.streets}
+          tileSize={512}
+          zoomOffset={-1}
         />
 
         {isDrawing && <DrawControl onPolygonChange={onPolygonChange} />}
@@ -191,4 +201,3 @@ export default function MapComponent({
     </div>
   )
 }
-

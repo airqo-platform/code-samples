@@ -184,4 +184,3 @@ export interface Filters {
   district: string
   category: string
 }
-

@@ -7,12 +7,47 @@ import ReactDOM from "react-dom/client"
 import { MapContainer, TileLayer, useMap } from "react-leaflet"
 import Image from "next/image"
 import L from "leaflet"
-import { GeoSearchControl, OpenStreetMapProvider } from "leaflet-geosearch"
+import { GeoSearchControl } from "leaflet-geosearch"
 import "leaflet-geosearch/dist/geosearch.css"
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
 import { getSatelliteData, getMapNodes } from "@/services/apiService"
+// Create a custom MapboxProvider class since the import might not work directly
+class MapboxProvider {
+  constructor(options: { params: { access_token: string } }) {
+    this.accessToken = options.params.access_token
+  }
+
+  private accessToken: string
+
+  async search({ query }: { query: string }) {
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          query,
+        )}.json?access_token=${this.accessToken}&limit=5`,
+      )
+      const data = await response.json()
+
+      return data.features.map((feature: any) => ({
+        x: feature.center[0], // longitude
+        y: feature.center[1], // latitude
+        label: feature.place_name,
+        bounds: feature.bbox
+          ? [
+              [feature.bbox[1], feature.bbox[0]], // southwest
+              [feature.bbox[3], feature.bbox[2]], // northeast
+            ]
+          : undefined,
+        raw: feature,
+      }))
+    } catch (error) {
+      console.error("Mapbox geocoding error:", error)
+      return []
+    }
+  }
+}
 
 // Import air quality images from public directory
 const GoodAir = "/images/GoodAir.png"
@@ -205,12 +240,16 @@ const SearchControl: React.FC<{
   const markersRef = useRef<L.Marker[]>([])
 
   useEffect(() => {
-    const provider = new OpenStreetMapProvider()
+    const provider = new MapboxProvider({
+      params: {
+        access_token: process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "",
+      },
+    })
 
     const searchControl = new GeoSearchControl({
       provider,
       style: "bar",
-      position: "topright", // Changed from topleft to topright
+      position: "topright",
     })
 
     map.addControl(searchControl)
@@ -651,13 +690,21 @@ const LeafletMap: React.FC = () => {
     error: null,
   })
 
+  // Check if Mapbox token is available
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+  if (!mapboxToken) {
+    console.warn("Mapbox token is not set in environment variables. Map functionality may be limited.")
+  }
+
   return (
     <div className="relative w-full h-full">
       <LoadingIndicator isLoading={loadingState.isLoading} error={loadingState.error} />
       <MapContainer center={defaultCenter} zoom={defaultZoom} style={{ height: "100vh", width: "100%" }}>
         <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
-          attribution="Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012"
+          url={`https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`}
+          attribution='&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          tileSize={512}
+          zoomOffset={-1}
         />
         <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
         <MapNodes onLoadingChange={setLoadingState} />
@@ -702,4 +749,3 @@ const getCustomIcon = (aqiCategory: string) => {
 }
 
 export default LeafletMap
-

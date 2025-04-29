@@ -17,4 +17,3 @@ export function FeatureCard({ title, description, Icon }: FeatureCardProps) {
     </div>
   )
 }
-

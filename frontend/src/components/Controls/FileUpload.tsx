@@ -116,4 +116,3 @@ export function FileUpload({ onUpload }: FileUploadProps) {
     </div>
   )
 }
-

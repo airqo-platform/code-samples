@@ -114,4 +114,3 @@ export async function fetchGrids(): Promise<Grid[]> {
     throw error
   }
 }
-

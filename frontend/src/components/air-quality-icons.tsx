@@ -67,4 +67,3 @@ export const InvalidIcon: FC<AirQualityIconProps> = ({ size = 40, className = ""
     <span className="text-white font-bold text-xs">N/A</span>
   </div>
 )
-

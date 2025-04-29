@@ -226,4 +226,3 @@ export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string
     </Card>
   )
 }
-

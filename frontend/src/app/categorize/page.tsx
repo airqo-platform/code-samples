@@ -269,4 +269,3 @@ export default function SiteCategory() {
     </Suspense>
   )
 }
-
