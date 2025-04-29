@@ -13,6 +13,8 @@ import "leaflet-geosearch/dist/geosearch.css"
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
 import { getSatelliteData, getMapNodes } from "@/services/apiService"
+import { MapLayerControl } from "./MapLayerControl"
+
 // Create a custom MapboxProvider class since the import might not work directly
 class MapboxProvider {
   constructor(options: { params: { access_token: string } }) {
@@ -681,7 +683,51 @@ const Legend: React.FC = () => {
   )
 }
 
-// Update the LeafletMap component to include the Legend 
+// Map Layer Control Component
+const MapLayerButton: React.FC = () => {
+  const map = useMap()
+  const [currentStyle, setCurrentStyle] = useState<string>("streets")
+
+  // Define available Mapbox styles
+  const mapStyles = {
+    streets: `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
+    satellite: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v11/tiles/{z}/{x}/{y}?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
+    dark: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
+    light: `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
+    outdoors: `https://api.mapbox.com/styles/v1/mapbox/outdoors-v11/tiles/{z}/{x}/{y}?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
+    navigation: `https://api.mapbox.com/styles/v1/mapbox/navigation-day-v1/tiles/{z}/{x}/{y}?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
+  }
+
+  const handleStyleChange = (style: string) => {
+    console.log("Changing map style to:", style)
+    setCurrentStyle(style)
+
+    // Find and remove the existing tile layer
+    map.eachLayer((layer) => {
+      if (layer instanceof L.TileLayer) {
+        map.removeLayer(layer)
+      }
+    })
+
+    // Add the new tile layer
+    L.tileLayer(mapStyles[style as keyof typeof mapStyles], {
+      attribution:
+        '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      tileSize: 512,
+      zoomOffset: -1,
+    }).addTo(map)
+  }
+
+  return (
+    <div className="leaflet-top leaflet-right z-[1000] mt-16 mr-4">
+      <div className="leaflet-control">
+        <MapLayerControl onStyleChange={handleStyleChange} currentStyle={currentStyle} />
+      </div>
+    </div>
+  )
+}
+
+// Update the LeafletMap component to use the MapLayerButton
 const LeafletMap: React.FC = () => {
   const defaultCenter: [number, number] = [1.5, 17.5]
   const defaultZoom = 4
@@ -696,12 +742,22 @@ const LeafletMap: React.FC = () => {
     console.warn("Mapbox token is not set in environment variables. Map functionality may be limited.")
   }
 
+  // Define available Mapbox styles
+  const mapStyles = {
+    streets: `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
+    satellite: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
+    dark: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
+    light: `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
+    outdoors: `https://api.mapbox.com/styles/v1/mapbox/outdoors-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
+    navigation: `https://api.mapbox.com/styles/v1/mapbox/navigation-day-v1/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
+  }
+
   return (
     <div className="relative w-full h-full">
       <LoadingIndicator isLoading={loadingState.isLoading} error={loadingState.error} />
       <MapContainer center={defaultCenter} zoom={defaultZoom} style={{ height: "100vh", width: "100%" }}>
         <TileLayer
-          url={`https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`}
+          url={mapStyles.streets}
           attribution='&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           tileSize={512}
           zoomOffset={-1}
@@ -709,6 +765,7 @@ const LeafletMap: React.FC = () => {
         <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
         <MapNodes onLoadingChange={setLoadingState} />
         <Legend />
+        <MapLayerButton />
       </MapContainer>
     </div>
   )
