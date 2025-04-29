@@ -681,7 +681,7 @@ const Legend: React.FC = () => {
   )
 }
 
-// Update the LeafletMap component to include the Legend
+// Update the LeafletMap component to include the Legend 
 const LeafletMap: React.FC = () => {
   const defaultCenter: [number, number] = [1.5, 17.5]
   const defaultZoom = 4
