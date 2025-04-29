@@ -21,8 +21,6 @@ declare module "leaflet-geosearch" {
 
   export class OpenStreetMapProvider {
     constructor(options?: any)
-
     search(options: { query: string }): Promise<SearchResult[]>
   }
 }
-

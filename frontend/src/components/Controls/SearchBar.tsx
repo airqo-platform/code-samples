@@ -166,4 +166,3 @@ export function SearchBar({ onSearch, onBoundaryFound }: SearchBarProps) {
     </div>
   )
 }
-

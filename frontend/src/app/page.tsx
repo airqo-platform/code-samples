@@ -186,4 +186,3 @@ const StepCard = ({ number, title, description }: { number: string; title: strin
 }
 
 export default Home
-
