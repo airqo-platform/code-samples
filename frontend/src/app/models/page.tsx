@@ -92,7 +92,7 @@ export default function AIModels() {
               Icon={Bot}
               href="https://airqo.net"
               openInNewTab={true}
-              imageSrc="/images/model/calibration-header.webp"
+              imageSrc="/images/model/chatbot.webp"
             />
             <FeatureCard
               title="Filling Missing Data"
