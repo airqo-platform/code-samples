@@ -28,7 +28,7 @@ const AQI_COLORS: Record<string, string> = {
   Unknown: "#CCCCCC",
 }
 
-// PM2.5 Bar Chart
+// PM2.5 Bar Chart 
 export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   // Take up to 10 sites for readability
   const displaySites = sites.slice(0, 10).map((site) => ({
