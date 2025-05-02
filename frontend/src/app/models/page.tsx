@@ -1,4 +1,4 @@
-import { BarChart, Bot, Map, Satellite, Thermometer, Wind, AlertTriangle, Database, MapPin } from "lucide-react";
+import { BarChart, Bot, Map as MapIcon, Satellite, Thermometer, Wind, AlertTriangle, Database, MapPin } from "lucide-react";
 import Link from "next/link";
 import Navigation from "@/components/navigation/navigation";
 import { FeatureCard } from "@/components/feature-card"; // Assuming FeatureCard is in this path
@@ -49,10 +49,10 @@ export default function AIModels() {
             <FeatureCard
               title="Pollution Heatmap"
               description="Visualizes air pollution levels across regions, helping identify high-risk areas for targeted interventions."
-              Icon={Map}
+              Icon={MapIcon} 
               href="https://ai.airqo.net/map"
               openInNewTab={true}
-              imageSrc="/images/model/calibration-header.webp"
+              imageSrc="/images/model/pm25_forecast.webp"
             />
             <FeatureCard
               title="PM2.5 Prediction"
