@@ -11,7 +11,7 @@ export interface SiteLocatorPayload {
     coordinates: number[][][] // 3D array for the polygon coordinates
   }
   must_have_locations: number[][] // Array of must-have locations (latitude, longitude)
-  min_distance_km: number // Minimum distance for placement in kilometers
+  min_distance_km: number // Minimum distance between sites for placement in kilometers
   num_sensors: number // Number of sensors to deploy
 }
 

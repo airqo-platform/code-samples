@@ -43,7 +43,7 @@ const Home: React.FC = () => {
                 className="relative h-[500px] w-full max-w-[900px] rounded-xl overflow-hidden shadow-2xl mx-auto"
                 onDoubleClick={() => (window.location.href = "/map")}
               >
-                <Image src="/images/homeMAP.png" alt="Air quality monitoring dashboard" fill className="object-cover" />
+                <Image src="/images/homemap.webp" alt="Air quality monitoring dashboard" fill className="object-cover" />
               </div>
             </div>
           </div>
