@@ -28,7 +28,7 @@ export default function AIModels() {
               Icon={Thermometer}
               href="https://airqo.net/products/calibrate"
               openInNewTab={true}
-              imageSrc="/images/model/calibration-header.webp"
+              imageSrc="/images/model/airqalibration.webp"
             />
             <FeatureCard
               title="Fault Detection"
@@ -100,7 +100,7 @@ export default function AIModels() {
               Icon={Database}
               href="https://airqo.net"
               openInNewTab={true}
-              imageSrc="/images/model/calibration-header.webp"
+              imageSrc="/images/model/fillingap.webp"
             />
             <FeatureCard
               title="Land Use Model"
@@ -108,7 +108,7 @@ export default function AIModels() {
               Icon={BarChart}
               href="https://airqo.net"
               openInNewTab={true}
-              imageSrc="/images/model/calibration-header.webp"
+              imageSrc="/images/model/landuse.webp"
             />
           </div>
         </section>

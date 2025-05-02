@@ -29,8 +29,8 @@ export function FeatureCard({
         <Image
           src={imageSrc}
           alt={title}
-          layout="fill"
-          objectFit="cover"
+          fill // Use `fill` instead of `layout="fill"`
+          style={{ objectFit: "cover" }} // Use `style` for `objectFit`
           className="transition-transform duration-300 group-hover:scale-105"
           priority
         />

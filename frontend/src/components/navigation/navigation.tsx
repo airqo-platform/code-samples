@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Menu, X } from "lucide-react"
+import Image from "next/image"
 
 const navItems = [
   { name: "Home", href: "/" },
@@ -23,7 +24,7 @@ export default function Navigation({ ...props }) {
     <header className="sticky top-0 z-50 bg-white border-b shadow-sm">
       <div className="container mx-auto px-4 flex h-16 items-center justify-between">
         <Link href="/" className="text-blue-600 text-xl font-semibold">
-          AirQo AI
+           <Image src="/images/logo_rus4my.webp" alt="AirQo" width={50} height={50} />
         </Link>
 
         {/* Mobile Menu Button */}

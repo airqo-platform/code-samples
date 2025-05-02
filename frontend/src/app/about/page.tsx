@@ -31,7 +31,7 @@ function AboutContent() {
           title="Citizen Focus"
           description="At AirQo, we believe that the main beneficiary of our work should be the citizen."
           Icon={HeartHandshake}
-          imageSrc="/images/model/calibration-header.webp"
+          imageSrc="/images/model/citizenfocused1.webp"
           href="https://airqo.net/about-us"
           openInNewTab={true}
         />
@@ -39,7 +39,7 @@ function AboutContent() {
           title="Precision"
           description="We convert low-cost sensor data into a reliable measure of air quality thus making our network and our models as accurate as they can be."
           Icon={Ruler}
-          imageSrc="/images/model/calibration-header.webp"
+          imageSrc="/images/model/precision.webp"
           href="https://airqo.net/about-us"
           openInNewTab={true}
         />
@@ -47,7 +47,7 @@ function AboutContent() {
           title="Collaboration and Openness"
           description="We work in a fast-moving field with continuous improvements in technology. We recruit the best teams and also commit to their ongoing professional development and training."
           Icon={Share2}
-          imageSrc="/images/model/calibration-header.webp"
+          imageSrc="/images/model/peoplefocused.webp"
           href="https://airqo.net/about-us"
           openInNewTab={true}
         />
@@ -55,7 +55,7 @@ function AboutContent() {
           title="Investment in People"
           description="We invest in the best talent and commit to their ongoing development and training."
           Icon={Users}
-          imageSrc="/images/model/calibration-header.webp"
+          imageSrc="/images/model/invest.webp"
           href="https://airqo.net/about-us"
           openInNewTab={true}
         />
