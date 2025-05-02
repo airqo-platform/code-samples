@@ -68,7 +68,7 @@ export default function AIModels() {
               Icon={MapPin}
               href="https://ai.airqo.net/locate"
               openInNewTab={true}
-              imageSrc="/images/model/calibration-header.webp"
+              imageSrc="/images/model/locate.webp"
             />
             <FeatureCard
               title="Stationary Pollution Source"
