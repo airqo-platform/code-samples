@@ -3,7 +3,8 @@ import type React from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowRight, MapPin, Wind, BarChart3, BrainCircuit, Shield } from "lucide-react"
-import Navigation from "@/components/navigation/navigation"
+import Navigation from "@/components/navigation/navigation"  
+import {FeatureCard} from "@/components/feature-card"
 
 const Home: React.FC = () => {
   return (
@@ -43,7 +44,7 @@ const Home: React.FC = () => {
                 className="relative h-[500px] w-full max-w-[900px] rounded-xl overflow-hidden shadow-2xl mx-auto"
                 onDoubleClick={() => (window.location.href = "/map")}
               >
-                <Image src="/images/homeMAP.png" alt="Air quality monitoring dashboard" fill className="object-cover" />
+                <Image src="/images/homemap.webp" alt="Air quality monitoring dashboard" fill className="object-cover" />
               </div>
             </div>
           </div>
@@ -63,34 +64,47 @@ const Home: React.FC = () => {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <FeatureCard
-              icon={<MapPin className="h-10 w-10 text-blue-500" />}
+              imageSrc="/images/model/locate.webp" 
+              Icon={MapPin}
               title="Optimal Site Location"
               description="Use AI algorithms to determine the best locations for air quality monitors based on population density, pollution sources, and geographic factors."
+              href="/locate"
             />
             <FeatureCard
-              icon={<Wind className="h-10 w-10 text-blue-500" />}
+              Icon={Wind}
               title="Air Quality Categorization"
               description="Automatically categorize monitoring sites based on surrounding land use, traffic patterns, and environmental factors."
+              href="/categorize"
+              imageSrc="/images/model/categorisemap.webp"
             />
             <FeatureCard
-              icon={<BarChart3 className="h-10 w-10 text-blue-500" />}
+              Icon={BarChart3}
               title="Data Analytics"
               description="Generate comprehensive reports with trends, forecasts, and actionable insights from air quality data."
+              href="https://analytics.airqo.net/"
+              imageSrc="/images/model/analyticsHome.webp"
+              openInNewTab={true}
             />
             <FeatureCard
-              icon={<BrainCircuit className="h-10 w-10 text-blue-500" />}
+              Icon={BrainCircuit}
               title="Machine Learning Models"
               description="Continuously improving prediction models that account for seasonal variations, weather patterns, and human activities."
+              href="/models"
+              imageSrc="/images/model/modelapi.webp"
             />
             <FeatureCard
-              icon={<Shield className="h-10 w-10 text-blue-500" />}
+              Icon={Shield}
               title="Health Impact Assessment"
               description="Evaluate potential health impacts of air pollution on different population groups and geographic areas."
+              href="/comingsoon"
+              imageSrc="/images/model/calibration-header.webp"
             />
             <FeatureCard
-              icon={<MapPin className="h-10 w-10 text-blue-500" />}
+              Icon={MapPin}
               title="Interactive Mapping"
               description="Visualize air quality data across regions with interactive maps showing real-time pollution levels."
+              href="/map"
+              imageSrc="/images/homemap.webp"
             />
           </div>
         </div>
@@ -161,16 +175,7 @@ const Home: React.FC = () => {
   )
 }
 
-// Feature Card Component
-const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => {
-  return (
-    <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-      <div className="mb-4">{icon}</div>
-      <h3 className="text-xl font-bold mb-2">{title}</h3>
-      <p className="text-gray-600">{description}</p>
-    </div>
-  )
-}
+ 
 
 // Step Card Component
 const StepCard = ({ number, title, description }: { number: string; title: string; description: string }) => {
