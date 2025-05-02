@@ -56,10 +56,10 @@ function ReportContent() {
 
   // Filter states
   const [filters, setFilters] = useState<Filters>({
-    country: "",
-    city: "",
-    district: "",
-    category: "",
+    country: "all",
+    city: "all",
+    district: "all",
+    category: "all",
   })
 
   // Available filter options
@@ -318,8 +318,8 @@ function ReportContent() {
       // Reset city and district when country changes
       setFilters((prev) => ({
         ...prev,
-        city: "",
-        district: "",
+        city: "all",
+        district: "all",
       }))
     }
   }, [filters.country, siteData])
@@ -329,22 +329,22 @@ function ReportContent() {
     let result = [...siteData]
 
     // Apply country filter
-    if (filters.country) {
+    if (filters.country && filters.country !== "all") {
       result = result.filter((site) => site.siteDetails?.country === filters.country)
     }
 
     // Apply city filter
-    if (filters.city) {
+    if (filters.city && filters.city !== "all") {
       result = result.filter((site) => site.siteDetails?.city === filters.city)
     }
 
     // Apply district filter
-    if (filters.district) {
+    if (filters.district && filters.district !== "all") {
       result = result.filter((site) => site.siteDetails?.district === filters.district)
     }
 
     // Apply category filter
-    if (filters.category) {
+    if (filters.category && filters.category !== "all") {
       result = result.filter((site) => {
         const category = site.siteDetails?.site_category?.category || "Uncategorized"
         // Handle the special case for Water Body -> Urban Background
@@ -373,10 +373,10 @@ function ReportContent() {
   // Reset all filters
   const resetFilters = () => {
     setFilters({
-      country: "",
-      city: "",
-      district: "",
-      category: "",
+      country: "all",
+      city: "all",
+      district: "all",
+      category: "all",
     })
     setSelectedSite(null)
   }
