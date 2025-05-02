@@ -60,7 +60,7 @@ export default function AIModels() {
               Icon={Satellite}
               href="https://ai.airqo.net/map"
               openInNewTab={true}
-              imageSrc="/images/model/calibration-header.webp"
+              imageSrc="/images/model/predictsatellite.webp"
             />
             <FeatureCard
               title="Locate"
