@@ -3,7 +3,7 @@ import type React from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowRight, MapPin, Wind, BarChart3, BrainCircuit, Shield } from "lucide-react"
-import Navigation from "@/components/navigation/navigation"
+import Navigation from "@/components/navigation/navigation"  
 
 const Home: React.FC = () => {
   return (
@@ -66,31 +66,37 @@ const Home: React.FC = () => {
               icon={<MapPin className="h-10 w-10 text-blue-500" />}
               title="Optimal Site Location"
               description="Use AI algorithms to determine the best locations for air quality monitors based on population density, pollution sources, and geographic factors."
+              href="/locate"
             />
             <FeatureCard
               icon={<Wind className="h-10 w-10 text-blue-500" />}
               title="Air Quality Categorization"
               description="Automatically categorize monitoring sites based on surrounding land use, traffic patterns, and environmental factors."
+              href="/categorize"
             />
             <FeatureCard
               icon={<BarChart3 className="h-10 w-10 text-blue-500" />}
               title="Data Analytics"
               description="Generate comprehensive reports with trends, forecasts, and actionable insights from air quality data."
+              href="/reports"
             />
             <FeatureCard
               icon={<BrainCircuit className="h-10 w-10 text-blue-500" />}
               title="Machine Learning Models"
               description="Continuously improving prediction models that account for seasonal variations, weather patterns, and human activities."
+              href="/models"
             />
             <FeatureCard
               icon={<Shield className="h-10 w-10 text-blue-500" />}
               title="Health Impact Assessment"
               description="Evaluate potential health impacts of air pollution on different population groups and geographic areas."
+              href="/comingsoon"
             />
             <FeatureCard
               icon={<MapPin className="h-10 w-10 text-blue-500" />}
               title="Interactive Mapping"
               description="Visualize air quality data across regions with interactive maps showing real-time pollution levels."
+              href="/map"
             />
           </div>
         </div>
@@ -162,13 +168,15 @@ const Home: React.FC = () => {
 }
 
 // Feature Card Component
-const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => {
+const FeatureCard = ({ icon, title, description ,href}: { icon: React.ReactNode; title: string; description: string ;href: string}) => {
   return (
+    <a href={href}>
     <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
       <div className="mb-4">{icon}</div>
       <h3 className="text-xl font-bold mb-2">{title}</h3>
       <p className="text-gray-600">{description}</p>
     </div>
+    </a>
   )
 }
 
