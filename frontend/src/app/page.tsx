@@ -128,7 +128,7 @@ const Home: React.FC = () => {
 
           <div className="relative max-w-5xl mx-auto">
             {/* Connection lines for desktop */}
-            <div className="hidden md:block absolute top-1/2 left-0 right-0 h-1 bg-blue-200 -translate-y-1/2 z-0"></div>
+            <div className="hidden md:block absolute top-1/2 left-0 right-0 h-1 bg-blue-500 -translate-y-1/2 z-0"></div>
 
             <div className="grid md:grid-cols-3 gap-8 relative z-10">
               <ProcessCard
@@ -136,22 +136,24 @@ const Home: React.FC = () => {
                 number="01"
                 title="Data Collection"
                 description="Our network of sensors continuously collects air quality data across multiple locations."
+                imageSrc="/images/model/calibration-header.webp"
               />
               <ProcessCard
                 icon={<Cpu className="w-8 h-8 text-blue-500" />}
                 number="02"
                 title="AI Processing"
                 description="Advanced algorithms clean, analyze, and interpret the data to generate insights."
+                imageSrc="/images/model/modelapi.webp"
               />
               <ProcessCard
                 icon={<LineChart className="w-8 h-8 text-blue-500" />}
                 number="03"
                 title="Actionable Insights"
                 description="Users access visualizations, reports, and recommendations through our platform."
+                imageSrc="/images/model/analyticsHome.webp"
               />
             </div>
           </div>
-         
         </div>
       </section>
 
@@ -195,15 +197,22 @@ const ProcessCard = ({
   number,
   title,
   description,
+  imageSrc,
 }: {
   icon: React.ReactNode
   number: string
   title: string
   description: string
+  imageSrc?: string
 }) => {
   return (
-    <div className="bg-white rounded-xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-blue-100">
-      <div className="flex flex-col items-center">
+    <div className="relative bg-white rounded-xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-blue-100 overflow-hidden h-full">
+      {imageSrc && (
+        <div className="absolute inset-0 w-full h-full">
+          <Image src={imageSrc || "/placeholder.svg"} alt={title} fill className="object-cover" />
+        </div>
+      )}
+      <div className="flex flex-col items-center relative z-10 bg-white/80 p-4 rounded-lg backdrop-blur-sm">
         <div className="mb-4">{icon}</div>
         <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold mb-4">
           {number}
