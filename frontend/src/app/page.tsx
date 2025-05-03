@@ -212,13 +212,23 @@ const ProcessCard = ({
           <Image src={imageSrc || "/placeholder.svg"} alt={title} fill className="object-cover" />
         </div>
       )}
-      <div className="flex flex-col items-center relative z-10 bg-white/80 p-4 rounded-lg backdrop-blur-sm">
-        <div className="mb-4">{icon}</div>
-        <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold mb-4">
-          {number}
+      <div className="flex flex-col items-center relative z-10 bg-gray-900/20 p-4 rounded-lg backdrop-blur-sm">
+        <div className="mb-4 bg-white/70 p-2 rounded-full">{icon}</div> 
+
+        {/* Enhanced Number Display */}
+        <div className="relative mb-6 mt-2">
+          <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-400 rounded-full blur-md opacity-75 animate-pulse"></div>
+          <div className="relative flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-400 rounded-full shadow-lg">
+            <div className="absolute inset-0.5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center">
+              <span className="text-2xl font-bold text-white">{number}</span>
+            </div>
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-50 rounded-full shadow-md"></div>
+            <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-50 rounded-full shadow-md"></div>
+          </div>
         </div>
-        <h3 className="text-xl font-bold mb-3">{title}</h3>
-        <p className="text-gray-600 text-center">{description}</p>
+
+        <h3 className="text-xl font-bold mb-3 text-white drop-shadow-md">{title}</h3>
+        <p className="text-white text-center drop-shadow-md font-medium">{description}</p>
       </div>
     </div>
   )
