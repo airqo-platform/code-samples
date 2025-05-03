@@ -705,6 +705,16 @@ function ReportContent() {
         <p className="text-gray-600">
           Real-time insights and analytics on air quality across different site categories
         </p>
+          <p className="text-gray-600">
+              Looking for more insights? Explore detailed reports on our{' '}
+              <a href="https://platform.airqo.net/reports" 
+              className="text-blue-600 underline hover:text-blue-800" 
+              target="_blank" 
+              rel="noopener noreferrer">reports page</a>{" "}
+              includes detailed historical air quality data, not just from the last two weeks.
+
+        </p>
+
       </div>
 
       {/* Filters */}
