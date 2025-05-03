@@ -149,7 +149,7 @@ const Home: React.FC = () => {
                 icon={<LineChart className="w-8 h-8 text-blue-500" />}
                 number="03"
                 title="Actionable Insights"
-                description="Users access visualizations, reports, and recommendations through our platform."
+                description="Users access visualizations, reports, and recommendations through our various platform."
                 imageSrc="/images/model/analyticsHome.webp"
               />
             </div>
