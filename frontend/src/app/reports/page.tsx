@@ -1186,7 +1186,7 @@ function ReportContent() {
                 </div>
               </div>
 
-              {/* Charts */}
+              {/*  Charts */}
               <div className="space-y-6">
                 <PM25BarChart sites={filteredData} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
