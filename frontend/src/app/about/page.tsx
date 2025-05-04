@@ -94,7 +94,7 @@ function AboutContent() {
                   airqo.net
                 </a>
               </div>
-              {/* email */}
+              {/* email info@airqo.net */}
               <div className="flex items-center justify-center md:justify-start">
                 <Mail className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a href="mailto:info@airqo.net" className="text-blue-600 hover:underline">
