@@ -170,7 +170,7 @@ export default function Index() {
           </div>
         </div>
 
-        {/* Info Button and Popup  */}
+        {/* Info Button and Popup */}
         <div className="absolute left-2 top-[180px] z-[1000] flex flex-col items-center space-y-2">
           
           <Button
