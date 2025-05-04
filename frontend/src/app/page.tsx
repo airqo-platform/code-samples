@@ -212,7 +212,7 @@ const ProcessCard = ({
           <Image src={imageSrc || "/placeholder.svg"} alt={title} fill className="object-cover" />
         </div>
       )}
-      <div className="flex flex-col items-center relative z-10 bg-gray-900/20 p-4 rounded-2xl backdrop-blur-sm">
+      <div className="flex flex-col items-center relative z-10 bg-gray-900/50 p-4 rounded-2xl backdrop-blur-sm">
         <div className="mb-4 bg-white/70 p-2 rounded-full">{icon}</div> 
 
         {/* Enhanced Number Display */}
