@@ -2,7 +2,7 @@
 
 import { Suspense } from "react"
 import { FeatureCard } from "@/components/feature-card"
-import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Twitter, Linkedin } from "lucide-react"
+import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Twitter, Linkedin , Link} from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
 
 function AboutContent() {
@@ -22,6 +22,11 @@ function AboutContent() {
           Founded in 2015 at Makerere University in Uganda, AirQo has grown into a multidisciplinary team of engineers,
           data scientists, and environmental experts. We are committed to developing innovative, low-cost air quality
           monitoring solutions tailored for the unique challenges of African urban environments.
+        </p>
+        <br></br>
+        <p className="text-lg font-light">
+          For more information, visit our <a href="https://airqo.net/about-us" className="text-blue-600 hover:underline" target="_blank">About Us</a> page at  
+          <a href="https://airqo.net" className="text-blue-600 hover:underline" target="_blank"> airqo.net</a>.
         </p>
       </div>
 
@@ -82,6 +87,13 @@ function AboutContent() {
           <div>
             <h3 className="text-xl font-medium mb-4 text-center md:text-left">Contact Information</h3>
             <div className="space-y-4">
+              {/* website airqo.net */}
+              <div className="flex items-center justify-center md:justify-start">
+                <Link className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0"  />
+                <a href="https://airqo.net" className="text-blue-600 hover:underline" target="_blank">
+                  airqo.net
+                </a>
+              </div>
               <div className="flex items-center justify-center md:justify-start">
                 <Mail className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a href="mailto:info@airqo.net" className="text-blue-600 hover:underline">
@@ -116,7 +128,7 @@ function AboutContent() {
             <h3 className="text-xl font-medium mb-4 text-center md:text-left">Connect With Us</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-center md:justify-start">
-                <Twitter className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
+                <Twitter  className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a
                   href="https://twitter.com/AirQoProject"
                   className="text-blue-600 hover:underline"
