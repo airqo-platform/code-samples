@@ -2,8 +2,21 @@
 
 import { Suspense } from "react"
 import { FeatureCard } from "@/components/feature-card"
-import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Twitter, Linkedin , Link} from "lucide-react"
+import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Linkedin , Link} from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
+
+// Custom X Logo component
+const XLogo = ({ className }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    className={className}
+    fill="currentColor"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  </svg>
+)
 
 function AboutContent() {
   return (
@@ -94,7 +107,7 @@ function AboutContent() {
                   airqo.net
                 </a>
               </div>
-              {/* email  */}
+              {/* email info@airqo.net */}
               <div className="flex items-center justify-center md:justify-start">
                 <Mail className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a href="mailto:info@airqo.net" className="text-blue-600 hover:underline">
@@ -131,7 +144,7 @@ function AboutContent() {
             <h3 className="text-xl font-medium mb-4 text-center md:text-left">Connect With Us</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-center md:justify-start">
-                <Twitter className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
+                <XLogo className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a
                   href="https://twitter.com/AirQoProject"
                   className="text-blue-600 hover:underline"
