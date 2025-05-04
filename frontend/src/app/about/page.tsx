@@ -23,6 +23,11 @@ function AboutContent() {
           data scientists, and environmental experts. We are committed to developing innovative, low-cost air quality
           monitoring solutions tailored for the unique challenges of African urban environments.
         </p>
+        <br></br>
+        <p className="text-lg font-light">
+          For more information, visit our <a href="https://airqo.net/about-us" className="text-blue-600 hover:underline" target="_blank">About Us</a> page at  
+          <a href="https://airqo.net" className="text-blue-600 hover:underline" target="_blank"> airqo.net</a>.
+        </p>
       </div>
 
       <h2 className="text-3xl font-semibold mb-6 text-center">Our Core Values</h2>
