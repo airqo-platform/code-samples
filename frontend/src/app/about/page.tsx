@@ -2,7 +2,7 @@
 
 import { Suspense } from "react"
 import { FeatureCard } from "@/components/feature-card"
-import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Twitter, Linkedin , Link} from "lucide-react"
+import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Linkedin , Link} from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
 
 // Custom X Logo component
