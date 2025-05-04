@@ -94,18 +94,21 @@ function AboutContent() {
                   airqo.net
                 </a>
               </div>
+              {/* email */}
               <div className="flex items-center justify-center md:justify-start">
                 <Mail className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a href="mailto:info@airqo.net" className="text-blue-600 hover:underline">
                   info@airqo.net
                 </a>
               </div>
+              {/* phone */}
               <div className="flex items-center justify-center md:justify-start">
                 <Phone className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a href="tel:+256 786 142 396" className="text-blue-600 hover:underline">
                   +256 786 142 396
                 </a>
               </div>
+              {/* address */}
               <div className="flex items-start justify-center md:justify-start">
                 <MapPin className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0 mt-1" />
                 <span className="text-gray-700">
@@ -128,7 +131,7 @@ function AboutContent() {
             <h3 className="text-xl font-medium mb-4 text-center md:text-left">Connect With Us</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-center md:justify-start">
-                <Twitter  className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
+                <Twitter className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a
                   href="https://twitter.com/AirQoProject"
                   className="text-blue-600 hover:underline"
