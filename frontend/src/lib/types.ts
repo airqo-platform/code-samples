@@ -163,11 +163,6 @@ export interface SiteInformation {
     mean_NO2: number;
   }
   
-  category_counts: {
-    [key: string]: number // Counts of categories
-  }
-  total_sites: number // Total number of sites
-}
 
 export interface SiteLocation {
   area_name: string // Name of the area
