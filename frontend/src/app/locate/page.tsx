@@ -5,7 +5,7 @@ import type { Location, SiteLocatorPayload } from "@/lib/types"
 import { submitLocations } from "@/lib/api"
 import { useToast } from "@/ui/use-toast"
 import { Button } from "@/ui/button"
-import { Download, Camera, Info, X } from "lucide-react"
+import { Download, Camera } from "lucide-react"
 import html2canvas from "html2canvas"
 import Navigation from "@/components/navigation/navigation"
 import dynamic from "next/dynamic"
@@ -20,7 +20,6 @@ export default function Index() {
   const [suggestedLocations, setSuggestedLocations] = useState<Location[]>([])
   const { toast } = useToast()
   const [isDrawing, setIsDrawing] = useState(false)
-  const [showInfo, setShowInfo] = useState(false)
 
   const handleSubmit = async (payload: SiteLocatorPayload) => {
     try {
@@ -119,7 +118,6 @@ export default function Index() {
     <div className="flex flex-col h-screen">
       {/* Navigation */}
       <Navigation />
-
       <div className="relative flex-1">
         <MapComponent
           polygon={polygon}
@@ -129,8 +127,7 @@ export default function Index() {
           onLocationClick={handleLocationClick}
           isDrawing={isDrawing}
         />
-
-        {/* Control Panel Top Right */}
+        {/* Control Panel */}
         <div className="absolute right-4 top-4 z-[1000]">
           <ControlPanel
             onSubmit={handleSubmit}
@@ -158,6 +155,8 @@ export default function Index() {
               <Camera className="h-4 w-4" />
               Save Map
             </Button>
+
+            {/* Draw Polygon Button */}
             <Button
               onClick={toggleDrawing}
               aria-label={isDrawing ? "Finish drawing polygon" : "Start drawing polygon"}
@@ -168,44 +167,6 @@ export default function Index() {
               {isDrawing ? "Finish Drawing" : "Draw Polygon"}
             </Button>
           </div>
-        </div>
-
-        {/* Info Button and Popup */}
-        <div className="absolute left-2 top-[180px] z-[1000] flex flex-col items-center space-y-2">
-          
-          <Button
-            onClick={() => setShowInfo(!showInfo)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-full"
-            aria-label="Show Locate tool info"
-          >
-            <Info className="h-4 w-4" />
-          </Button>
-
-          {showInfo && (
-            <div className="mt-2 max-w-sm p-4 bg-white border border-gray-300 shadow-lg rounded-lg text-sm text-gray-800">
-              <div className="flex justify-between items-center">
-                <h3 className="font-semibold mb-2">Locate Tool</h3>
-                <Button
-                  onClick={() => setShowInfo(false)}
-                  aria-label="Close info popup"
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-              <p className="mb-2">
-                The Locate tool is used to propose the best possible locations for placing air quality monitors,
-                based on the number of sensors and the target geographical area.
-              </p>
-              <ul className="list-disc list-inside">
-                <li>You can search by name or draw a polygon.</li>
-                <li>Must-have locations are optional and can be uploaded by lat/lng.</li>
-                <li>Minimum distance is optional; default is 0.5 km.</li>
-                <li>Number of sensors is required.</li>
-                <li>You can submit multiple times until satisfied with the results.</li>
-              </ul>
-            </div>
-          )}
         </div>
       </div>
     </div>

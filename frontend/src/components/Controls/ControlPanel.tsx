@@ -148,7 +148,7 @@ export function ControlPanel({
 
       {/* Minimum Distance */}
       <div className="space-y-2">
-        <label className="text-sm font-medium">Minimum Distance between sites (km) (Optional)</label>
+        <label className="text-sm font-medium">Minimum Distance (km) (Optional)</label>
         <Input
           type="number"
           min="0.1"

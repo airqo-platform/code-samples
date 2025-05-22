@@ -2,21 +2,8 @@
 
 import { Suspense } from "react"
 import { FeatureCard } from "@/components/feature-card"
-import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Linkedin , Link} from "lucide-react"
+import { Users, HeartHandshake, Ruler, Share2, Mail, Phone, MapPin, Twitter, Linkedin } from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
-
-// Custom X Logo component
-const XLogo = ({ className }: { className?: string }) => (
-  <svg
-    viewBox="0 0 24 24"
-    aria-hidden="true"
-    className={className}
-    fill="currentColor"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-  </svg>
-)
 
 function AboutContent() {
   return (
@@ -36,11 +23,6 @@ function AboutContent() {
           data scientists, and environmental experts. We are committed to developing innovative, low-cost air quality
           monitoring solutions tailored for the unique challenges of African urban environments.
         </p>
-        <br></br>
-        <p className="text-lg font-light">
-          For more information, visit our <a href="https://airqo.net/about-us" className="text-blue-600 hover:underline" target="_blank">About Us</a> page at  
-          <a href="https://airqo.net" className="text-blue-600 hover:underline" target="_blank"> airqo.net</a>.
-        </p>
       </div>
 
       <h2 className="text-3xl font-semibold mb-6 text-center">Our Core Values</h2>
@@ -49,33 +31,21 @@ function AboutContent() {
           title="Citizen Focus"
           description="At AirQo, we believe that the main beneficiary of our work should be the citizen."
           Icon={HeartHandshake}
-          imageSrc="/images/model/citizenfocused1.webp"
-          href="https://airqo.net/about-us"
-          openInNewTab={true}
         />
         <FeatureCard
           title="Precision"
           description="We convert low-cost sensor data into a reliable measure of air quality thus making our network and our models as accurate as they can be."
           Icon={Ruler}
-          imageSrc="/images/model/precision.webp"
-          href="https://airqo.net/about-us"
-          openInNewTab={true}
         />
         <FeatureCard
           title="Collaboration and Openness"
           description="We work in a fast-moving field with continuous improvements in technology. We recruit the best teams and also commit to their ongoing professional development and training."
           Icon={Share2}
-          imageSrc="/images/model/peoplefocused.webp"
-          href="https://airqo.net/about-us"
-          openInNewTab={true}
         />
         <FeatureCard
           title="Investment in People"
           description="We invest in the best talent and commit to their ongoing development and training."
           Icon={Users}
-          imageSrc="/images/model/invest.webp"
-          href="https://airqo.net/about-us"
-          openInNewTab={true}
         />
       </div>
 
@@ -100,28 +70,18 @@ function AboutContent() {
           <div>
             <h3 className="text-xl font-medium mb-4 text-center md:text-left">Contact Information</h3>
             <div className="space-y-4">
-              {/* website airqo.net */}
-              <div className="flex items-center justify-center md:justify-start">
-                <Link className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0"  />
-                <a href="https://airqo.net" className="text-blue-600 hover:underline" target="_blank">
-                  airqo.net
-                </a>
-              </div>
-              {/* email info@airqo.net */}
               <div className="flex items-center justify-center md:justify-start">
                 <Mail className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a href="mailto:info@airqo.net" className="text-blue-600 hover:underline">
                   info@airqo.net
                 </a>
               </div>
-              {/* phone */}
               <div className="flex items-center justify-center md:justify-start">
                 <Phone className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a href="tel:+256 786 142 396" className="text-blue-600 hover:underline">
                   +256 786 142 396
                 </a>
               </div>
-              {/* address */}
               <div className="flex items-start justify-center md:justify-start">
                 <MapPin className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0 mt-1" />
                 <span className="text-gray-700">
@@ -144,7 +104,7 @@ function AboutContent() {
             <h3 className="text-xl font-medium mb-4 text-center md:text-left">Connect With Us</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-center md:justify-start">
-                <XLogo className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
+                <Twitter className="w-5 h-5 mr-2 text-blue-600 flex-shrink-0" />
                 <a
                   href="https://twitter.com/AirQoProject"
                   className="text-blue-600 hover:underline"

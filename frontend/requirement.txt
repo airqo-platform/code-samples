@@ -1,0 +1,8 @@
+numpy
+pandas
+scipy
+shapely
+geopandas
+pymongo
+python-dotenv
+requests

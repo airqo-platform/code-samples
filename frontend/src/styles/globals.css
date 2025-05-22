@@ -281,3 +281,15 @@ body {
 [data-radix-popper-content-wrapper] {
   z-index: 1500 !important;
 }
+
+.custom-tooltip {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 4px 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.custom-tooltip::before {
+  border-top-color: #ccc;
+}
