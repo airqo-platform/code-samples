@@ -22,7 +22,7 @@ import {
 import { Input } from "@/ui/input"
 import { Checkbox } from "@/ui/checkbox"
 
-// Add these imports at the top of the file 
+// Add these imports at the top of the file
 import { Zap, Layers, BrainCircuit } from "lucide-react"
 import { Switch } from "@/ui/switch"
 import { Label } from "@/ui/label"
@@ -56,10 +56,10 @@ function ReportContent() {
 
   // Filter states
   const [filters, setFilters] = useState<Filters>({
-    country: "all",
-    city: "all",
-    district: "all",
-    category: "all",
+    country: "",
+    city: "",
+    district: "",
+    category: "",
   })
 
   // Available filter options
@@ -318,8 +318,8 @@ function ReportContent() {
       // Reset city and district when country changes
       setFilters((prev) => ({
         ...prev,
-        city: "all",
-        district: "all",
+        city: "",
+        district: "",
       }))
     }
   }, [filters.country, siteData])
@@ -329,22 +329,22 @@ function ReportContent() {
     let result = [...siteData]
 
     // Apply country filter
-    if (filters.country && filters.country !== "all") {
+    if (filters.country) {
       result = result.filter((site) => site.siteDetails?.country === filters.country)
     }
 
     // Apply city filter
-    if (filters.city && filters.city !== "all") {
+    if (filters.city) {
       result = result.filter((site) => site.siteDetails?.city === filters.city)
     }
 
     // Apply district filter
-    if (filters.district && filters.district !== "all") {
+    if (filters.district) {
       result = result.filter((site) => site.siteDetails?.district === filters.district)
     }
 
     // Apply category filter
-    if (filters.category && filters.category !== "all") {
+    if (filters.category) {
       result = result.filter((site) => {
         const category = site.siteDetails?.site_category?.category || "Uncategorized"
         // Handle the special case for Water Body -> Urban Background
@@ -373,10 +373,10 @@ function ReportContent() {
   // Reset all filters
   const resetFilters = () => {
     setFilters({
-      country: "all",
-      city: "all",
-      district: "all",
-      category: "all",
+      country: "",
+      city: "",
+      district: "",
+      category: "",
     })
     setSelectedSite(null)
   }
@@ -616,7 +616,7 @@ function ReportContent() {
 
     // Replace "Water Body" with "Urban Background" for display
     if (category === "Water Body") {
-      category = "Background"
+      category = "Urban Background"
     }
 
     if (!sitesByCategory[category]) {
@@ -705,16 +705,6 @@ function ReportContent() {
         <p className="text-gray-600">
           Real-time insights and analytics on air quality across different site categories
         </p>
-          <p className="text-gray-600">
-              Looking for more insights? Explore detailed reports on our{' '}
-              <a href="https://platform.airqo.net/reports" 
-              className="text-blue-600 underline hover:text-blue-800" 
-              target="_blank" 
-              rel="noopener noreferrer">reports page</a>{" "}
-              includes detailed historical air quality data, not just from the last two weeks.
-
-        </p>
-
       </div>
 
       {/* Filters */}
@@ -1137,18 +1127,8 @@ function ReportContent() {
                 This report provides a comprehensive analysis of air quality data for
                 {selectedSite
                   ? ` ${selectedSite.siteDetails.name} in ${selectedSite.siteDetails.city || "Unknown City"}, ${selectedSite.siteDetails.country || "Unknown Country"}.`
-                  : filters.country !== "all" ||
-                      filters.city !== "all" ||
-                      filters.district !== "all" ||
-                      filters.category !== "all"
-                    ? ` the selected region (${[
-                        filters.country !== "all" ? filters.country : null,
-                        filters.city !== "all" ? filters.city : null,
-                        filters.district !== "all" ? filters.district : null,
-                        filters.category !== "all" ? filters.category : null,
-                      ]
-                        .filter(Boolean)
-                        .join(", ")}).`
+                  : filters.country || filters.city || filters.category
+                    ? ` the selected region (${[filters.country, filters.city, filters.district, filters.category].filter(Boolean).join(", ")}).`
                     : " all monitored sites in the AirQo network."}{" "}
                 The data was collected using AirQo&apos;s network of low-cost air quality sensors, which measure
                 particulate matter (PM2.5) and other pollutants in real-time. This report analyzes the current air
@@ -1179,12 +1159,12 @@ function ReportContent() {
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                   <h4 className="font-semibold text-gray-700 mb-1">Average PM2.5</h4>
-                  <p className="text-2xl font-bold">{calculateAveragePM25(filteredData).toFixed(2)} µg/m³</p>
+                  <p className="text-2xl font-bold">{calculateAveragePM25(filteredData).toFixed(1)} µg/m³</p>
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                   <h4 className="font-semibold text-gray-700 mb-1">Weekly Change</h4>
                   <p className="text-2xl font-bold flex items-center">
-                    {calculateAveragePercentageChange(filteredData).toFixed(2)}%
+                    {calculateAveragePercentageChange(filteredData).toFixed(1)}%
                     {calculateAveragePercentageChange(filteredData) < 0 ? (
                       <ArrowDown className="ml-1 w-5 h-5 text-green-500" />
                     ) : calculateAveragePercentageChange(filteredData) > 0 ? (
@@ -1210,13 +1190,13 @@ function ReportContent() {
                 <ul className="list-disc list-inside space-y-2 text-gray-700">
                   <li>
                     The average PM2.5 concentration is{" "}
-                    <strong>{calculateAveragePM25(filteredData).toFixed(2)} µg/m³</strong>, which is classified as{" "}
+                    <strong>{calculateAveragePM25(filteredData).toFixed(1)} µg/m³</strong>, which is classified as{" "}
                     <strong>{avgAQICategory}</strong>.
                   </li>
                   <li>
                     There has been a{" "}
                     <strong>
-                      {Math.abs(calculateAveragePercentageChange(filteredData)).toFixed(2)}%{" "}
+                      {Math.abs(calculateAveragePercentageChange(filteredData)).toFixed(1)}%{" "}
                       {calculateAveragePercentageChange(filteredData) < 0 ? "decrease" : "increase"}
                     </strong>{" "}
                     in PM2.5 levels compared to the previous week.
@@ -1236,7 +1216,7 @@ function ReportContent() {
                   {selectedSite && (
                     <li>
                       {selectedSite.siteDetails.name} has a PM2.5 reading of{" "}
-                      <strong>{(selectedSite.pm2_5?.value || 0).toFixed(2)} µg/m³</strong>, which is{" "}
+                      <strong>{(selectedSite.pm2_5?.value || 0).toFixed(1)} µg/m³</strong>, which is{" "}
                       {compareToAverage(selectedSite.pm2_5?.value || 0, calculateAveragePM25(filteredData))} the
                       regional average.
                     </li>
@@ -1246,7 +1226,7 @@ function ReportContent() {
                       <strong>Pollution Hotspots:</strong>{" "}
                       {getHotspotSites(filteredData).map((site, index, arr) => (
                         <span key={site._id}>
-                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(2)} µg/m³)
+                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(1)} µg/m³)
                           {index < arr.length - 1 ? ", " : ""}
                         </span>
                       ))}
@@ -1335,12 +1315,12 @@ function ReportContent() {
         />
         <SummaryCard
           title="Average PM2.5"
-          value={`${calculateAveragePM25(filteredData).toFixed(2)} µg/m³`}
+          value={`${calculateAveragePM25(filteredData).toFixed(1)} µg/m³`}
           icon={<BarChart3 className="text-green-500 w-8 h-8" />}
         />
         <SummaryCard
           title="Weekly Change"
-          value={`${calculateAveragePercentageChange(filteredData).toFixed(2)}%`}
+          value={`${calculateAveragePercentageChange(filteredData).toFixed(1)}%`}
           icon={getChangeIcon(calculateAveragePercentageChange(filteredData))}
           trend={calculateAveragePercentageChange(filteredData)}
         />
@@ -1659,7 +1639,7 @@ function SiteCard({
         <div className="flex justify-between items-center mb-4">
           <div>
             <span className="text-xs font-medium">Current PM2.5</span>
-            <div className="text-2xl font-bold">{pm25Value.toFixed(2)} µg/m³</div>
+            <div className="text-2xl font-bold">{pm25Value.toFixed(1)} µg/m³</div>
           </div>
           <div className="text-right">
             <span className="text-xs font-medium">AQI Category</span>
@@ -1680,14 +1660,14 @@ function SiteCard({
               ) : (
                 <Minus className="w-4 h-4 mr-1" />
               )}
-              <span className="text-sm font-bold">{Math.abs(percentChange).toFixed(2)}%</span>
+              <span className="text-sm font-bold">{Math.abs(percentChange).toFixed(1)}%</span>
             </div>
           </div>
 
           <div className="flex justify-between text-sm">
             <div>
               <div className="text-gray-500">Previous</div>
-              <div className="font-medium">{previousWeek.toFixed(2)}</div>
+              <div className="font-medium">{previousWeek.toFixed(1)}</div>
             </div>
             <div className="text-center">
               <div className="text-gray-500">Change</div>
@@ -1699,7 +1679,7 @@ function SiteCard({
             </div>
             <div className="text-right">
               <div className="text-gray-500">Current</div>
-              <div className="font-medium">{currentWeek.toFixed(2)}</div>
+              <div className="font-medium">{currentWeek.toFixed(1)}</div>
             </div>
           </div>
         </div>

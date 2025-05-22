@@ -14,6 +14,11 @@ const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.p
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
 import { getSatelliteData, getMapNodes } from "@/services/apiService"
 import { MapLayerControl } from "./MapLayerControl"
+import MapOverlayToggle from "../Controls/MapOverlayToggle"
+import HeatmapOverlay from "./HeatmapOverlay"
+import { fetchHeatmapData } from "@/services/heatmapService"
+
+import HeatmapLegend from "./HeatmapLegend";
 
 // Create a custom MapboxProvider class since the import might not work directly
 class MapboxProvider {
@@ -501,7 +506,6 @@ const MapNodes: React.FC<{
           2000, // Initial delay of 2 seconds
           1.5, // Increase delay by 1.5x each retry
         )
-
         if (data) {
           // Filter out invalid nodes
           const validNodes = data.filter(isValidNode)
@@ -686,13 +690,13 @@ const Legend: React.FC = () => {
 // Map Layer Control Component
 const MapLayerButton: React.FC = () => {
   const map = useMap()
-  const [currentStyle, setCurrentStyle] = useState<string>(() => {
-    // Try to get the saved style from localStorage, default to "streets" if not found
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("mapStyle") || "streets"
-    }
-    return "streets"
-  })
+  const [currentStyle, setCurrentStyle] = useState<string>("streets")
+
+  useEffect(() => {
+    // Move localStorage access to useEffect
+    const savedStyle = localStorage.getItem("mapStyle") || "streets"
+    setCurrentStyle(savedStyle)
+  }, [])
 
   // Define available Mapbox styles
   const mapStyles = {
@@ -709,9 +713,7 @@ const MapLayerButton: React.FC = () => {
     setCurrentStyle(style)
 
     // Save the selected style to localStorage
-    if (typeof window !== "undefined") {
-      localStorage.setItem("mapStyle", style)
-    }
+    localStorage.setItem("mapStyle", style)
 
     // Find and remove the existing tile layer
     map.eachLayer((layer) => {
@@ -738,8 +740,29 @@ const MapLayerButton: React.FC = () => {
   )
 }
 
-// Update the LeafletMap component to use the MapLayerButton
+// Update the LeafletMap component
 const LeafletMap: React.FC = () => {
+  const [showHeatmap, setShowHeatmap] = useState<boolean>(false)
+  const [heatMapData, setHeatMapData] = useState<any[] | null>(null)
+  const [mapStyle, setMapStyle] = useState<string>("streets")
+
+  useEffect(() => {
+    // Move localStorage access to useEffect
+    const savedStyle = localStorage.getItem("mapStyle") || "streets"
+    setMapStyle(savedStyle)
+  }, [])
+
+  useEffect(() => {
+    fetchHeatmapData().then((data) => {
+      setHeatMapData(data);
+      console.log("heatMapData in LeafletMap:", data);
+    });
+  }, []);
+
+  const toggleHeatmap = () => {
+    setShowHeatmap(!showHeatmap)
+  }
+
   const defaultCenter: [number, number] = [1.5, 17.5]
   const defaultZoom = 4
   const [loadingState, setLoadingState] = useState<LoadingState>({
@@ -752,9 +775,6 @@ const LeafletMap: React.FC = () => {
   if (!mapboxToken) {
     console.warn("Mapbox token is not set in environment variables. Map functionality may be limited.")
   }
-
-  // Get the initial map style from localStorage
-  const initialMapStyle = typeof window !== "undefined" ? localStorage.getItem("mapStyle") || "streets" : "streets"
 
   // Define available Mapbox styles
   const mapStyles = {
@@ -771,15 +791,42 @@ const LeafletMap: React.FC = () => {
       <LoadingIndicator isLoading={loadingState.isLoading} error={loadingState.error} />
       <MapContainer center={defaultCenter} zoom={defaultZoom} style={{ height: "100vh", width: "100%" }}>
         <TileLayer
-          url={mapStyles[initialMapStyle as keyof typeof mapStyles]}
+          url={mapStyles[mapStyle as keyof typeof mapStyles]}
           attribution='&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           tileSize={512}
           zoomOffset={-1}
         />
+
         <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
         <MapNodes onLoadingChange={setLoadingState} />
         <Legend />
         <MapLayerButton />
+
+        <div className="absolute top-24 right-7 z-[1000]">
+          <MapOverlayToggle onClick={toggleHeatmap} />
+        </div>
+        
+        {showHeatmap && (
+          <>
+            <div className="absolute bottom-10 right-4 z-[1000] flex flex-col gap-2">
+              <HeatmapLegend />
+              {heatMapData && heatMapData.length > 0 && (
+                <div className="text-xs text-gray-700 bg-white bg-opacity-80 rounded px-2 py-1 mt-1 shadow">
+                  Last updated:{" "}
+                  {new Date(
+                    heatMapData
+                      .map((d) => d.timestamp)
+                      .sort()
+                      .reverse()[0]
+                  ).toLocaleString()}
+                </div>
+              )}
+            </div>
+            <div className="absolute top-10 left-4 z-[1000]">
+              <HeatmapOverlay data={heatMapData} />
+            </div>
+          </>
+        )}
       </MapContainer>
     </div>
   )

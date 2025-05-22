@@ -89,7 +89,6 @@ export const getMapNodes = async (): Promise<MapNode[] | null> => {
       console.error("No measurements found in response")
       return null
     }
-
     return response.data.measurements
   } catch (error) {
     console.error("Error fetching map nodes:", error)

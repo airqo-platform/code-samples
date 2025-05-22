@@ -17,8 +17,8 @@ const geistMono = localFont({
 })
 
 export const metadata: Metadata = {
-  title: "AirQo AI",
-  description: "AI-powered platform for air quality monitoring, forecasting, and decision support across African cities",
+  title: "AirQo Platform",
+  description: "Air quality monitoring and forecasting tool",
 }
 
 export default function RootLayout({
