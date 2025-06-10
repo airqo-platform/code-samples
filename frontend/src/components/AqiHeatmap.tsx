@@ -1,32 +1,43 @@
 "use client"
 import { useEffect, useRef } from "react"
-import L from "leaflet"
+import dynamic from "next/dynamic"
 import type { AqiMapData, MapProps } from "@/types/types"
+
+// Dynamically import Leaflet to avoid SSR issues
+const L = dynamic(() => import("leaflet"), { ssr: false })
 
 interface AqiHeatmapProps extends MapProps {
   isVisible: boolean
-  onLayerReady?: (layer: L.ImageOverlay) => void
+  onLayerReady?: (layer: any) => void
 }
 
 export default function AqiHeatmap({ map, isVisible, onLayerReady }: AqiHeatmapProps) {
-  const layerRef = useRef<L.ImageOverlay | null>(null)
+  const layerRef = useRef<any>(null)
+  const isLoadedRef = useRef(false)
 
   useEffect(() => {
+    // Only run on client side
+    if (typeof window === "undefined" || !map) return
+
     const fetchAndOverlayImage = async () => {
       try {
+        // Dynamically import Leaflet
+        const leaflet = await import("leaflet")
+
         const res = await fetch(process.env.NEXT_PUBLIC_AQI_API_URL as string)
         const data: AqiMapData = await res.json()
 
         const { image, bounds } = data.mapimage
 
-        const imageBounds: L.LatLngBoundsExpression = bounds
+        const imageBounds: any = bounds
 
         // Create the layer but don't add it to map yet
-        const imageLayer = L.imageOverlay(image, imageBounds, {
+        const imageLayer = leaflet.default.imageOverlay(image, imageBounds, {
           opacity: 0.3,
         })
 
         layerRef.current = imageLayer
+        isLoadedRef.current = true
 
         // Add to map if visible by default
         if (isVisible) {
@@ -42,29 +53,33 @@ export default function AqiHeatmap({ map, isVisible, onLayerReady }: AqiHeatmapP
       }
     }
 
-    if (map) {
+    if (!isLoadedRef.current) {
       fetchAndOverlayImage()
     }
 
     // Cleanup function
     return () => {
-      if (layerRef.current && map) {
-        map.removeLayer(layerRef.current)
+      if (layerRef.current && map && typeof window !== "undefined") {
+        try {
+          map.removeLayer(layerRef.current)
+        } catch (error) {
+          // Layer might not be on map, ignore error
+        }
       }
     }
   }, [map, onLayerReady])
 
   // Handle visibility changes
   useEffect(() => {
-    if (layerRef.current && map) {
-      if (isVisible) {
-        if (!map.hasLayer(layerRef.current)) {
-          layerRef.current.addTo(map)
-        }
-      } else {
-        if (map.hasLayer(layerRef.current)) {
-          map.removeLayer(layerRef.current)
-        }
+    if (typeof window === "undefined" || !layerRef.current || !map) return
+
+    if (isVisible) {
+      if (!map.hasLayer(layerRef.current)) {
+        layerRef.current.addTo(map)
+      }
+    } else {
+      if (map.hasLayer(layerRef.current)) {
+        map.removeLayer(layerRef.current)
       }
     }
   }, [isVisible, map])

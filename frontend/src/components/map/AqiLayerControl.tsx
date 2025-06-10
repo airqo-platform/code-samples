@@ -1,6 +1,6 @@
 "use client"
 import { Button } from "@/ui/button"
-import { Layers } from "lucide-react"
+import { Wind } from "lucide-react"
 
 interface AqiLayerControlProps {
   isVisible: boolean
@@ -16,18 +16,28 @@ export function AqiLayerControl({ isVisible, onToggle }: AqiLayerControlProps) {
     <div className="absolute top-20 left-4 z-[1000]">
       <Button
         onClick={handleToggle}
-        className={`h-12 w-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${
-          isVisible ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-gray-400 hover:bg-gray-500 text-white"
+        className={`h-12 w-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ${
+          isVisible
+            ? "bg-blue-500 hover:bg-blue-600 text-white shadow-blue-200"
+            : "bg-gray-400 hover:bg-gray-500 text-white shadow-gray-200"
         }`}
         aria-label={isVisible ? "Hide AQI Layer" : "Show AQI Layer"}
         title={isVisible ? "Hide AQI Heatmap" : "Show AQI Heatmap"}
       >
-        <Layers className="h-6 w-6" />
+        <Wind className="h-6 w-6" />
       </Button>
 
-      {/* Optional label */}
+      {/* Status indicator */}
       <div className="mt-2 text-center">
-        <span className="text-xs bg-white px-2 py-1 rounded shadow text-gray-700">AQI Layer</span>
+        <span
+          className={`text-xs px-2 py-1 rounded shadow transition-colors ${
+            isVisible
+              ? "bg-blue-100 text-blue-800 border border-blue-200"
+              : "bg-gray-100 text-gray-600 border border-gray-200"
+          }`}
+        >
+          AQI {isVisible ? "ON" : "OFF"}
+        </span>
       </div>
     </div>
   )
