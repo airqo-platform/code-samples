@@ -4,7 +4,7 @@ import dynamic from "next/dynamic"
 import type { AqiMapData, MapProps } from "@/types/types"
 
 // Dynamically import Leaflet to avoid SSR issues
-const L = dynamic(() => import("leaflet"), { ssr: false })
+//const L = dynamic(() => import("leaflet"), { ssr: false })
 
 interface AqiHeatmapProps extends MapProps {
   isVisible: boolean

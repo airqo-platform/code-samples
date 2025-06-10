@@ -13,7 +13,7 @@ import { getSatelliteData, getMapNodes } from "@/services/apiService"
 import { MapLayerControl } from "./MapLayerControl"
 
 // Dynamically import Leaflet to avoid SSR issues
-const L = dynamic(() => import("leaflet"), { ssr: false })
+//const L = dynamic(() => import("leaflet"), { ssr: false })
 
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
