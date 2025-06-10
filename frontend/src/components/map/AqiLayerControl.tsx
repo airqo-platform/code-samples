@@ -36,7 +36,7 @@ export function AqiLayerControl({ isVisible, onToggle }: AqiLayerControlProps) {
               : "bg-gray-100 text-gray-600 border border-gray-200"
           }`}
         >
-          AQI {isVisible ? "ON" : "OFF"}
+          AQI PM<sub>2.5</sub> {isVisible ? "ON" : "OFF"}
         </span>
       </div>
     </div>
