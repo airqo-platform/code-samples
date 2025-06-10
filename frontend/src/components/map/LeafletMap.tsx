@@ -6,13 +6,13 @@ import { useEffect, useRef, useState, useMemo } from "react"
 import ReactDOM from "react-dom/client"
 import { MapContainer, TileLayer, useMap } from "react-leaflet"
 import Image from "next/image"
-import dynamic from "next/dynamic"
 import { GeoSearchControl } from "leaflet-geosearch"
 import "leaflet-geosearch/dist/geosearch.css"
 import { getSatelliteData, getMapNodes } from "@/services/apiService"
 import { MapLayerControl } from "./MapLayerControl"
 
 // Dynamically import Leaflet to avoid SSR issues
+//import dynamic from "next/dynamic"
 //const L = dynamic(() => import("leaflet"), { ssr: false })
 
 // Use direct URLs for Leaflet marker icons

@@ -1,9 +1,9 @@
 "use client"
 import { useEffect, useRef } from "react"
-import dynamic from "next/dynamic"
 import type { AqiMapData, MapProps } from "@/types/types"
 
 // Dynamically import Leaflet to avoid SSR issues
+//import dynamic from "next/dynamic"
 //const L = dynamic(() => import("leaflet"), { ssr: false })
 
 interface AqiHeatmapProps extends MapProps {
@@ -64,10 +64,11 @@ export default function AqiHeatmap({ map, isVisible, onLayerReady }: AqiHeatmapP
           map.removeLayer(layerRef.current)
         } catch (error) {
           // Layer might not be on map, ignore error
+          console.warn("Ignored error during layer removal:", error);
         }
       }
     }
-  }, [map, onLayerReady])
+  }, [map, onLayerReady, isVisible])
 
   // Handle visibility changes
   useEffect(() => {
