@@ -1,6 +1,7 @@
 "use client"
 import { Button } from "@/ui/button"
 import { Wind } from "lucide-react"
+import Image from "next/image"
 
 interface AqiLayerControlProps {
   isVisible: boolean
@@ -39,6 +40,20 @@ export function AqiLayerControl({ isVisible, onToggle }: AqiLayerControlProps) {
           AQI PM<sub>2.5</sub> {isVisible ? "ON" : "OFF"}
         </span>
       </div>
+
+      {/* Display image when AQI is visible */}
+      {isVisible && (
+        <div className="fixed bottom-4 right-4 z-[1000]">
+          <Image
+            src="/images/cams/Copernicus.png"
+            alt="AQI Information"
+            width={100}
+            height={50}
+            className="rounded-lg"
+            unoptimized={true} 
+          />
+        </div>
+      )}
     </div>
   )
 }
