@@ -738,8 +738,25 @@ const MapLayerButton: React.FC = () => {
   )
 }
 
-// Update the LeafletMap component to use the MapLayerButton
-const LeafletMap: React.FC = () => {
+// Add a component to expose the map instance
+const MapInstanceProvider: React.FC<{ onMapReady: (map: L.Map) => void }> = ({ onMapReady }) => {
+  const map = useMap()
+
+  useEffect(() => {
+    if (map) {
+      onMapReady(map)
+    }
+  }, [map, onMapReady])
+
+  return null
+}
+
+// Update the LeafletMap component to accept onMapReady prop
+interface LeafletMapProps {
+  onMapReady?: (map: L.Map) => void
+}
+
+const LeafletMap: React.FC<LeafletMapProps> = ({ onMapReady }) => {
   const defaultCenter: [number, number] = [1.5, 17.5]
   const defaultZoom = 4
   const [loadingState, setLoadingState] = useState<LoadingState>({
@@ -780,6 +797,7 @@ const LeafletMap: React.FC = () => {
         <MapNodes onLoadingChange={setLoadingState} />
         <Legend />
         <MapLayerButton />
+        {onMapReady && <MapInstanceProvider onMapReady={onMapReady} />}
       </MapContainer>
     </div>
   )
