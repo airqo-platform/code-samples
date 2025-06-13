@@ -1,6 +1,5 @@
 "use client"
 import { Button } from "@/ui/button"
-import { Wind } from "lucide-react"
 import Image from "next/image"
 
 interface AqiLayerControlProps {
@@ -10,26 +9,28 @@ interface AqiLayerControlProps {
 
 export function AqiLayerControl({ isVisible, onToggle }: AqiLayerControlProps) {
   const handleToggle = () => {
-    onToggle(!isVisible)
-  }
+    onToggle(!isVisible);
+  };
 
   return (
     <div className="absolute top-20 left-4 z-[1000]">
-      <Button
-        onClick={handleToggle}
-        className={`h-12 w-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ${
-          isVisible
-            ? "bg-blue-500 hover:bg-blue-600 text-white shadow-blue-200"
-            : "bg-gray-400 hover:bg-gray-500 text-white shadow-gray-200"
-        }`}
-        aria-label={isVisible ? "Hide AQI Layer" : "Show AQI Layer"}
-        title={isVisible ? "Hide AQI Heatmap" : "Show AQI Heatmap"}
-      >
-        <Wind className="h-6 w-6" />
-      </Button>
+      {/* Flex row for button and status */}
+      <div className="flex items-center space-x-2">
+        {/* AQI Button */}
+        <Button
+          onClick={handleToggle}
+          className={`h-8 w-8 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 font-bold text-sm ${
+            isVisible
+              ? "bg-blue-500 hover:bg-blue-600 text-white shadow-blue-200"
+              : "bg-gray-400 hover:bg-gray-500 text-white shadow-gray-200"
+          }`}
+          aria-label={isVisible ? "Hide AQI Layer" : "Show AQI Layer"}
+          title={isVisible ? "Hide AQI Heatmap" : "Show AQI Heatmap"}
+        >
+          AQI
+        </Button>
 
-      {/* Status indicator */}
-      <div className="mt-2 text-center">
+        {/* Status indicator */}
         <span
           className={`text-xs px-2 py-1 rounded shadow transition-colors ${
             isVisible
@@ -50,10 +51,10 @@ export function AqiLayerControl({ isVisible, onToggle }: AqiLayerControlProps) {
             width={120}
             height={60}
             className="rounded-lg"
-            priority={true} 
+            priority={true}
           />
         </div>
       )}
     </div>
-  )
+  );
 }
