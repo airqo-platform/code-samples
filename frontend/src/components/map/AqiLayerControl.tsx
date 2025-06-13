@@ -43,14 +43,14 @@ export function AqiLayerControl({ isVisible, onToggle }: AqiLayerControlProps) {
 
       {/* Display image when AQI is visible */}
       {isVisible && (
-        <div className="fixed bottom-4 right-4 z-[1000]">
+        <div className="fixed bottom-4 right-4 z-[1000] max-w-[100px] sm:max-w-none">
           <Image
             src="/images/cams/Copernicus.png"
             alt="AQI Information"
-            width={100}
-            height={50}
+            width={120}
+            height={60}
             className="rounded-lg"
-            unoptimized={true} 
+            priority={true} 
           />
         </div>
       )}
