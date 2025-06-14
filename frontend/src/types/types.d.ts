@@ -22,8 +22,6 @@ export interface WindData {
   data: WindDataRecord[]
 }
 
-// types/type.d.ts
-
 export type Bounds = [[number, number], [number, number]]
 
 export interface AqiMapImage {
@@ -42,8 +40,37 @@ export interface AqiMapData {
   }
 }
 
-import type L from "leaflet"
+// Leaflet-velocity type definitions
+declare global {
+  namespace L {
+    function velocityLayer(options: VelocityOptions): L.Layer
+  }
+}
+
+export interface VelocityDisplayOptions {
+  velocityType?: string
+  position?: string
+  emptyString?: string
+  angleConvention?: string
+  showCardinal?: boolean
+  speedUnit?: string
+  directionString?: string
+  speedString?: string
+}
+
+export interface VelocityOptions {
+  displayValues?: boolean
+  displayOptions?: VelocityDisplayOptions
+  data: any
+  maxVelocity?: number
+  velocityScale?: number
+  particleAge?: number
+  lineWidth?: number
+  particleMultiplier?: number
+  frameRate?: number
+  colorScale?: string[]
+}
 
 export interface MapProps {
-  map: L.Map
+  map: any // Placeholder for L.Map type, as L is not redeclared
 }

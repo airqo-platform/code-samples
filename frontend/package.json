@@ -28,6 +28,8 @@
     "leaflet": "^1.9.4",
     "leaflet-draw": "^1.0.4",
     "leaflet-geosearch": "^4.2.0",
+    "leaflet-velocity": "^2.1.4",
+    "leaflet-velocity-ts": "^1.1.9",
     "lucide-react": "^0.475.0",
     "next": "^15.1.7",
     "papaparse": "^5.5.2",
