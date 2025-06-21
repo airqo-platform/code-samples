@@ -52,7 +52,7 @@ export default function AIModels() {
               Icon={MapIcon} 
               href="https://ai.airqo.net/map"
               openInNewTab={true}
-              imageSrc="/images/model/pm25_forecast.webp"
+              imageSrc="/images/model/heatap.webp"
             />
             <FeatureCard
               title="PM2.5 Prediction"
