@@ -6,14 +6,18 @@ import { useEffect, useRef, useState, useMemo } from "react"
 import ReactDOM from "react-dom/client"
 import { MapContainer, TileLayer, useMap } from "react-leaflet"
 import Image from "next/image"
-import L from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
 import "leaflet-geosearch/dist/geosearch.css"
+import { getSatelliteData, getMapNodes } from "@/services/apiService"
+import { MapLayerControl } from "./MapLayerControl"
+
+// Dynamically import Leaflet to avoid SSR issues
+//import dynamic from "next/dynamic"
+//const L = dynamic(() => import("leaflet"), { ssr: false })
+
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
-import { getSatelliteData, getMapNodes } from "@/services/apiService"
-import { MapLayerControl } from "./MapLayerControl"
 
 // Create a custom MapboxProvider class since the import might not work directly
 class MapboxProvider {
@@ -59,16 +63,6 @@ const Unhealthy = "/images/Unhealthy.png"
 const VeryUnhealthy = "/images/VeryUnhealthy.png"
 const Hazardous = "/images/Hazardous.png"
 const Invalid = "/images/Invalid.png"
-
-// Set default icon for markers
-const DefaultIcon = L.icon({
-  iconUrl: markerIconUrl,
-  shadowUrl: markerShadowUrl,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-})
-
-L.Marker.prototype.options.icon = DefaultIcon
 
 // Update the interface to match the actual API response
 interface SatelliteData {
@@ -239,9 +233,32 @@ const SearchControl: React.FC<{
   defaultZoom: number
 }> = ({ defaultCenter, defaultZoom }) => {
   const map = useMap()
-  const markersRef = useRef<L.Marker[]>([])
+  const markersRef = useRef<any[]>([])
+  const [leaflet, setLeaflet] = useState<any>(null)
 
   useEffect(() => {
+    // Dynamically import Leaflet
+    const loadLeaflet = async () => {
+      const L = await import("leaflet")
+      setLeaflet(L.default)
+
+      // Set default icon for markers
+      const DefaultIcon = L.default.icon({
+        iconUrl: markerIconUrl,
+        shadowUrl: markerShadowUrl,
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+      })
+
+      L.default.Marker.prototype.options.icon = DefaultIcon
+    }
+
+    loadLeaflet()
+  }, [])
+
+  useEffect(() => {
+    if (!leaflet) return
+
     const provider = new MapboxProvider({
       params: {
         access_token: process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "",
@@ -325,7 +342,14 @@ const SearchControl: React.FC<{
         markersRef.current.forEach((marker) => marker.remove())
         markersRef.current = []
 
-        const marker = L.marker([y, x], { icon: DefaultIcon }).addTo(map)
+        const DefaultIcon = leaflet.icon({
+          iconUrl: markerIconUrl,
+          shadowUrl: markerShadowUrl,
+          iconSize: [25, 41],
+          iconAnchor: [12, 41],
+        })
+
+        const marker = leaflet.marker([y, x], { icon: DefaultIcon }).addTo(map)
         markersRef.current.push(marker)
 
         // Create a container div for the popup
@@ -395,7 +419,7 @@ const SearchControl: React.FC<{
     return () => {
       map.removeControl(searchControl)
     }
-  }, [map, defaultCenter, defaultZoom])
+  }, [map, defaultCenter, defaultZoom, leaflet])
 
   return null
 }
@@ -477,7 +501,17 @@ const MapNodes: React.FC<{
 }> = ({ onLoadingChange }) => {
   const map = useMap()
   const [nodes, setNodes] = useState<MapNode[]>([])
-  const markersRef = useRef<L.Marker[]>([])
+  const markersRef = useRef<any[]>([])
+  const [leaflet, setLeaflet] = useState<any>(null)
+
+  // Load Leaflet dynamically
+  useEffect(() => {
+    const loadLeaflet = async () => {
+      const L = await import("leaflet")
+      setLeaflet(L.default)
+    }
+    loadLeaflet()
+  }, [])
 
   // Validate node data
   const isValidNode = (node: MapNode): boolean => {
@@ -537,7 +571,7 @@ const MapNodes: React.FC<{
   }, [map, onLoadingChange])
 
   useEffect(() => {
-    if (!nodes.length) return // Don't proceed if no nodes
+    if (!nodes.length || !leaflet) return // Don't proceed if no nodes or leaflet not loaded
 
     try {
       // Clear existing markers
@@ -570,9 +604,11 @@ const MapNodes: React.FC<{
           const root = ReactDOM.createRoot(container)
 
           // Create marker with custom icon based on AQI category
-          const marker = L.marker([latitude, longitude], {
-            icon: getCustomIcon(aqiCategory),
-          }).addTo(map)
+          const marker = leaflet
+            .marker([latitude, longitude], {
+              icon: getCustomIcon(aqiCategory, leaflet),
+            })
+            .addTo(map)
 
           // Render popup content
           root.render(
@@ -592,7 +628,7 @@ const MapNodes: React.FC<{
           // Bind popup to marker with custom options
           marker.bindPopup(container, {
             ...customPopupOptions,
-            offset: L.point(0, -20),
+            offset: leaflet.point(0, -20),
           })
 
           // Only add mouseover event - remove mouseout event
@@ -618,7 +654,7 @@ const MapNodes: React.FC<{
         error: "Error displaying map markers",
       })
     }
-  }, [nodes, map, onLoadingChange])
+  }, [nodes, map, onLoadingChange, leaflet])
 
   return null
 }
@@ -693,6 +729,16 @@ const MapLayerButton: React.FC = () => {
     }
     return "streets"
   })
+  const [leaflet, setLeaflet] = useState<any>(null)
+
+  // Load Leaflet dynamically
+  useEffect(() => {
+    const loadLeaflet = async () => {
+      const L = await import("leaflet")
+      setLeaflet(L.default)
+    }
+    loadLeaflet()
+  }, [])
 
   // Define available Mapbox styles
   const mapStyles = {
@@ -705,6 +751,8 @@ const MapLayerButton: React.FC = () => {
   }
 
   const handleStyleChange = (style: string) => {
+    if (!leaflet) return
+
     console.log("Changing map style to:", style)
     setCurrentStyle(style)
 
@@ -715,18 +763,20 @@ const MapLayerButton: React.FC = () => {
 
     // Find and remove the existing tile layer
     map.eachLayer((layer) => {
-      if (layer instanceof L.TileLayer) {
+      if (layer instanceof leaflet.TileLayer) {
         map.removeLayer(layer)
       }
     })
 
     // Add the new tile layer
-    L.tileLayer(mapStyles[style as keyof typeof mapStyles], {
-      attribution:
-        '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      tileSize: 512,
-      zoomOffset: -1,
-    }).addTo(map)
+    leaflet
+      .tileLayer(mapStyles[style as keyof typeof mapStyles], {
+        attribution:
+          '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        tileSize: 512,
+        zoomOffset: -1,
+      })
+      .addTo(map)
   }
 
   return (
@@ -738,8 +788,25 @@ const MapLayerButton: React.FC = () => {
   )
 }
 
-// Update the LeafletMap component to use the MapLayerButton
-const LeafletMap: React.FC = () => {
+// Add a component to expose the map instance
+const MapInstanceProvider: React.FC<{ onMapReady: (map: any) => void }> = ({ onMapReady }) => {
+  const map = useMap()
+
+  useEffect(() => {
+    if (map) {
+      onMapReady(map)
+    }
+  }, [map, onMapReady])
+
+  return null
+}
+
+// Update the LeafletMap component to accept onMapReady prop
+interface LeafletMapProps {
+  onMapReady?: (map: any) => void
+}
+
+const LeafletMap: React.FC<LeafletMapProps> = ({ onMapReady }) => {
   const defaultCenter: [number, number] = [1.5, 17.5]
   const defaultZoom = 4
   const [loadingState, setLoadingState] = useState<LoadingState>({
@@ -780,13 +847,14 @@ const LeafletMap: React.FC = () => {
         <MapNodes onLoadingChange={setLoadingState} />
         <Legend />
         <MapLayerButton />
+        {onMapReady && <MapInstanceProvider onMapReady={onMapReady} />}
       </MapContainer>
     </div>
   )
 }
 
 // Create a custom icon based on AQI category
-const getCustomIcon = (aqiCategory: string) => {
+const getCustomIcon = (aqiCategory: string, leaflet: any) => {
   let imageSrc
   switch (aqiCategory.toLowerCase()) {
     case "good":
@@ -811,7 +879,7 @@ const getCustomIcon = (aqiCategory: string) => {
       imageSrc = Invalid
   }
 
-  return L.icon({
+  return leaflet.icon({
     iconUrl: imageSrc,
     iconSize: [40, 40],
     iconAnchor: [20, 20],
