@@ -16,6 +16,7 @@ const navItems = [
   { name: "Pollutants", href: "/pollutants" },
   //{ name: "Poll", href: "/testfetchdata" },
   { name: "About", href: "/about" },
+  { name: "Sourcepollution", href: "/sourcepollution" },
 ]
 
 export default function Navigation({ ...props }) {
