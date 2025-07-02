@@ -13,10 +13,9 @@ const navItems = [
   { name: "Locate", href: "/locate" },
   { name: "Categorize", href: "/categorize" },
   { name: "Reports", href: "/reports" },
-  { name: "Pollutants", href: "/pollutants" },
+  { name: "Pollutants", href: "/sourcepollution" },
   //{ name: "Poll", href: "/testfetchdata" },
   { name: "About", href: "/about" },
-  { name: "Sourcepollution", href: "/sourcepollution" },
 ]
 
 export default function Navigation({ ...props }) {
