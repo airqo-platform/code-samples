@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import * as turf from "@turf/turf";
 import type { FeatureCollection, Feature, Geometry, Point, Polygon } from "geojson";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 // Dynamically import Leaflet components to avoid SSR issues
 const MapContainer = dynamic(() => import("react-leaflet").then(mod => mod.MapContainer), { ssr: false });
@@ -13,52 +14,27 @@ const Popup = dynamic(() => import("react-leaflet").then(mod => mod.Popup), { ss
 // Loading and Error States
 type LoadingState = {
   parishes: boolean;
-  buildings: boolean;
   pollutionSources: boolean;
 };
 
 type ErrorState = {
   parishes: string | null;
-  buildings: string | null;
   pollutionSources: string | null;
 };
 
 // Layer Visibility Controls
 const LayerControls = ({ 
-  showBuildings, 
-  setShowBuildings, 
   showPollutionSources, 
   setShowPollutionSources,
-  buildingsAvailable,
   pollutionSourcesAvailable
 }: {
-  showBuildings: boolean;
-  setShowBuildings: (show: boolean) => void;
   showPollutionSources: boolean;
   setShowPollutionSources: (show: boolean) => void;
-  buildingsAvailable: boolean;
   pollutionSourcesAvailable: boolean;
 }) => (
   <div className="absolute top-4 left-4 z-[1000] bg-white rounded-lg shadow-md p-3 min-w-[200px]">
     <h4 className="font-semibold mb-3 text-gray-800">Layer Controls</h4>
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center">
-          <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-          <span className="text-sm text-gray-700">Buildings</span>
-        </div>
-        <label className="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showBuildings}
-            onChange={(e) => setShowBuildings(e.target.checked)}
-            disabled={!buildingsAvailable}
-            className="sr-only peer"
-          />
-          <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-        </label>
-      </div>
-      
       <div className="flex items-center justify-between">
         <div className="flex items-center">
           <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
@@ -77,14 +53,14 @@ const LayerControls = ({
       </div>
     </div>
     
-    {!buildingsAvailable && (
-      <p className="text-xs text-gray-500 mt-2">Zoom in to a parish to view buildings</p>
+    {!pollutionSourcesAvailable && (
+      <p className="text-xs text-gray-500 mt-2">Zoom in to a parish to view pollution sources</p>
     )}
   </div>
 );
 
 // Map Legend Component
-const MapLegend = ({ showBuildings, showPollutionSources }: { showBuildings: boolean; showPollutionSources: boolean }) => (
+const MapLegend = ({ showPollutionSources }: { showPollutionSources: boolean }) => (
   <div className="absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg border z-[1000] text-sm max-w-xs">
     <h4 className="font-semibold mb-3 text-gray-800">Map Legend</h4>
     <div className="space-y-3">
@@ -95,15 +71,6 @@ const MapLegend = ({ showBuildings, showPollutionSources }: { showBuildings: boo
           <p className="text-xs text-gray-500">Click to zoom and view details</p>
         </div>
       </div>
-      {showBuildings && (
-        <div className="flex items-center">
-          <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
-          <div>
-            <span className="text-gray-700 font-medium">Buildings</span>
-            <p className="text-xs text-gray-500">Click for building info</p>
-          </div>
-        </div>
-      )}
       {showPollutionSources && (
         <div className="flex items-center">
           <div className="w-3 h-3 bg-red-500 rounded-full mr-3"></div>
@@ -184,29 +151,82 @@ type CombinedDataFeature = {
 };
 
 type ParishFeature = Feature<Polygon, ParishProperties>;
-type BuildingFeature = Feature<Point, any>;
 
 const DATA_PATH = "/mapdata";
 
+// Utility to fetch land cover/building data for a pollution source
+async function fetchLandCoverForSource(lat: number, lon: number) {
+  try {
+    const response = await fetch("/mapdata/buildings_and_landcover.json");
+    if (!response.ok) throw new Error("Failed to load land cover data");
+    const allData = await response.json();
+    // First, try to find an entry with latitude/longitude exactly matching (within epsilon)
+    const epsilon = 0.00001;
+    let exactMatch = allData.find((entry: any) =>
+      Math.abs(entry.latitude - lat) < epsilon && Math.abs(entry.longitude - lon) < epsilon
+    );
+    if (exactMatch) return exactMatch;
+    // If not found, fallback to closest within 500m
+    let minDist = Infinity;
+    let bestEntry = null;
+    for (const entry of allData) {
+      const d = turf.distance([lon, lat], [entry.longitude, entry.latitude], { units: "meters" });
+      if (d < 500 && d < minDist) {
+        minDist = d;
+        bestEntry = entry;
+      }
+    }
+    return bestEntry;
+  } catch (e) {
+    console.error("Error fetching land cover for source:", e);
+    return null;
+  }
+}
+
+// Helper to compute land cover percentages from landcover_summary
+function computeLandCoverPercentagesFromSummary(landcover_summary: any): { name: string; value: number }[] {
+  if (!landcover_summary) return [];
+  return Object.entries(landcover_summary).map(([name, obj]: [string, any]) => ({
+    name,
+    value: typeof obj.percentage === 'number' ? obj.percentage : 0
+  })).filter(entry => entry.value > 0);
+}
+
+// Helper to compute land cover percentages from buildings array
+function computeLandCoverPercentages(buildings: any[]): { name: string; value: number }[] {
+  if (!buildings || buildings.length === 0) return [];
+  // Example: group by area size buckets (customize as needed)
+  const buckets = {
+    Small: 0,
+    Medium: 0,
+    Large: 0,
+  };
+  for (const b of buildings) {
+    const area = b.properties?.area_in_meters || 0;
+    if (area < 50) buckets.Small++;
+    else if (area < 200) buckets.Medium++;
+    else buckets.Large++;
+  }
+  const total = buildings.length;
+  return Object.entries(buckets).map(([name, value]) => ({ name, value: (value / total) * 100 }));
+}
+
 export default function SourcePollutionPage() {
   const [parishes, setParishes] = useState<FeatureCollection<Polygon, ParishProperties> | null>(null);
-  const [buildings, setBuildings] = useState<FeatureCollection<Point, any> | null>(null);
   const [pollutionSources, setPollutionSources] = useState<CombinedDataFeature[]>([]);
   const [selectedParish, setSelectedParish] = useState<ParishFeature | null>(null);
   const [loadingState, setLoadingState] = useState<LoadingState>({
     parishes: true,
-    buildings: false,
     pollutionSources: false,
   });
   const [errorState, setErrorState] = useState<ErrorState>({
     parishes: null,
-    buildings: null,
     pollutionSources: null,
   });
   const [mapZoom, setMapZoom] = useState(10);
-  const [showBuildings, setShowBuildings] = useState(false);
   const [showPollutionSources, setShowPollutionSources] = useState(true);
   const mapRef = useRef<any>(null);
+  const [landCoverDataBySource, setLandCoverDataBySource] = useState<Record<string, { name: string; value: number }[]>>({});
 
   // Load parishes data first (essential for map to work)
   useEffect(() => {
@@ -287,100 +307,7 @@ export default function SourcePollutionPage() {
     loadPollutionSources();
   }, []);
 
-  // Load buildings data when a parish is selected, zoomed in, and buildings are toggled on
-  useEffect(() => {
-    if (!selectedParish || mapZoom < 12 || !showBuildings) {
-      setBuildings(null);
-      return;
-    }
-
-    async function fetchBuildings() {
-      try {
-        setLoadingState(prev => ({ ...prev, buildings: true }));
-        setErrorState(prev => ({ ...prev, buildings: null }));
-        
-        const response = await fetch(`${DATA_PATH}/buildings_in_jinja.geojson`);
-        if (!response.ok) {
-          throw new Error(`Failed to load buildings: ${response.status}`);
-        }
-        
-        const buildingsData = await response.json();
-        setBuildings(buildingsData);
-        setLoadingState(prev => ({ ...prev, buildings: false }));
-      } catch (err: any) {
-        console.error('Error loading buildings:', err);
-        setErrorState(prev => ({ ...prev, buildings: err.message || "Failed to load buildings" }));
-        setLoadingState(prev => ({ ...prev, buildings: false }));
-      }
-    }
-    
-    fetchBuildings();
-  }, [selectedParish, mapZoom, showBuildings]);
-
-  // Pre-calculate building counts for all parishes (only when buildings are toggled on)
-  const buildingCounts = useMemo(() => {
-    if (!parishes || !buildings || !showBuildings) return {};
-
-    const counts: Record<string, number> = {};
-    const buildingPoints = buildings.features;
-
-    // Create a spatial index for faster lookups
-    const buildingIndex = buildingPoints.map(building => ({
-      point: turf.point(building.geometry.coordinates),
-      building
-    }));
-
-    for (const parish of parishes.features) {
-      try {
-        const parishPoly = turf.polygon(parish.geometry.coordinates);
-        let count = 0;
-        
-        // Fast point-in-polygon check
-        for (const { point } of buildingIndex) {
-          if (turf.booleanPointInPolygon(point, parishPoly)) {
-            count++;
-          }
-        }
-        
-        counts[parish.properties.GID_4] = count;
-      } catch (e) {
-        console.warn(`Error calculating buildings in parish ${parish.properties.GID_4}`, e);
-        counts[parish.properties.GID_4] = 0;
-      }
-    }
-    return counts;
-  }, [parishes, buildings, showBuildings]);
-
-  // Pre-calculate building type counts for selected parish (only when buildings are toggled on)
-  const selectedParishBuildingTypes = useMemo(() => {
-    if (!selectedParish || !buildings || !showBuildings) return {};
-
-    try {
-      const parishPoly = turf.polygon(selectedParish.geometry.coordinates);
-      const typeCounts: Record<string, number> = {};
-      
-      buildings.features.forEach(building => {
-        try {
-          if (turf.booleanPointInPolygon(
-            turf.point(building.geometry.coordinates),
-            parishPoly
-          )) {
-            const type = building.properties.type || 'Unknown';
-            typeCounts[type] = (typeCounts[type] || 0) + 1;
-          }
-        } catch (e) {
-          // Skip invalid buildings
-        }
-      });
-      
-      return typeCounts;
-    } catch (e) {
-      console.warn('Error calculating building types for selected parish:', e);
-      return {};
-    }
-  }, [selectedParish, buildings, showBuildings]);
-
-  // Compute pollution source counts per parish
+  // Pre-calculate pollution source counts per parish
   const pollutionSourceCounts = useMemo(() => {
     if (!parishes || !pollutionSources.length) return {};
 
@@ -646,6 +573,29 @@ export default function SourcePollutionPage() {
     }
   }, [selectedParish, pollutionSources]);
 
+  // When selectedParishPollutionSources changes, fetch land cover for each source
+  useEffect(() => {
+    if (!selectedParishPollutionSources || selectedParishPollutionSources.length === 0) return;
+    let cancelled = false;
+    async function loadAllLandCover() {
+      const newData: Record<string, { name: string; value: number }[]> = {};
+      for (const source of selectedParishPollutionSources) {
+        const { latitude, longitude } = source.properties;
+        const entry = await fetchLandCoverForSource(latitude, longitude);
+        if (entry && entry.landcover_summary) {
+          newData[source._id.$oid] = computeLandCoverPercentagesFromSummary(entry.landcover_summary);
+        } else if (entry && entry.buildings) {
+          newData[source._id.$oid] = computeLandCoverPercentages(entry.buildings);
+        } else {
+          newData[source._id.$oid] = [];
+        }
+      }
+      if (!cancelled) setLandCoverDataBySource(newData);
+    }
+    loadAllLandCover();
+    return () => { cancelled = true; };
+  }, [selectedParishPollutionSources]);
+
   // Handle parish click: zoom and select
   function onEachParish(feature: ParishFeature, layer: any) {
     layer.on({
@@ -654,9 +604,7 @@ export default function SourcePollutionPage() {
         setSelectedParish(feature);
         
         // Clear buildings if we're switching parishes (will reload if needed)
-        if (buildings) {
-          setBuildings(null);
-        }
+        // setBuildings(null); // Removed buildings state
         
         // Zoom to the parish with proper null checks
         if (mapRef.current && layer && layer.getBounds) {
@@ -750,12 +698,6 @@ export default function SourcePollutionPage() {
               <div className="text-blue-700">Parishes</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {buildings ? buildings.features.length : '—'}
-              </div>
-              <div className="text-green-700">Buildings</div>
-            </div>
-            <div className="text-center col-span-2">
               <div className="text-2xl font-bold text-red-600">
                 {selectedParish 
                   ? pollutionSourceCounts[selectedParish.properties.NAME_4] ?? 0
@@ -781,46 +723,6 @@ export default function SourcePollutionPage() {
               <p><strong>Sub-county:</strong> {selectedParish.properties.NAME_3}</p>
               <p><strong>County:</strong> {selectedParish.properties.NAME_2}</p>
               <p><strong>District:</strong> {selectedParish.properties.NAME_1}</p>
-            </div>
-            
-            {/* Buildings Section */}
-            <div className="mb-4 p-3 bg-white rounded shadow">
-              <h3 className="font-semibold text-gray-700 mb-1">Buildings</h3>
-              {!showBuildings ? (
-                <div className="text-sm text-gray-500">
-                  <p>Toggle buildings on to view building data</p>
-                </div>
-              ) : loadingState.buildings ? (
-                <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-green-600"></div>
-                  <span className="text-sm text-gray-600">Loading buildings...</span>
-                </div>
-              ) : errorState.buildings ? (
-                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                  {errorState.buildings}
-                </div>
-              ) : buildings ? (
-                <>
-                  <p className="text-2xl font-mono text-green-600">
-                    {buildingCounts[selectedParish.properties.GID_4] ?? 0}
-                  </p>
-                  
-                  {/* Building Details */}
-                  <div className="mt-3">
-                    <h4 className="text-sm font-medium text-gray-600 mb-2">Building Types:</h4>
-                    <div className="space-y-1">
-                      {Object.entries(selectedParishBuildingTypes).map(([type, count]) => (
-                        <div key={type} className="flex justify-between text-sm">
-                          <span className="text-gray-600">{type}:</span>
-                          <span className="font-medium">{count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-gray-500">Zoom in to view buildings</p>
-              )}
             </div>
             
             {/* Pollution Sources Section */}
@@ -899,6 +801,35 @@ export default function SourcePollutionPage() {
                                         <span>🟢 Low probability - may be false positive</span>
                                       )}
                                     </div>
+                                    {/* Donut chart for land cover percentages */}
+                                    {landCoverDataBySource[source._id.$oid] && landCoverDataBySource[source._id.$oid].length > 0 && (
+                                      <div className="mt-4">
+                                        <h4 className="text-xs font-semibold text-blue-700 mb-1">Land Cover (Buildings by Area)</h4>
+                                        <div style={{ width: '100%', height: 180 }}>
+                                          <ResponsiveContainer width="100%" height={180}>
+                                            <PieChart>
+                                              <Pie
+                                                data={landCoverDataBySource[source._id.$oid]}
+                                                dataKey="value"
+                                                nameKey="name"
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={40}
+                                                outerRadius={70}
+                                                label={({ name, value }) => `${name}: ${value.toFixed(1)}%`}
+                                                paddingAngle={2}
+                                              >
+                                                {landCoverDataBySource[source._id.$oid].map((entry, i) => (
+                                                  <Cell key={`cell-${i}`} fill={["#4ade80", "#fbbf24", "#f87171"][i % 3]} />
+                                                ))}
+                                              </Pie>
+                                              <Tooltip formatter={(value) => [typeof value === 'number' ? `${value.toFixed(1)}%` : value, "Percent"]} />
+                                              <Legend />
+                                            </PieChart>
+                                          </ResponsiveContainer>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 </li>
                               );
@@ -1015,9 +946,7 @@ export default function SourcePollutionPage() {
           <div className="text-center py-10 text-gray-500">
             <p>Click on any parish to view detailed information</p>
             <p className="text-sm mt-2">
-              <span className="inline-block w-3 h-3 bg-green-500 rounded-full mr-2"></span>
-              Buildings (zoom in to view)
-              <span className="inline-block w-3 h-3 bg-red-500 rounded-full ml-4 mr-2"></span>
+              <span className="inline-block w-3 h-3 bg-red-500 rounded-full mr-2"></span>
               Pollution Sources
             </p>
           </div>
@@ -1064,38 +993,6 @@ export default function SourcePollutionPage() {
               onEachFeature={onEachParish}
             />
           )}
-
-          {/* Buildings - Only show when zoomed in, parish selected, and toggle is on */}
-          {showBuildings && buildings && mapZoom >= 12 && buildings.features
-            .filter(building => {
-              // Validate building coordinates
-              return building && 
-                     building.geometry && 
-                     building.geometry.coordinates && 
-                     Array.isArray(building.geometry.coordinates) && 
-                     building.geometry.coordinates.length >= 2 &&
-                     typeof building.geometry.coordinates[0] === 'number' &&
-                     typeof building.geometry.coordinates[1] === 'number';
-            })
-            .map((building, index) => (
-              <CircleMarker
-                key={`building-${index}`}
-                center={[building.geometry.coordinates[1], building.geometry.coordinates[0]]}
-                radius={4}
-                fillColor="#00ff00"
-                color="#006600"
-                weight={1}
-                opacity={1}
-                fillOpacity={0.7}
-              >
-                <Popup>
-                  <div className="text-xs">
-                    <strong>{building.properties?.name || 'Unknown'}</strong><br/>
-                    Type: {building.properties?.type || 'Unknown'}
-                  </div>
-                </Popup>
-              </CircleMarker>
-            ))}
 
           {/* Pollution Sources - Show all when no parish selected, or parish-specific when parish selected */}
           {showPollutionSources && pollutionSources.length > 0 && (
@@ -1174,11 +1071,8 @@ export default function SourcePollutionPage() {
         
         {/* Layer Controls */}
         <LayerControls 
-          showBuildings={showBuildings}
-          setShowBuildings={setShowBuildings}
           showPollutionSources={showPollutionSources}
           setShowPollutionSources={setShowPollutionSources}
-          buildingsAvailable={!!buildings && mapZoom >= 12}
           pollutionSourcesAvailable={pollutionSources.length > 0}
         />
         
@@ -1187,7 +1081,6 @@ export default function SourcePollutionPage() {
         
         {/* Map Legend */}
         <MapLegend 
-          showBuildings={showBuildings} 
           showPollutionSources={showPollutionSources} 
         />
       </main>
