@@ -26,13 +26,17 @@ type ErrorState = {
 const LayerControls = ({ 
   showPollutionSources, 
   setShowPollutionSources,
-  pollutionSourcesAvailable
+  pollutionSourcesAvailable,
+  showBuildingsOverlay,
+  setShowBuildingsOverlay
 }: {
   showPollutionSources: boolean;
   setShowPollutionSources: (show: boolean) => void;
   pollutionSourcesAvailable: boolean;
+  showBuildingsOverlay: boolean;
+  setShowBuildingsOverlay: (show: boolean) => void;
 }) => (
-  <div className="absolute top-4 left-4 z-[1000] bg-white rounded-lg shadow-md p-3 min-w-[200px]">
+  <div className="bg-white rounded-lg shadow-md p-3 min-w-[200px] w-full">
     <h4 className="font-semibold mb-3 text-gray-800">Layer Controls</h4>
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -51,17 +55,31 @@ const LayerControls = ({
           <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
         </label>
       </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+          <span className="text-sm text-gray-700">Buildings Overlay</span>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showBuildingsOverlay}
+            onChange={(e) => setShowBuildingsOverlay(e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
+        </label>
+      </div>
     </div>
-    
     {!pollutionSourcesAvailable && (
       <p className="text-xs text-gray-500 mt-2">Zoom in to a parish to view pollution sources</p>
     )}
   </div>
 );
 
-// Map Legend Component
+// Update MapLegend container to be wider
 const MapLegend = ({ showPollutionSources }: { showPollutionSources: boolean }) => (
-  <div className="absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg border z-[1000] text-sm max-w-xs">
+  <div className="absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg border z-[1000] text-sm w-[220px] max-w-xs">
     <h4 className="font-semibold mb-3 text-gray-800">Map Legend</h4>
     <div className="space-y-3">
       <div className="flex items-center">
@@ -72,7 +90,7 @@ const MapLegend = ({ showPollutionSources }: { showPollutionSources: boolean }) 
         </div>
       </div>
       {showPollutionSources && (
-        <div className="flex items-center">
+        <div className="flex items-center mt-2">
           <div className="w-3 h-3 bg-red-500 rounded-full mr-3"></div>
           <div>
             <span className="text-gray-700 font-medium">Pollution Sources</span>
@@ -225,6 +243,7 @@ export default function SourcePollutionPage() {
   });
   const [mapZoom, setMapZoom] = useState(10);
   const [showPollutionSources, setShowPollutionSources] = useState(true);
+  const [showBuildingsOverlay, setShowBuildingsOverlay] = useState(true);
   const mapRef = useRef<any>(null);
   const [landCoverDataBySource, setLandCoverDataBySource] = useState<Record<string, { name: string; value: number }[]>>({});
 
@@ -1069,20 +1088,23 @@ export default function SourcePollutionPage() {
           )}
         </MapContainer>
         
-        {/* Layer Controls */}
-        <LayerControls 
-          showPollutionSources={showPollutionSources}
-          setShowPollutionSources={setShowPollutionSources}
-          pollutionSourcesAvailable={pollutionSources.length > 0}
-        />
-        
         {/* Loading and Error Indicators */}
         <LoadingIndicator loadingState={loadingState} errorState={errorState} />
         
         {/* Map Legend */}
-        <MapLegend 
-          showPollutionSources={showPollutionSources} 
-        />
+        <div className="absolute top-4 right-4 z-[1000]">
+          <MapLegend showPollutionSources={showPollutionSources} />
+        </div>
+        {/* Layer Controls: position further below the legend, top-right */}
+        <div className="absolute right-4 top-60 z-[1000]">
+          <LayerControls 
+            showPollutionSources={showPollutionSources}
+            setShowPollutionSources={setShowPollutionSources}
+            pollutionSourcesAvailable={pollutionSources.length > 0}
+            showBuildingsOverlay={showBuildingsOverlay}
+            setShowBuildingsOverlay={setShowBuildingsOverlay}
+          />
+        </div>
       </main>
     </div>
   );
