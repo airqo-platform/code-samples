@@ -719,7 +719,7 @@ export default function SourcePollutionPage() {
             <div className="text-center">
               <div className="text-2xl font-bold text-red-600">
                 {selectedParish 
-                  ? pollutionSourceCounts[selectedParish.properties.NAME_4] ?? 0
+                  ? (pollutionSourceCounts[selectedParish.properties.NAME_4] ?? 0)
                   : totalPollutionSources
                 }
               </div>
