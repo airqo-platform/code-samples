@@ -1,0 +1,56 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 1,
+        "name": "Jinja Central"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [33.202116, 0.447856],
+          [33.212116, 0.447856],
+          [33.212116, 0.457856],
+          [33.202116, 0.457856],
+          [33.202116, 0.447856]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 2,
+        "name": "Jinja North"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [33.192116, 0.457856],
+          [33.202116, 0.457856],
+          [33.202116, 0.467856],
+          [33.192116, 0.467856],
+          [33.192116, 0.457856]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": 3,
+        "name": "Jinja South"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [33.202116, 0.437856],
+          [33.212116, 0.437856],
+          [33.212116, 0.447856],
+          [33.202116, 0.447856],
+          [33.202116, 0.437856]
+        ]]
+      }
+    }
+  ]
+} 

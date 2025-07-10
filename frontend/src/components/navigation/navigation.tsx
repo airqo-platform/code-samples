@@ -13,6 +13,8 @@ const navItems = [
   { name: "Locate", href: "/locate" },
   { name: "Categorize", href: "/categorize" },
   { name: "Reports", href: "/reports" },
+  { name: "Pollutants", href: "/sourcepollution" },
+  //{ name: "Poll", href: "/testfetchdata" },
   { name: "About", href: "/about" },
 ]
 
