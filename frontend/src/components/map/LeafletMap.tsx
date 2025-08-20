@@ -719,17 +719,7 @@ const HeatmapOverlays: React.FC<{
           ).addTo(map)
 
           // Add click event to show city info
-          imageOverlay.on("click", () => {
-            const popup = L.popup()
-              .setLatLng([(south + north) / 2, (west + east) / 2])
-              .setContent(`
-                <div class="p-2">
-                  <h3 class="font-semibold text-sm mb-1">${heatmap.city}</h3>
-                  <p class="text-xs text-gray-600">${heatmap.message}</p>
-                </div>
-              `)
-              .openOn(map)
-          })
+          
 
           overlaysRef.current.push(imageOverlay)
         } catch (error) {
@@ -756,7 +746,7 @@ const HeatmapOverlays: React.FC<{
         container.style.userSelect = "none"
 
         const button = L.DomUtil.create("button", "", container)
-        button.innerHTML = "🗺️ Heatmap"
+        button.innerHTML = showHeatmaps ? "🗺️ Heatmap ON" : "🗺️ Heatmap OFF";
         button.style.border = "none"
         button.style.background = "none"
         button.style.fontSize = "12px"
