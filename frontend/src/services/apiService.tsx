@@ -7,7 +7,7 @@ const removeTrailingSlash = (url: string): string => {
 
 const apiToken = process.env.NEXT_PUBLIC_API_TOKEN
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || ""
-const BASE_URL_API = process.env.NEXT_PUBLIC_AIRRQO_API_URL || ""
+const BASE_URL_API = process.env.NEXT_PUBLIC_AIRQO_API_URL || ""
 // Axios instance with a base URL and default headers
 const apiService = axios.create({
   baseURL: removeTrailingSlash(BASE_URL),
