@@ -184,3 +184,15 @@ export interface Filters {
   district: string
   category: string
 }
+
+export interface AqiMapData {
+  mapimage: {
+    bounds: [[number, number], [number, number]]
+    image: string
+    message: string
+  }
+}
+
+export interface MapProps {
+  map: any
+}

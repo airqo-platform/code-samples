@@ -12,7 +12,7 @@ import "leaflet-geosearch/dist/geosearch.css"
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
-import { getSatelliteData, getMapNodes } from "@/services/apiService"
+import { getSatelliteData, getMapNodes, getHeatmapData } from "@/services/apiService"
 import { MapLayerControl } from "./MapLayerControl"
 
 // Create a custom MapboxProvider class since the import might not work directly
@@ -623,6 +623,157 @@ const MapNodes: React.FC<{
   return null
 }
 
+interface HeatmapData {
+  bounds: [[number, number], [number, number]]
+  city: string
+  id: string
+  image: string // base64 encoded image
+  message: string
+}
+
+const HeatmapOverlays: React.FC<{
+  onLoadingChange: (state: LoadingState) => void
+}> = ({ onLoadingChange }) => {
+  const map = useMap()
+  const [heatmaps, setHeatmaps] = useState<HeatmapData[]>([])
+  const [showHeatmaps, setShowHeatmaps] = useState(false)
+  const overlaysRef = useRef<L.ImageOverlay[]>([])
+
+  // Fetch heatmap data
+  useEffect(() => {
+    const fetchHeatmaps = async () => {
+      try {
+        onLoadingChange({ isLoading: true, error: null })
+
+        const data = await fetchWithRetry(
+          getHeatmapData,
+          3, // Number of retries
+          2000, // Initial delay of 2 seconds
+          1.5, // Increase delay by 1.5x each retry
+        )
+
+        if (data && Array.isArray(data)) {
+          setHeatmaps(data)
+          onLoadingChange({ isLoading: false, error: null })
+        } else {
+          onLoadingChange({
+            isLoading: false,
+            error: "No heatmap data available",
+          })
+        }
+      } catch (error) {
+        console.error("Error fetching heatmap data:", error)
+        onLoadingChange({
+          isLoading: false,
+          error: "Error loading heatmap data",
+        })
+      }
+    }
+
+    fetchHeatmaps()
+  }, [onLoadingChange])
+
+  // Add/remove heatmap overlays when showHeatmaps changes
+  useEffect(() => {
+    if (!heatmaps.length) return
+
+    // Clear existing overlays
+    overlaysRef.current.forEach((overlay) => overlay.remove())
+    overlaysRef.current = []
+
+    if (showHeatmaps) {
+      // Add heatmap overlays
+      heatmaps.forEach((heatmap) => {
+        try {
+          // Validate bounds data
+          if (!heatmap.bounds || !Array.isArray(heatmap.bounds) || heatmap.bounds.length !== 2) {
+            console.warn(`Invalid bounds for heatmap ${heatmap.city}:`, heatmap.bounds)
+            return
+          }
+
+          const [[south, west], [north, east]] = heatmap.bounds
+
+          // Validate coordinate values
+          if (
+            typeof south !== "number" ||
+            typeof west !== "number" ||
+            typeof north !== "number" ||
+            typeof east !== "number"
+          ) {
+            console.warn(`Invalid coordinate values for heatmap ${heatmap.city}`)
+            return
+          }
+
+          // Create image overlay from base64 data
+          const imageOverlay = L.imageOverlay(
+            heatmap.image, // base64 image data
+            [
+              [south, west],
+              [north, east],
+            ], // bounds
+            {
+              opacity: 0.7,
+              interactive: true,
+              alt: `Heatmap for ${heatmap.city}`,
+            },
+          ).addTo(map)
+
+          // Add click event to show city info
+          
+
+          overlaysRef.current.push(imageOverlay)
+        } catch (error) {
+          console.error(`Error creating overlay for ${heatmap.city}:`, error)
+        }
+      })
+    }
+
+    return () => {
+      overlaysRef.current.forEach((overlay) => overlay.remove())
+    }
+  }, [heatmaps, showHeatmaps, map])
+
+  // Add heatmap toggle control to map
+  useEffect(() => {
+    const HeatmapControl = L.Control.extend({
+      onAdd: () => {
+        const container = L.DomUtil.create("div", "leaflet-control leaflet-bar")
+        container.style.backgroundColor = "white"
+        container.style.padding = "8px"
+        container.style.borderRadius = "4px"
+        container.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)"
+        container.style.cursor = "pointer"
+        container.style.userSelect = "none"
+
+        const button = L.DomUtil.create("button", "", container)
+        button.innerHTML = showHeatmaps ? "🗺️ Heatmap ON" : "🗺️ Heatmap OFF";
+        button.style.border = "none"
+        button.style.background = "none"
+        button.style.fontSize = "12px"
+        button.style.fontWeight = showHeatmaps ? "bold" : "normal"
+        button.style.color = showHeatmaps ? "#2563eb" : "#374151"
+        button.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
+
+        L.DomEvent.on(button, "click", (e) => {
+          L.DomEvent.stopPropagation(e)
+          setShowHeatmaps(!showHeatmaps)
+        })
+
+        return container
+      },
+    })
+
+    const heatmapControl = new HeatmapControl({ position: "topleft" })
+    map.addControl(heatmapControl)
+
+    return () => {
+      map.removeControl(heatmapControl)
+    }
+  }, [map, showHeatmaps])
+
+  return null
+}
+
 // Update the Legend component with better tooltip styling
 const Legend: React.FC = () => {
   const pollutantLevels = useMemo(
@@ -738,7 +889,7 @@ const MapLayerButton: React.FC = () => {
   )
 }
 
-// Update the LeafletMap component to use the MapLayerButton
+// Update the LeafletMap component to use the MapLayerButton and include HeatmapOverlays
 const LeafletMap: React.FC = () => {
   const defaultCenter: [number, number] = [1.5, 17.5]
   const defaultZoom = 4
@@ -778,6 +929,7 @@ const LeafletMap: React.FC = () => {
         />
         <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
         <MapNodes onLoadingChange={setLoadingState} />
+        <HeatmapOverlays onLoadingChange={setLoadingState} />
         <Legend />
         <MapLayerButton />
       </MapContainer>
