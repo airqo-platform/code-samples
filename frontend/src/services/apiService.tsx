@@ -134,24 +134,41 @@ export const getReportData = async (): Promise<MapNode[] | null> => {
   }
 }
 
-// Get heatmap data from the spatial heatmaps endpoint
+// Get heatmap data from the spatial heatmaps endpoint with retry logic
 export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
-  try {
-    const response = await apiServiceApi.get("/spatial/heatmaps", {
-      params: {
-        token: apiToken,
-      },
-    })
+  const maxRetries = 5;
+  const retryDelay = 1000; // 1 second delay between retries
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await apiServiceApi.get("/spatial/heatmaps", {
+        params: {
+          token: apiToken,
+        },
+      });
 
-    // Check if response has data
-    if (!response.data || !Array.isArray(response.data)) {
-      console.error("No heatmap data found in response")
-      return null
+      // Check if response has valid data
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        return response.data;
+      }
+      
+      console.warn(`Attempt ${attempt}: No heatmap data found in response, retrying...`);
+      
+      // If this is not the last attempt, wait before retrying
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt)); // Exponential backoff
+      }
+      
+    } catch (error) {
+      console.error(`Attempt ${attempt}: Error fetching heatmap data:`, error);
+      
+      // If this is not the last attempt, wait before retrying
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+      }
     }
-
-    return response.data
-  } catch (error) {
-    console.error("Error fetching heatmap data:", error)
-    return null
   }
+  
+  console.error("All 5 attempts failed to fetch heatmap data");
+  return null;
 }
