@@ -113,7 +113,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>PM2.5 Levels by Site</CardTitle>
+        <CardTitle>PM<sub>2.5</sub> Levels by Site</CardTitle>
         <div className="flex space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">
             <SelectTrigger className="w-[180px]">
@@ -424,7 +424,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>Weekly PM2.5 Comparison</CardTitle>
+        <CardTitle>Weekly PM<sub>2.5</sub> Comparison</CardTitle>
         <div className="flex space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">
             <SelectTrigger className="w-[180px]">
