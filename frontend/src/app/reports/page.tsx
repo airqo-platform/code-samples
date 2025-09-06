@@ -949,7 +949,8 @@ function ReportContent() {
         <div className="flex flex-col md:flex-row justify-between items-center mb-4">
           <h2 className="text-lg font-semibold mb-2 md:mb-0">Device Selection</h2>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={selectAllDevices} size="sm">
+            <Button variant="outline" onClick={selectAllDevices} size="sm" 
+            className="bg-blue-500 text-white border-blue-700 hover:bg-blue-600">
               Select All
             </Button>
             <Button variant="outline" onClick={clearDeviceSelection} size="sm">
