@@ -590,7 +590,16 @@ function ReportContent() {
       .sort((a, b) => (b.pm2_5?.value || 0) - (a.pm2_5?.value || 0))
       .slice(0, limit)
   }
+    // add coldspot detection function
+  const getColdspotSites = (sites: SiteData[], limit = 3): SiteData[] => {
+    if (sites.length === 0) return []
 
+    // Sort sites by PM2.5 value in ascending order and take the top 'limit' sites
+    return [...sites]
+      .filter((site) => site.pm2_5?.value !== undefined && site.pm2_5?.value !== null)
+      .sort((a, b) => (a.pm2_5?.value || 0) - (b.pm2_5?.value || 0))
+      .slice(0, limit)
+  }
   // Add this after the getHotspotSites function
   const [showAdvancedAnalysis, setShowAdvancedAnalysis] = useState(false)
 
@@ -1251,6 +1260,19 @@ function ReportContent() {
                         </span>
                       ))}
                       {" are the areas with the highest pollution levels."}
+                    </li>
+                  )}
+                 
+                  {filteredData.length > 1 && getColdspotSites(filteredData).length > 0 && (
+                    <li>
+                      <strong>Low-Pollution sites:</strong>{" "}
+                      {getColdspotSites(filteredData).map((site, index, arr) => (
+                        <span key={site._id}>
+                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(2)} µg/m³)
+                          {index < arr.length - 1 ? ", " : ""}
+                        </span>
+                      ))}
+                      {" are the areas with lower pollution levels."}
                     </li>
                   )}
                 </ul>

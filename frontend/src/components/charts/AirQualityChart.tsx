@@ -42,6 +42,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   const [siteLimit, setSiteLimit] = useState(7)
   const [chartType, setChartType] = useState<"bar" | "line">("bar")
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
+  const [sortOrder, setSortOrder] = useState<"highest" | "lowest" | "none">("none")
   const chartRef = useRef<HTMLDivElement>(null)
 
   const handleSiteLimitChange = (value: string) => {
@@ -103,7 +104,15 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
     }
   }
 
-  const displaySites = sites.slice(0, siteLimit).map((site) => ({
+  const sortedSites = [...sites].sort((a, b) => {
+    const aValue = a.pm2_5?.value ? Number(a.pm2_5.value) : 0
+    const bValue = b.pm2_5?.value ? Number(b.pm2_5.value) : 0
+    if (sortOrder === "highest") return bValue - aValue
+    if (sortOrder === "lowest") return aValue - bValue
+    return 0
+  })
+
+  const displaySites = sortedSites.slice(0, siteLimit).map((site) => ({
     name: site.siteDetails?.name || "Unknown",
     pm25: site.pm2_5?.value ? Number(site.pm2_5.value).toFixed(2) : "0.00",
     category: site.aqi_category || "Unknown",
@@ -113,10 +122,10 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>PM<sub>2.5</sub> Levels by Site</CardTitle>
-        <div className="flex space-x-4">
+        <CardTitle className="text-lg md:text-xl">PM<sub>2.5</sub> Levels by Site</CardTitle>
+        <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Sites to display" />
             </SelectTrigger>
             <SelectContent>
@@ -128,7 +137,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
             </SelectContent>
           </Select>
           <Select onValueChange={(v: string) => setChartType(v as "bar" | "line")} defaultValue="bar">
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Chart type" />
             </SelectTrigger>
             <SelectContent>
@@ -136,8 +145,18 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
               <SelectItem value="line">Line</SelectItem>
             </SelectContent>
           </Select>
+          <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
+            <SelectTrigger className="w-full md:w-[160px]">
+              <SelectValue placeholder="Sort order" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No Sort</SelectItem>
+              <SelectItem value="highest">Highest to Lowest</SelectItem>
+              <SelectItem value="lowest">Lowest to Highest</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Download" />
             </SelectTrigger>
             <SelectContent>
@@ -151,14 +170,14 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
       </CardHeader>
       <CardContent>
         {siteLimit > 7 && (
-          <p className="text-yellow-600 text-sm mb-2">Warning: Displaying more than 7 sites may affect readability.</p>
+          <p className="text-yellow-600 text-xs md:text-sm mb-2">Warning: Displaying more than 7 sites may affect readability.</p>
         )}
-        <div className="h-[300px]" ref={chartRef}>
+        <div className="h-[250px] md:h-[300px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "bar" ? (
-              <BarChart data={displaySites} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 12 }} />
-                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft" }} tick={{ fontSize: 12 }} />
+              <BarChart data={displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
+                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }} tick={{ fontSize: 10 }} />
                 <Tooltip
                   formatter={(value) => [`${value} µg/m³`, "PM2.5"]}
                   labelFormatter={(label) => `Site: ${label}`}
@@ -170,10 +189,10 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 </Bar>
               </BarChart>
             ) : (
-              <LineChart data={displaySites} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+              <LineChart data={displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 12 }} />
-                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft" }} tick={{ fontSize: 12 }} />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
+                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }} tick={{ fontSize: 10 }} />
                 <Tooltip
                   formatter={(value) => [`${value} µg/m³`, "PM2.5"]}
                   labelFormatter={(label) => `Site: ${label}`}
@@ -271,10 +290,10 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>AQI Category Distribution</CardTitle>
-        <div className="flex space-x-4">
+        <CardTitle className="text-lg md:text-xl">AQI Category Distribution</CardTitle>
+        <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select onValueChange={(v: string) => setChartType(v as "pie" | "bar")} defaultValue="pie">
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Chart type" />
             </SelectTrigger>
             <SelectContent>
@@ -283,7 +302,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
             </SelectContent>
           </Select>
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Download" />
             </SelectTrigger>
             <SelectContent>
@@ -296,7 +315,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[300px]" ref={chartRef}>
+        <div className="h-[250px] md:h-[300px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "pie" ? (
               <PieChart>
@@ -306,7 +325,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
                   cy="50%"
                   labelLine={true}
                   label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
+                  outerRadius={60}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -315,12 +334,12 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
                   ))}
                 </Pie>
                 <Tooltip formatter={(value) => [`${value} sites`, "Count"]} />
-                <Legend />
+                <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
               </PieChart>
             ) : (
-              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 12 }} />
-                <YAxis label={{ value: "Count", angle: -90, position: "insideLeft" }} tick={{ fontSize: 12 }} />
+              <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
+                <YAxis label={{ value: "Count", angle: -90, position: "insideLeft", fontSize: 10 }} tick={{ fontSize: 10 }} />
                 <Tooltip
                   formatter={(value) => [`${value} sites`, "Count"]}
                   labelFormatter={(label) => `Category: ${label}`}
@@ -344,6 +363,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
   const [siteLimit, setSiteLimit] = useState(7)
   const [chartType, setChartType] = useState<"line" | "bar">("line")
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
+  const [sortOrder, setSortOrder] = useState<"highest" | "lowest" | "none">("none")
   const chartRef = useRef<HTMLDivElement>(null)
 
   const sitesWithData = sites.filter(
@@ -412,7 +432,15 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
     }
   }
 
-  const displayData = sitesWithData.slice(0, siteLimit)
+  const sortedSites = [...sitesWithData].sort((a, b) => {
+    const aValue = a.averages?.weeklyAverages?.currentWeek || 0
+    const bValue = b.averages?.weeklyAverages?.currentWeek || 0
+    if (sortOrder === "highest") return bValue - aValue
+    if (sortOrder === "lowest") return aValue - bValue
+    return 0
+  })
+
+  const displayData = sortedSites.slice(0, siteLimit)
 
   const chartData = displayData.map((site) => ({
     name: site.siteDetails?.name || "Unknown",
@@ -424,10 +452,10 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>Weekly PM<sub>2.5</sub> Comparison</CardTitle>
-        <div className="flex space-x-4">
+        <CardTitle className="text-lg md:text-xl">Weekly PM<sub>2.5</sub> Comparison</CardTitle>
+        <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Sites to display" />
             </SelectTrigger>
             <SelectContent>
@@ -439,7 +467,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
             </SelectContent>
           </Select>
           <Select onValueChange={(v: string) => setChartType(v as "line" | "bar")} defaultValue="line">
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Chart type" />
             </SelectTrigger>
             <SelectContent>
@@ -447,8 +475,18 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
               <SelectItem value="bar">Bar</SelectItem>
             </SelectContent>
           </Select>
+          <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
+            <SelectTrigger className="w-full md:w-[160px]">
+              <SelectValue placeholder="Sort order" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No Sort</SelectItem>
+              <SelectItem value="highest">Highest to Lowest</SelectItem>
+              <SelectItem value="lowest">Lowest to Highest</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Download" />
             </SelectTrigger>
             <SelectContent>
@@ -462,17 +500,17 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
       </CardHeader>
       <CardContent>
         {siteLimit > 7 && (
-          <p className="text-yellow-600 text-sm mb-2">Warning: Displaying more than 7 sites may affect readability.</p>
+          <p className="text-yellow-600 text-xs md:text-sm mb-2">Warning: Displaying more than 7 sites may affect readability.</p>
         )}
-        <div className="h-[300px]" ref={chartRef}>
+        <div className="h-[250px] md:h-[300px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "line" ? (
-              <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+              <LineChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 12 }} />
-                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft" }} tick={{ fontSize: 10 }} />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
+                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }} tick={{ fontSize: 10 }} />
                 <Tooltip formatter={(value) => [`${value} µg/m³`, ""]} labelFormatter={(label) => `Site: ${label}`} />
-                <Legend />
+                <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
                 <Line
                   type="monotone"
                   dataKey="current"
@@ -493,12 +531,12 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
                 />
               </LineChart>
             ) : (
-              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+              <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 12 }} />
-                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft" }} tick={{ fontSize: 10 }} />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
+                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }} tick={{ fontSize: 10 }} />
                 <Tooltip formatter={(value) => [`${value} µg/m³`, ""]} labelFormatter={(label) => `Site: ${label}`} />
-                <Legend />
+                <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
                 <Bar dataKey="current" name="Current Week" fill="#0000FF" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="previous" name="Previous Week" fill="#000000" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -567,10 +605,10 @@ export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>Air Quality Index</CardTitle>
-        <div className="flex space-x-4">
+        <CardTitle className="text-lg md:text-xl">Air Quality Index</CardTitle>
+        <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Download" />
             </SelectTrigger>
             <SelectContent>
@@ -582,17 +620,17 @@ export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string
       </CardHeader>
       <CardContent>
         <div className="flex flex-col items-center" ref={chartRef}>
-          <div className="w-full h-8 bg-gradient-to-r from-green-400 via-yellow-400 via-orange-400 via-red-400 via-purple-400 to-red-800 rounded-lg mb-2 relative">
+          <div className="w-full h-6 md:h-8 bg-gradient-to-r from-green-400 via-yellow-400 via-orange-400 via-red-400 via-purple-400 to-red-800 rounded-lg mb-2 relative">
             <div
-              className="absolute top-full w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-gray-800"
+              className="absolute top-full w-0 h-0 border-l-6 md:border-l-8 border-r-6 md:border-r-8 border-b-6 md:border-b-8 border-l-transparent border-r-transparent border-b-gray-800"
               style={{ left: `${getIndexPosition(pm25Value)}%`, transform: "translateX(-50%)" }}
             ></div>
           </div>
 
-          <div className="w-full flex justify-between text-xs text-gray-600 mb-4">
+          <div className="w-full flex justify-between text-[10px] md:text-xs text-gray-600 mb-4 flex-wrap gap-1">
             <span>Good</span>
             <span>Moderate</span>
-            <span>USG</span>
+            <span>Unhealthy for Sensitive Groups</span>
             <span>Unhealthy</span>
             <span>Very Unhealthy</span>
             <span>Hazardous</span>
@@ -600,14 +638,14 @@ export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string
 
           <div className="flex items-center justify-center gap-4 mt-2">
             <div
-              className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold"
+              className="w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white font-bold text-sm md:text-base"
               style={{ backgroundColor: getColorByCategory(aqiCategory) }}
             >
               {pm25Value.toFixed(0)}
             </div>
             <div className="text-center">
-              <p className="text-lg font-bold">{aqiCategory}</p>
-              <p className="text-sm text-gray-600">{pm25Value.toFixed(1)} µg/m³</p>
+              <p className="text-base md:text-lg font-bold">{aqiCategory}</p>
+              <p className="text-xs md:text-sm text-gray-600">{pm25Value.toFixed(1)} µg/m³</p>
             </div>
           </div>
         </div>

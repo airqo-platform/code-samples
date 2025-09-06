@@ -557,7 +557,14 @@ const MapNodes: React.FC<{
             const timestamp = node?.time
             const aqiCategory = node?.aqi_category ?? "Unknown"
 
-            if (!latitude || !longitude || pm25Value === undefined) {
+            if (
+              typeof latitude !== "number" ||
+              !Number.isFinite(latitude) ||
+              typeof longitude !== "number" ||
+              !Number.isFinite(longitude) ||
+              pm25Value === undefined
+            ) 
+              {
               console.warn("Skipping node due to missing data:", node._id)
               return
             }
@@ -568,7 +575,15 @@ const MapNodes: React.FC<{
             const marker = L.marker([latitude, longitude], {
               icon: getCustomIcon(aqiCategory),
             }).addTo(map)
-
+            // Ensure React tree is released in all close/remove paths
+            marker.on("popupclose",() =>{
+              try { root.unmount()}
+              catch (error) { console.error("Error unmounting React tree:", error)}
+            })
+            marker.on("remove",() =>{
+              try { root.unmount()}
+              catch (error) { console.error("Error unmounting React tree:", error)}
+            })
             root.render(
               <PopupContent
                 label={siteName}
