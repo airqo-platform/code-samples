@@ -640,57 +640,8 @@ const MapControls: React.FC<{
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
   setShowEmojis: (value: boolean) => void
-  heatmaps: HeatmapData[]
-}> = ({ showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis, heatmaps }) => {
+}> = ({ showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis }) => {
   const map = useMap()
-
-  const downloadHeatmap = async (heatmap: HeatmapData, format: "png" | "jpg" = "png") => {
-    try {
-      // Convert base64 to blob
-      const base64Data = heatmap.image.replace(/^data:image\/[a-z]+;base64,/, "")
-      const byteCharacters = atob(base64Data)
-      const byteNumbers = new Array(byteCharacters.length)
-
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i)
-      }
-
-      const byteArray = new Uint8Array(byteNumbers)
-      const blob = new Blob([byteArray], { type: `image/${format}` })
-
-      // Create download link
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `heatmap-${heatmap.city.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().split("T")[0]}.${format}`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error("Error downloading heatmap:", error)
-      alert("Failed to download heatmap. Please try again.")
-    }
-  }
-
-  const downloadAllHeatmaps = async () => {
-    if (heatmaps.length === 0) {
-      alert("No heatmaps available to download.")
-      return
-    }
-
-    try {
-      // Download each heatmap individually
-      for (const heatmap of heatmaps) {
-        await downloadHeatmap(heatmap)
-        // Small delay between downloads to prevent browser blocking
-        await new Promise((resolve) => setTimeout(resolve, 500))
-      }
-    } catch (error) {
-      console.error("Error downloading all heatmaps:", error)
-      alert("Failed to download some heatmaps. Please try again.")
-    }
-  }
 
   const captureMapView = async () => {
     try {
@@ -774,8 +725,6 @@ const MapControls: React.FC<{
           setShowEmojis(!showEmojis)
         })
 
-         
-
         // Download map view button
         const downloadMapButton = L.DomUtil.create("button", "", container)
         downloadMapButton.innerHTML = "📸 Capture View"
@@ -805,7 +754,7 @@ const MapControls: React.FC<{
     return () => {
       map.removeControl(mapControls)
     }
-  }, [map, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis, heatmaps])
+  }, [map, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis])
 
   return null
 }
@@ -820,6 +769,35 @@ const HeatmapOverlays: React.FC<{
   const map = useMap()
   const [heatmaps, setHeatmaps] = useState<HeatmapData[]>([])
   const overlaysRef = useRef<L.ImageOverlay[]>([])
+
+  const downloadHeatmap = async (heatmap: HeatmapData, format: "png" | "jpg" = "png") => {
+    try {
+      // Convert base64 to blob
+      const base64Data = heatmap.image.replace(/^data:image\/[a-z]+;base64,/, "")
+      const byteCharacters = atob(base64Data)
+      const byteNumbers = new Array(byteCharacters.length)
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+
+      const byteArray = new Uint8Array(byteNumbers)
+      const blob = new Blob([byteArray], { type: `image/${format}` })
+
+      // Create download link
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `heatmap-${heatmap.city.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().split("T")[0]}.${format}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error downloading heatmap:", error)
+      alert("Failed to download heatmap. Please try again.")
+    }
+  }
 
   useEffect(() => {
     const fetchHeatmaps = async () => {
@@ -906,7 +884,6 @@ const HeatmapOverlays: React.FC<{
       setShowHeatmaps={setShowHeatmaps}
       showEmojis={showEmojis}
       setShowEmojis={setShowEmojis}
-      heatmaps={heatmaps}
     />
   )
 }
