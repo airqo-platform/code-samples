@@ -739,7 +739,12 @@ export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string
               <SelectValue placeholder="Download" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Download</SelectItem>
+              <SelectItem value="none">
+                <div className="flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  Export
+                </div>
+              </SelectItem>
               <SelectItem value="png">PNG</SelectItem>
             </SelectContent>
           </Select>
