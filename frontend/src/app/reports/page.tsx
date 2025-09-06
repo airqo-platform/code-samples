@@ -1265,7 +1265,7 @@ function ReportContent() {
                  
                   {filteredData.length > 1 && getColdspotSites(filteredData).length > 0 && (
                     <li>
-                      <strong>Low-Pollution sites:</strong>{" "}
+                      <strong>Lower-Pollution sites:</strong>{" "}
                       {getColdspotSites(filteredData).map((site, index, arr) => (
                         <span key={site._id}>
                           {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(2)} µg/m³)

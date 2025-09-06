@@ -9,6 +9,7 @@ import Image from "next/image"
 import L from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
 import "leaflet-geosearch/dist/geosearch.css"
+import html2canvas from "html2canvas"
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
@@ -447,12 +448,7 @@ const LoadingIndicator: React.FC<LoadingState> = ({ isLoading, error }) => {
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Create a function to fetch with retries
-const fetchWithRetry = async (
-  fetchFn: () => Promise<any>,
-  retries = 3,
-  initialDelay = 2000,
-  backoffFactor = 1.5,
-) => {
+const fetchWithRetry = async (fetchFn: () => Promise<any>, retries = 3, initialDelay = 2000, backoffFactor = 1.5) => {
   let currentDelay = initialDelay
 
   for (let attempt = 0; attempt < retries; attempt++) {
@@ -496,12 +492,7 @@ const MapNodes: React.FC<{
       try {
         onLoadingChange({ isLoading: true, error: null })
 
-        const data = await fetchWithRetry(
-          getMapNodes,
-          3,
-          2000,
-          1.5,
-        )
+        const data = await fetchWithRetry(getMapNodes, 3, 2000, 1.5)
 
         if (data) {
           const validNodes = data.filter(isValidNode)
@@ -563,8 +554,7 @@ const MapNodes: React.FC<{
               typeof longitude !== "number" ||
               !Number.isFinite(longitude) ||
               pm25Value === undefined
-            ) 
-              {
+            ) {
               console.warn("Skipping node due to missing data:", node._id)
               return
             }
@@ -576,13 +566,19 @@ const MapNodes: React.FC<{
               icon: getCustomIcon(aqiCategory),
             }).addTo(map)
             // Ensure React tree is released in all close/remove paths
-            marker.on("popupclose",() =>{
-              try { root.unmount()}
-              catch (error) { console.error("Error unmounting React tree:", error)}
+            marker.on("popupclose", () => {
+              try {
+                root.unmount()
+              } catch (error) {
+                console.error("Error unmounting React tree:", error)
+              }
             })
-            marker.on("remove",() =>{
-              try { root.unmount()}
-              catch (error) { console.error("Error unmounting React tree:", error)}
+            marker.on("remove", () => {
+              try {
+                root.unmount()
+              } catch (error) {
+                console.error("Error unmounting React tree:", error)
+              }
             })
             root.render(
               <PopupContent
@@ -644,32 +640,114 @@ const MapControls: React.FC<{
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
   setShowEmojis: (value: boolean) => void
-}> = ({ showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis }) => {
+  heatmaps: HeatmapData[]
+}> = ({ showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis, heatmaps }) => {
   const map = useMap()
+
+  const downloadHeatmap = async (heatmap: HeatmapData, format: "png" | "jpg" = "png") => {
+    try {
+      // Convert base64 to blob
+      const base64Data = heatmap.image.replace(/^data:image\/[a-z]+;base64,/, "")
+      const byteCharacters = atob(base64Data)
+      const byteNumbers = new Array(byteCharacters.length)
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+
+      const byteArray = new Uint8Array(byteNumbers)
+      const blob = new Blob([byteArray], { type: `image/${format}` })
+
+      // Create download link
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `heatmap-${heatmap.city.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().split("T")[0]}.${format}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error downloading heatmap:", error)
+      alert("Failed to download heatmap. Please try again.")
+    }
+  }
+
+  const downloadAllHeatmaps = async () => {
+    if (heatmaps.length === 0) {
+      alert("No heatmaps available to download.")
+      return
+    }
+
+    try {
+      // Download each heatmap individually
+      for (const heatmap of heatmaps) {
+        await downloadHeatmap(heatmap)
+        // Small delay between downloads to prevent browser blocking
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+    } catch (error) {
+      console.error("Error downloading all heatmaps:", error)
+      alert("Failed to download some heatmaps. Please try again.")
+    }
+  }
+
+  const captureMapView = async () => {
+    try {
+      const mapContainer = map.getContainer()
+      const canvas = await html2canvas(mapContainer, {
+        useCORS: true,
+        allowTaint: true,
+        scale: 2,
+        width: mapContainer.offsetWidth,
+        height: mapContainer.offsetHeight,
+      })
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement("a")
+          a.href = url
+          a.download = `map-view-${new Date().toISOString().split("T")[0]}.png`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+        }
+      }, "image/png")
+    } catch (error) {
+      console.error("Error capturing map view:", error)
+      alert("Failed to capture map view. Please try again.")
+    }
+  }
 
   useEffect(() => {
     const MapControls = L.Control.extend({
       onAdd: () => {
         const container = L.DomUtil.create("div", "leaflet-control leaflet-bar")
         container.style.backgroundColor = "white"
-        container.style.padding = "8px"
-        container.style.borderRadius = "4px"
-        container.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)"
+        container.style.padding = "12px"
+        container.style.borderRadius = "8px"
+        container.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"
         container.style.cursor = "pointer"
         container.style.userSelect = "none"
         container.style.display = "flex"
         container.style.flexDirection = "column"
         container.style.gap = "8px"
+        container.style.minWidth = "160px"
 
         // Heatmap toggle button
         const heatmapButton = L.DomUtil.create("button", "", container)
         heatmapButton.innerHTML = showHeatmaps ? "🗺️ Heatmap ON" : "🗺️ Heatmap OFF"
         heatmapButton.style.border = "none"
-        heatmapButton.style.background = "none"
-        heatmapButton.style.fontSize = "12px"
-        heatmapButton.style.fontWeight = showHeatmaps ? "bold" : "normal"
-        heatmapButton.style.color = showHeatmaps ? "#2563eb" : "#374151"
+        heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"
+        heatmapButton.style.fontSize = "13px"
+        heatmapButton.style.fontWeight = showHeatmaps ? "600" : "500"
+        heatmapButton.style.color = showHeatmaps ? "#1d4ed8" : "#374151"
         heatmapButton.style.textAlign = "left"
+        heatmapButton.style.padding = "8px 12px"
+        heatmapButton.style.borderRadius = "6px"
+        heatmapButton.style.transition = "all 0.2s"
         heatmapButton.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
 
         L.DomEvent.on(heatmapButton, "click", (e) => {
@@ -681,16 +759,40 @@ const MapControls: React.FC<{
         const emojiButton = L.DomUtil.create("button", "", container)
         emojiButton.innerHTML = showEmojis ? "😷 Emojis ON" : "😷 Emojis OFF"
         emojiButton.style.border = "none"
-        emojiButton.style.background = "none"
-        emojiButton.style.fontSize = "12px"
-        emojiButton.style.fontWeight = showEmojis ? "bold" : "normal"
-        emojiButton.style.color = showEmojis ? "#2563eb" : "#374151"
+        emojiButton.style.background = showEmojis ? "#dcfce7" : "transparent"
+        emojiButton.style.fontSize = "13px"
+        emojiButton.style.fontWeight = showEmojis ? "600" : "500"
+        emojiButton.style.color = showEmojis ? "#166534" : "#374151"
         emojiButton.style.textAlign = "left"
+        emojiButton.style.padding = "8px 12px"
+        emojiButton.style.borderRadius = "6px"
+        emojiButton.style.transition = "all 0.2s"
         emojiButton.title = showEmojis ? "Hide Emojis" : "Show Emojis"
 
         L.DomEvent.on(emojiButton, "click", (e) => {
           L.DomEvent.stopPropagation(e)
           setShowEmojis(!showEmojis)
+        })
+
+         
+
+        // Download map view button
+        const downloadMapButton = L.DomUtil.create("button", "", container)
+        downloadMapButton.innerHTML = "📸 Capture View"
+        downloadMapButton.style.border = "none"
+        downloadMapButton.style.background = "#f3e8ff"
+        downloadMapButton.style.fontSize = "13px"
+        downloadMapButton.style.fontWeight = "500"
+        downloadMapButton.style.color = "#7c3aed"
+        downloadMapButton.style.textAlign = "left"
+        downloadMapButton.style.padding = "8px 12px"
+        downloadMapButton.style.borderRadius = "6px"
+        downloadMapButton.style.transition = "all 0.2s"
+        downloadMapButton.title = "Capture current map view as image"
+
+        L.DomEvent.on(downloadMapButton, "click", (e) => {
+          L.DomEvent.stopPropagation(e)
+          captureMapView()
         })
 
         return container
@@ -703,7 +805,7 @@ const MapControls: React.FC<{
     return () => {
       map.removeControl(mapControls)
     }
-  }, [map, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis])
+  }, [map, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis, heatmaps])
 
   return null
 }
@@ -724,12 +826,7 @@ const HeatmapOverlays: React.FC<{
       try {
         onLoadingChange({ isLoading: true, error: null })
 
-        const data = await fetchWithRetry(
-          getHeatmapData,
-          3,
-          2000,
-          1.5,
-        )
+        const data = await fetchWithRetry(getHeatmapData, 3, 2000, 1.5)
 
         if (data && Array.isArray(data)) {
           setHeatmaps(data)
@@ -809,6 +906,7 @@ const HeatmapOverlays: React.FC<{
       setShowHeatmaps={setShowHeatmaps}
       showEmojis={showEmojis}
       setShowEmojis={setShowEmojis}
+      heatmaps={heatmaps}
     />
   )
 }

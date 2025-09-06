@@ -19,6 +19,7 @@ import { useState, useRef } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
 import html2canvas from "html2canvas"
 import type { SiteData } from "@/lib/types"
+import { BarChart3, LineChartIcon, PieChartIcon, Download, TrendingUp, TrendingDown, ArrowUpDown } from "lucide-react"
 
 // AQI colors
 const AQI_COLORS: Record<string, string> = {
@@ -120,64 +121,120 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   }))
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-lg md:text-xl">PM<sub>2.5</sub> Levels by Site</CardTitle>
-        <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
-          <Select onValueChange={handleSiteLimitChange} defaultValue="7">
-            <SelectTrigger className="w-full md:w-[160px]">
-              <SelectValue placeholder="Sites to display" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">7</SelectItem>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="15">15</SelectItem>
-              <SelectItem value="20">20</SelectItem>
-              <SelectItem value="all">All ({sites.length})</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select onValueChange={(v: string) => setChartType(v as "bar" | "line")} defaultValue="bar">
-            <SelectTrigger className="w-full md:w-[160px]">
-              <SelectValue placeholder="Chart type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="bar">Bar</SelectItem>
-              <SelectItem value="line">Line</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
-            <SelectTrigger className="w-full md:w-[160px]">
-              <SelectValue placeholder="Sort order" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No Sort</SelectItem>
-              <SelectItem value="highest">Highest to Lowest</SelectItem>
-              <SelectItem value="lowest">Lowest to Highest</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={downloadValue} onValueChange={handleDownloadChange}>
-            <SelectTrigger className="w-full md:w-[160px]">
-              <SelectValue placeholder="Download" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Download</SelectItem>
-              <SelectItem value="csv">CSV</SelectItem>
-              <SelectItem value="json">JSON</SelectItem>
-              <SelectItem value="png">PNG</SelectItem>
-            </SelectContent>
-          </Select>
+    <Card className="w-full shadow-lg border-gray-200">
+      <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
+        <CardTitle className="text-lg md:text-xl flex items-center gap-2 text-gray-800">
+          <BarChart3 className="h-5 w-5 text-blue-600" />
+          PM<sub>2.5</sub> Levels by Site
+        </CardTitle>
+        <div className="flex flex-col space-y-3 md:flex-row md:space-y-0 md:space-x-4 pt-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600 min-w-fit">Sites:</span>
+            <Select onValueChange={handleSiteLimitChange} defaultValue="7">
+              <SelectTrigger className="w-full md:w-[140px] h-9 border-gray-300 focus:border-blue-500">
+                <SelectValue placeholder="Sites to display" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">7 sites</SelectItem>
+                <SelectItem value="10">10 sites</SelectItem>
+                <SelectItem value="15">15 sites</SelectItem>
+                <SelectItem value="20">20 sites</SelectItem>
+                <SelectItem value="all">All ({sites.length})</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600 min-w-fit">Type:</span>
+            <Select onValueChange={(v: string) => setChartType(v as "bar" | "line")} defaultValue="bar">
+              <SelectTrigger className="w-full md:w-[120px] h-9 border-gray-300 focus:border-blue-500">
+                <SelectValue placeholder="Chart type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bar">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Bar
+                  </div>
+                </SelectItem>
+                <SelectItem value="line">
+                  <div className="flex items-center gap-2">
+                    <LineChartIcon className="h-4 w-4" />
+                    Line
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600 min-w-fit">Sort:</span>
+            <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
+              <SelectTrigger className="w-full md:w-[140px] h-9 border-gray-300 focus:border-blue-500">
+                <SelectValue placeholder="Sort order" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <div className="flex items-center gap-2">
+                    <ArrowUpDown className="h-4 w-4" />
+                    No Sort
+                  </div>
+                </SelectItem>
+                <SelectItem value="highest">
+                  <div className="flex items-center gap-2">
+                    <TrendingDown className="h-4 w-4" />
+                    High to Low
+                  </div>
+                </SelectItem>
+                <SelectItem value="lowest">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    Low to High
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600 min-w-fit">Export:</span>
+            <Select value={downloadValue} onValueChange={handleDownloadChange}>
+              <SelectTrigger className="w-full md:w-[120px] h-9 border-gray-300 focus:border-blue-500">
+                <SelectValue placeholder="Download" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <div className="flex items-center gap-2">
+                    <Download className="h-4 w-4" />
+                    Export
+                  </div>
+                </SelectItem>
+                <SelectItem value="csv">CSV</SelectItem>
+                <SelectItem value="json">JSON</SelectItem>
+                <SelectItem value="png">PNG</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-6">
         {siteLimit > 7 && (
-          <p className="text-yellow-600 text-xs md:text-sm mb-2">Warning: Displaying more than 7 sites may affect readability.</p>
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-amber-700 text-sm flex items-center gap-2">
+              <span className="text-amber-600">⚠️</span>
+              Displaying more than 7 sites may affect chart readability on smaller screens.
+            </p>
+          </div>
         )}
-        <div className="h-[250px] md:h-[300px]" ref={chartRef}>
+        <div className="h-[300px] md:h-[350px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "bar" ? (
               <BarChart data={displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
-                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }} tick={{ fontSize: 10 }} />
+                <YAxis
+                  label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
+                  tick={{ fontSize: 10 }}
+                />
                 <Tooltip
                   formatter={(value) => [`${value} µg/m³`, "PM2.5"]}
                   labelFormatter={(label) => `Site: ${label}`}
@@ -192,7 +249,10 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
               <LineChart data={displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
-                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }} tick={{ fontSize: 10 }} />
+                <YAxis
+                  label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
+                  tick={{ fontSize: 10 }}
+                />
                 <Tooltip
                   formatter={(value) => [`${value} µg/m³`, "PM2.5"]}
                   labelFormatter={(label) => `Site: ${label}`}
@@ -215,7 +275,6 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   )
 }
 
-// AQI Category Distribution Pie Chart
 export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
   const categoryCount: Record<string, number> = {}
   sites.forEach((site) => {
@@ -288,34 +347,59 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-lg md:text-xl">AQI Category Distribution</CardTitle>
-        <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
-          <Select onValueChange={(v: string) => setChartType(v as "pie" | "bar")} defaultValue="pie">
-            <SelectTrigger className="w-full md:w-[160px]">
-              <SelectValue placeholder="Chart type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pie">Pie</SelectItem>
-              <SelectItem value="bar">Bar</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={downloadValue} onValueChange={handleDownloadChange}>
-            <SelectTrigger className="w-full md:w-[160px]">
-              <SelectValue placeholder="Download" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Download</SelectItem>
-              <SelectItem value="csv">CSV</SelectItem>
-              <SelectItem value="json">JSON</SelectItem>
-              <SelectItem value="png">PNG</SelectItem>
-            </SelectContent>
-          </Select>
+    <Card className="w-full shadow-lg border-gray-200">
+      <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-gray-100">
+        <CardTitle className="text-lg md:text-xl flex items-center gap-2 text-gray-800">
+          <PieChartIcon className="h-5 w-5 text-green-600" />
+          AQI Category Distribution
+        </CardTitle>
+        <div className="flex flex-col space-y-3 md:flex-row md:space-y-0 md:space-x-4 pt-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600 min-w-fit">Type:</span>
+            <Select onValueChange={(v: string) => setChartType(v as "pie" | "bar")} defaultValue="pie">
+              <SelectTrigger className="w-full md:w-[120px] h-9 border-gray-300 focus:border-green-500">
+                <SelectValue placeholder="Chart type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pie">
+                  <div className="flex items-center gap-2">
+                    <PieChartIcon className="h-4 w-4" />
+                    Pie
+                  </div>
+                </SelectItem>
+                <SelectItem value="bar">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Bar
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600 min-w-fit">Export:</span>
+            <Select value={downloadValue} onValueChange={handleDownloadChange}>
+              <SelectTrigger className="w-full md:w-[120px] h-9 border-gray-300 focus:border-green-500">
+                <SelectValue placeholder="Download" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <div className="flex items-center gap-2">
+                    <Download className="h-4 w-4" />
+                    Export
+                  </div>
+                </SelectItem>
+                <SelectItem value="csv">CSV</SelectItem>
+                <SelectItem value="json">JSON</SelectItem>
+                <SelectItem value="png">PNG</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="h-[250px] md:h-[300px]" ref={chartRef}>
+      <CardContent className="p-6">
+        <div className="h-[300px] md:h-[350px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "pie" ? (
               <PieChart>
@@ -339,7 +423,10 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
             ) : (
               <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
-                <YAxis label={{ value: "Count", angle: -90, position: "insideLeft", fontSize: 10 }} tick={{ fontSize: 10 }} />
+                <YAxis
+                  label={{ value: "Count", angle: -90, position: "insideLeft", fontSize: 10 }}
+                  tick={{ fontSize: 10 }}
+                />
                 <Tooltip
                   formatter={(value) => [`${value} sites`, "Count"]}
                   labelFormatter={(label) => `Category: ${label}`}
@@ -452,7 +539,9 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-lg md:text-xl">Weekly PM<sub>2.5</sub> Comparison</CardTitle>
+        <CardTitle className="text-lg md:text-xl">
+          Weekly PM<sub>2.5</sub> Comparison
+        </CardTitle>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">
             <SelectTrigger className="w-full md:w-[160px]">
@@ -471,26 +560,56 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
               <SelectValue placeholder="Chart type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="line">Line</SelectItem>
-              <SelectItem value="bar">Bar</SelectItem>
-            </SelectContent>
+                <SelectItem value="bar">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Bar
+                  </div>
+                </SelectItem>
+                <SelectItem value="line">
+                  <div className="flex items-center gap-2">
+                    <LineChartIcon className="h-4 w-4" />
+                    Line
+                  </div>
+                </SelectItem>
+              </SelectContent>
           </Select>
           <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
             <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Sort order" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">No Sort</SelectItem>
-              <SelectItem value="highest">Highest to Lowest</SelectItem>
-              <SelectItem value="lowest">Lowest to Highest</SelectItem>
-            </SelectContent>
+                <SelectItem value="none">
+                  <div className="flex items-center gap-2">
+                    <ArrowUpDown className="h-4 w-4" />
+                    No Sort
+                  </div>
+                </SelectItem>
+                <SelectItem value="highest">
+                  <div className="flex items-center gap-2">
+                    <TrendingDown className="h-4 w-4" />
+                    High to Low
+                  </div>
+                </SelectItem>
+                <SelectItem value="lowest">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    Low to High
+                  </div>
+                </SelectItem>
+              </SelectContent>
           </Select>
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
             <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Download" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Download</SelectItem>
+              <SelectItem value="none">
+                <div className="flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  Export
+                </div>
+              </SelectItem>
               <SelectItem value="csv">CSV</SelectItem>
               <SelectItem value="json">JSON</SelectItem>
               <SelectItem value="png">PNG</SelectItem>
@@ -500,7 +619,9 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
       </CardHeader>
       <CardContent>
         {siteLimit > 7 && (
-          <p className="text-yellow-600 text-xs md:text-sm mb-2">Warning: Displaying more than 7 sites may affect readability.</p>
+          <p className="text-yellow-600 text-xs md:text-sm mb-2">
+            Warning: Displaying more than 7 sites may affect readability.
+          </p>
         )}
         <div className="h-[250px] md:h-[300px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
@@ -508,7 +629,10 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
               <LineChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
-                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }} tick={{ fontSize: 10 }} />
+                <YAxis
+                  label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
+                  tick={{ fontSize: 10 }}
+                />
                 <Tooltip formatter={(value) => [`${value} µg/m³`, ""]} labelFormatter={(label) => `Site: ${label}`} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
                 <Line
@@ -534,7 +658,10 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
               <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
-                <YAxis label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }} tick={{ fontSize: 10 }} />
+                <YAxis
+                  label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
+                  tick={{ fontSize: 10 }}
+                />
                 <Tooltip formatter={(value) => [`${value} µg/m³`, ""]} labelFormatter={(label) => `Site: ${label}`} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
                 <Bar dataKey="current" name="Current Week" fill="#0000FF" radius={[4, 4, 0, 0]} />
