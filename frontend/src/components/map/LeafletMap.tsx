@@ -10,6 +10,7 @@ import L from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
 import "leaflet-geosearch/dist/geosearch.css"
 import html2canvas from "html2canvas"
+
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
@@ -232,6 +233,7 @@ const customPopupOptions = {
   maxWidth: 300,
   minWidth: 200,
   offset: [0, -20],
+  autoPan: false,
 }
 
 // Component to add the search control to the map
@@ -475,6 +477,7 @@ const MapNodes: React.FC<{
   const map = useMap()
   const [nodes, setNodes] = useState<MapNode[]>([])
   const markersRef = useRef<L.Marker[]>([])
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Validate node data
   const isValidNode = (node: MapNode): boolean => {
@@ -524,6 +527,9 @@ const MapNodes: React.FC<{
 
     return () => {
       markersRef.current.forEach((marker) => marker.remove())
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current)
+      }
     }
   }, [map, onLoadingChange])
 
@@ -531,6 +537,7 @@ const MapNodes: React.FC<{
     if (!nodes.length) return
 
     try {
+      // Clear existing markers
       markersRef.current.forEach((marker) => marker.remove())
       markersRef.current = []
 
@@ -559,27 +566,18 @@ const MapNodes: React.FC<{
               return
             }
 
+            // Create custom icon for the marker
+            const customIcon = getCustomIcon(aqiCategory)
+            const marker = L.marker([latitude, longitude], {
+              icon: customIcon,
+              opacity: 1, // Ensure emoji is always visible
+            }).addTo(map)
+
+            // Create a container for the popup
             const container = document.createElement("div")
             const root = ReactDOM.createRoot(container)
 
-            const marker = L.marker([latitude, longitude], {
-              icon: getCustomIcon(aqiCategory),
-            }).addTo(map)
-            // Ensure React tree is released in all close/remove paths
-            marker.on("popupclose", () => {
-              try {
-                root.unmount()
-              } catch (error) {
-                console.error("Error unmounting React tree:", error)
-              }
-            })
-            marker.on("remove", () => {
-              try {
-                root.unmount()
-              } catch (error) {
-                console.error("Error unmounting React tree:", error)
-              }
-            })
+            // Bind popup but don't open it automatically
             root.render(
               <PopupContent
                 label={siteName}
@@ -599,13 +597,69 @@ const MapNodes: React.FC<{
               offset: L.point(0, -20),
             })
 
-            marker.on("mouseover", () => {
+            // Ensure React tree is released on marker removal
+            marker.on("remove", () => {
+              try {
+                root.unmount()
+              } catch (error) {
+                console.error("Error unmounting React tree:", error)
+              }
+            })
+
+            // Handle click to open popup
+            marker.on("click", () => {
+              // Close other popups
               markersRef.current.forEach((m) => {
                 if (m !== marker) {
                   m.closePopup()
                 }
               })
               marker.openPopup()
+            })
+
+            // Handle hover to open popup and ensure emoji visibility
+            marker.on("mouseover", () => {
+              if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current)
+                hoverTimeoutRef.current = null
+              }
+              marker.setOpacity(1) // Ensure emoji stays visible
+              // Close other popups
+              markersRef.current.forEach((m) => {
+                if (m !== marker) {
+                  m.closePopup()
+                }
+              })
+              marker.openPopup()
+            })
+
+            // Handle mouseout to close popup with a delay
+            marker.on("mouseout", () => {
+              hoverTimeoutRef.current = setTimeout(() => {
+                marker.closePopup()
+              }, 100) // Small delay to prevent flickering
+            })
+
+            // Handle popup events to manage hover behavior
+            marker.on("popupopen", () => {
+              const popup = marker.getPopup()
+              if (popup) {
+                const popupElement = popup.getElement()
+                if (popupElement) {
+                  popupElement.addEventListener("mouseenter", () => {
+                    if (hoverTimeoutRef.current) {
+                      clearTimeout(hoverTimeoutRef.current)
+                      hoverTimeoutRef.current = null
+                    }
+                    marker.setOpacity(1) // Keep emoji visible
+                  })
+                  popupElement.addEventListener("mouseleave", () => {
+                    hoverTimeoutRef.current = setTimeout(() => {
+                      marker.closePopup()
+                    }, 100)
+                  })
+                }
+              }
             })
 
             markersRef.current.push(marker)
