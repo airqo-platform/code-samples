@@ -8,7 +8,8 @@ import { MapContainer, TileLayer, useMap } from "react-leaflet"
 import Image from "next/image"
 import L from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
-import "leaflet-geosearch/dist/geosearch.css"
+import "leaflet-geosearch/dist/geosearch.css" 
+
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
@@ -231,6 +232,7 @@ const customPopupOptions = {
   maxWidth: 300,
   minWidth: 200,
   offset: [0, -20],
+  autoPan: true,
 }
 
 // Component to add the search control to the map
@@ -443,16 +445,11 @@ const LoadingIndicator: React.FC<LoadingState> = ({ isLoading, error }) => {
   )
 }
 
-// Add a utility function for delay
+// Add delay utility function
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Create a function to fetch with retries
-const fetchWithRetry = async (
-  fetchFn: () => Promise<any>,
-  retries = 3,
-  initialDelay = 2000, // Start with 2 second delay
-  backoffFactor = 1.5, // Increase delay by 1.5x each retry
-) => {
+const fetchWithRetry = async (fetchFn: () => Promise<any>, retries = 3, initialDelay = 2000, backoffFactor = 1.5) => {
   let currentDelay = initialDelay
 
   for (let attempt = 0; attempt < retries; attempt++) {
@@ -474,10 +471,12 @@ const fetchWithRetry = async (
 // Create a component for the map nodes
 const MapNodes: React.FC<{
   onLoadingChange: (state: LoadingState) => void
-}> = ({ onLoadingChange }) => {
+  showEmojis: boolean
+}> = ({ onLoadingChange, showEmojis }) => {
   const map = useMap()
   const [nodes, setNodes] = useState<MapNode[]>([])
   const markersRef = useRef<L.Marker[]>([])
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Validate node data
   const isValidNode = (node: MapNode): boolean => {
@@ -495,15 +494,9 @@ const MapNodes: React.FC<{
       try {
         onLoadingChange({ isLoading: true, error: null })
 
-        const data = await fetchWithRetry(
-          getMapNodes,
-          3, // Number of retries
-          2000, // Initial delay of 2 seconds
-          1.5, // Increase delay by 1.5x each retry
-        )
+        const data = await fetchWithRetry(getMapNodes, 3, 2000, 1.5)
 
         if (data) {
-          // Filter out invalid nodes
           const validNodes = data.filter(isValidNode)
           if (validNodes.length === 0) {
             onLoadingChange({
@@ -533,84 +526,147 @@ const MapNodes: React.FC<{
 
     return () => {
       markersRef.current.forEach((marker) => marker.remove())
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current)
+      }
     }
   }, [map, onLoadingChange])
 
   useEffect(() => {
-    if (!nodes.length) return // Don't proceed if no nodes
+    if (!nodes.length) return
 
     try {
       // Clear existing markers
       markersRef.current.forEach((marker) => marker.remove())
       markersRef.current = []
 
-      // Create new markers for each node
-      nodes.forEach((node) => {
-        try {
-          // Safely access properties with optional chaining and nullish coalescing
-          const latitude = node?.siteDetails?.approximate_latitude
-          const longitude = node?.siteDetails?.approximate_longitude
-          const siteName =
-            node?.siteDetails?.name ||
-            node?.siteDetails?.formatted_name ||
-            node?.siteDetails?.location_name ||
-            "Unknown Location"
-          const pm25Value = node?.pm2_5?.value
-          const timestamp = node?.time
-          const aqiCategory = node?.aqi_category ?? "Unknown"
+      if (showEmojis) {
+        nodes.forEach((node) => {
+          try {
+            const latitude = node?.siteDetails?.approximate_latitude
+            const longitude = node?.siteDetails?.approximate_longitude
+            const siteName =
+              node?.siteDetails?.name ||
+              node?.siteDetails?.formatted_name ||
+              node?.siteDetails?.location_name ||
+              "Unknown Location"
+            const pm25Value = node?.pm2_5?.value
+            const timestamp = node?.time
+            const aqiCategory = node?.aqi_category ?? "Unknown"
 
-          // Skip if essential data is missing
-          if (!latitude || !longitude || pm25Value === undefined) {
-            console.warn("Skipping node due to missing data:", node._id)
-            return
-          }
+            if (
+              typeof latitude !== "number" ||
+              !Number.isFinite(latitude) ||
+              typeof longitude !== "number" ||
+              !Number.isFinite(longitude) ||
+              pm25Value === undefined
+            ) {
+              console.warn("Skipping node due to missing data:", node._id)
+              return
+            }
 
-          // Create container for popup
-          const container = document.createElement("div")
-          const root = ReactDOM.createRoot(container)
+            // Create custom icon for the marker
+            const customIcon = getCustomIcon(aqiCategory)
+            const marker = L.marker([latitude, longitude], {
+              icon: customIcon,
+              opacity: 1, // Ensure emoji is always visible
+            }).addTo(map)
 
-          // Create marker with custom icon based on AQI category
-          const marker = L.marker([latitude, longitude], {
-            icon: getCustomIcon(aqiCategory),
-          }).addTo(map)
+            // Create a container for the popup
+            const container = document.createElement("div")
+            const root = ReactDOM.createRoot(container)
 
-          // Render popup content
-          root.render(
-            <PopupContent
-              label={siteName}
-              data={{
-                pm2_5_prediction: pm25Value ?? undefined,
-                timestamp: timestamp ?? undefined,
-              }}
-              onClose={() => {
-                marker.closePopup()
-                root.unmount() // Clean up React root when popup closes
-              }}
-            />,
-          )
+            // Bind popup but don't open it automatically
+            root.render(
+              <PopupContent
+                label={siteName}
+                data={{
+                  pm2_5_prediction: pm25Value ?? undefined,
+                  timestamp: timestamp ?? undefined,
+                }}
+                onClose={() => {
+                  marker.closePopup()
+                  root.unmount()
+                }}
+              />,
+            )
 
-          // Bind popup to marker with custom options
-          marker.bindPopup(container, {
-            ...customPopupOptions,
-            offset: L.point(0, -20),
-          })
+            marker.bindPopup(container, {
+              ...customPopupOptions,
+              offset: L.point(0, -20),
+            })
 
-          // Only add mouseover event - remove mouseout event
-          marker.on("mouseover", () => {
-            // Close other popups before opening this one
-            markersRef.current.forEach((m) => {
-              if (m !== marker) {
-                m.closePopup()
+            // Ensure React tree is released on marker removal
+            marker.on("remove", () => {
+              try {
+                root.unmount()
+              } catch (error) {
+                console.error("Error unmounting React tree:", error)
               }
             })
-            marker.openPopup()
-          })
 
-          markersRef.current.push(marker)
-        } catch (error) {
-          console.error("Error creating marker for node:", node._id, error)
-        }
-      })
+            // Handle click to open popup
+            marker.on("click", () => {
+              // Close other popups
+              markersRef.current.forEach((m) => {
+                if (m !== marker) {
+                  m.closePopup()
+                }
+              })
+              marker.openPopup()
+            })
+
+            // Handle hover to open popup and ensure emoji visibility
+            marker.on("mouseover", () => {
+              if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current)
+                hoverTimeoutRef.current = null
+              }
+              marker.setOpacity(1) // Ensure emoji stays visible
+              // Close other popups
+              markersRef.current.forEach((m) => {
+                if (m !== marker) {
+                  m.closePopup()
+                }
+              })
+              marker.openPopup()
+            })
+
+            // Handle mouseout to close popup with a delay
+            marker.on("mouseout", () => {
+              hoverTimeoutRef.current = setTimeout(() => {
+                marker.closePopup()
+              }, 100) // Small delay to prevent flickering
+            })
+
+            // Handle popup events to manage hover behavior
+            marker.on("popupopen", () => {
+              const popup = marker.getPopup()
+              if (popup) {
+                const popupElement = popup.getElement()
+                if (popupElement) {
+                  popupElement.addEventListener("mouseenter", () => {
+                    if (hoverTimeoutRef.current) {
+                      clearTimeout(hoverTimeoutRef.current)
+                      hoverTimeoutRef.current = null
+                    }
+                    marker.setOpacity(1) // Keep emoji visible
+                  })
+                  popupElement.addEventListener("mouseleave", () => {
+                    hoverTimeoutRef.current = setTimeout(() => {
+                      marker.closePopup()
+                    }, 100)
+                  })
+                }
+              }
+            })
+
+            markersRef.current.push(marker)
+          } catch (error) {
+            console.error("Error creating marker for node:", node._id, error)
+          }
+        })
+      }
     } catch (error) {
       console.error("Error updating markers:", error)
       onLoadingChange({
@@ -618,7 +674,7 @@ const MapNodes: React.FC<{
         error: "Error displaying map markers",
       })
     }
-  }, [nodes, map, onLoadingChange])
+  }, [nodes, map, onLoadingChange, showEmojis])
 
   return null
 }
@@ -627,30 +683,153 @@ interface HeatmapData {
   bounds: [[number, number], [number, number]]
   city: string
   id: string
-  image: string // base64 encoded image
+  image: string
   message: string
+}
+
+// Combined Map Controls Component
+const MapControls: React.FC<{
+  showHeatmaps: boolean
+  setShowHeatmaps: (value: boolean) => void
+  showEmojis: boolean
+  setShowEmojis: (value: boolean) => void
+}> = ({ showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis }) => {
+  const map = useMap()
+
+  const captureMapView = async () => {
+    try {
+      const mapContainer = map.getContainer()
+      const { default: html2canvas } = await import("html2canvas")
+      const canvas = await html2canvas(mapContainer, {
+        useCORS: true,
+        allowTaint: true,
+        scale: 2,
+        width: mapContainer.offsetWidth,
+        height: mapContainer.offsetHeight,
+      })
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement("a")
+          a.href = url
+          a.download = `map-view-${new Date().toISOString().split("T")[0]}.png`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+        }
+      }, "image/png")
+    } catch (error) {
+      console.error("Error capturing map view:", error)
+      alert("Failed to capture map view. Please try again.")
+    }
+  }
+
+  useEffect(() => {
+    const MapControls = L.Control.extend({
+      onAdd: () => {
+        const container = L.DomUtil.create("div", "leaflet-control leaflet-bar")
+        container.style.backgroundColor = "white"
+        container.style.padding = "12px"
+        container.style.borderRadius = "8px"
+        container.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"
+        container.style.cursor = "pointer"
+        container.style.userSelect = "none"
+        container.style.display = "flex"
+        container.style.flexDirection = "column"
+        container.style.gap = "8px"
+        container.style.minWidth = "160px"
+
+        // Heatmap toggle button
+        const heatmapButton = L.DomUtil.create("button", "", container)
+        heatmapButton.innerHTML = showHeatmaps ? "🗺️ Heatmap ON" : "🗺️ Heatmap OFF"
+        heatmapButton.style.border = "none"
+        heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"
+        heatmapButton.style.fontSize = "13px"
+        heatmapButton.style.fontWeight = showHeatmaps ? "600" : "500"
+        heatmapButton.style.color = showHeatmaps ? "#1d4ed8" : "#374151"
+        heatmapButton.style.textAlign = "left"
+        heatmapButton.style.padding = "8px 12px"
+        heatmapButton.style.borderRadius = "6px"
+        heatmapButton.style.transition = "all 0.2s"
+        heatmapButton.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
+
+        L.DomEvent.on(heatmapButton, "click", (e) => {
+          L.DomEvent.stopPropagation(e)
+          setShowHeatmaps(!showHeatmaps)
+        })
+
+        // Emoji toggle button
+        const emojiButton = L.DomUtil.create("button", "", container)
+        emojiButton.innerHTML = showEmojis ? "😷 Emojis ON" : "😷 Emojis OFF"
+        emojiButton.style.border = "none"
+        emojiButton.style.background = showEmojis ? "#dcfce7" : "transparent"
+        emojiButton.style.fontSize = "13px"
+        emojiButton.style.fontWeight = showEmojis ? "600" : "500"
+        emojiButton.style.color = showEmojis ? "#166534" : "#374151"
+        emojiButton.style.textAlign = "left"
+        emojiButton.style.padding = "8px 12px"
+        emojiButton.style.borderRadius = "6px"
+        emojiButton.style.transition = "all 0.2s"
+        emojiButton.title = showEmojis ? "Hide Emojis" : "Show Emojis"
+
+        L.DomEvent.on(emojiButton, "click", (e) => {
+          L.DomEvent.stopPropagation(e)
+          setShowEmojis(!showEmojis)
+        })
+
+        // Download map view button
+        const downloadMapButton = L.DomUtil.create("button", "", container)
+        downloadMapButton.innerHTML = "📸 Capture View"
+        downloadMapButton.style.border = "none"
+        downloadMapButton.style.background = "#f3e8ff"
+        downloadMapButton.style.fontSize = "13px"
+        downloadMapButton.style.fontWeight = "500"
+        downloadMapButton.style.color = "#7c3aed"
+        downloadMapButton.style.textAlign = "left"
+        downloadMapButton.style.padding = "8px 12px"
+        downloadMapButton.style.borderRadius = "6px"
+        downloadMapButton.style.transition = "all 0.2s"
+        downloadMapButton.title = "Capture current map view as image"
+
+        L.DomEvent.on(downloadMapButton, "click", (e) => {
+          L.DomEvent.stopPropagation(e)
+          captureMapView()
+        })
+
+        return container
+      },
+    })
+
+    const mapControls = new MapControls({ position: "topleft" })
+    map.addControl(mapControls)
+
+    return () => {
+      map.removeControl(mapControls)
+    }
+  }, [map, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis])
+
+  return null
 }
 
 const HeatmapOverlays: React.FC<{
   onLoadingChange: (state: LoadingState) => void
-}> = ({ onLoadingChange }) => {
+  showHeatmaps: boolean
+  setShowHeatmaps: (value: boolean) => void
+  showEmojis: boolean
+  setShowEmojis: (value: boolean) => void
+}> = ({ onLoadingChange, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis }) => {
   const map = useMap()
   const [heatmaps, setHeatmaps] = useState<HeatmapData[]>([])
-  const [showHeatmaps, setShowHeatmaps] = useState(false)
   const overlaysRef = useRef<L.ImageOverlay[]>([])
 
-  // Fetch heatmap data
   useEffect(() => {
     const fetchHeatmaps = async () => {
       try {
         onLoadingChange({ isLoading: true, error: null })
 
-        const data = await fetchWithRetry(
-          getHeatmapData,
-          3, // Number of retries
-          2000, // Initial delay of 2 seconds
-          1.5, // Increase delay by 1.5x each retry
-        )
+        const data = await fetchWithRetry(getHeatmapData, 3, 2000, 1.5)
 
         if (data && Array.isArray(data)) {
           setHeatmaps(data)
@@ -673,19 +852,15 @@ const HeatmapOverlays: React.FC<{
     fetchHeatmaps()
   }, [onLoadingChange])
 
-  // Add/remove heatmap overlays when showHeatmaps changes
   useEffect(() => {
     if (!heatmaps.length) return
 
-    // Clear existing overlays
     overlaysRef.current.forEach((overlay) => overlay.remove())
     overlaysRef.current = []
 
     if (showHeatmaps) {
-      // Add heatmap overlays
       heatmaps.forEach((heatmap) => {
         try {
-          // Validate bounds data
           if (!heatmap.bounds || !Array.isArray(heatmap.bounds) || heatmap.bounds.length !== 2) {
             console.warn(`Invalid bounds for heatmap ${heatmap.city}:`, heatmap.bounds)
             return
@@ -693,7 +868,6 @@ const HeatmapOverlays: React.FC<{
 
           const [[south, west], [north, east]] = heatmap.bounds
 
-          // Validate coordinate values
           if (
             typeof south !== "number" ||
             typeof west !== "number" ||
@@ -704,22 +878,18 @@ const HeatmapOverlays: React.FC<{
             return
           }
 
-          // Create image overlay from base64 data
           const imageOverlay = L.imageOverlay(
-            heatmap.image, // base64 image data
+            heatmap.image,
             [
               [south, west],
               [north, east],
-            ], // bounds
+            ],
             {
               opacity: 0.7,
               interactive: true,
               alt: `Heatmap for ${heatmap.city}`,
             },
           ).addTo(map)
-
-          // Add click event to show city info
-          
 
           overlaysRef.current.push(imageOverlay)
         } catch (error) {
@@ -733,45 +903,14 @@ const HeatmapOverlays: React.FC<{
     }
   }, [heatmaps, showHeatmaps, map])
 
-  // Add heatmap toggle control to map
-  useEffect(() => {
-    const HeatmapControl = L.Control.extend({
-      onAdd: () => {
-        const container = L.DomUtil.create("div", "leaflet-control leaflet-bar")
-        container.style.backgroundColor = "white"
-        container.style.padding = "8px"
-        container.style.borderRadius = "4px"
-        container.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)"
-        container.style.cursor = "pointer"
-        container.style.userSelect = "none"
-
-        const button = L.DomUtil.create("button", "", container)
-        button.innerHTML = showHeatmaps ? "🗺️ Heatmap ON" : "🗺️ Heatmap OFF";
-        button.style.border = "none"
-        button.style.background = "none"
-        button.style.fontSize = "12px"
-        button.style.fontWeight = showHeatmaps ? "bold" : "normal"
-        button.style.color = showHeatmaps ? "#2563eb" : "#374151"
-        button.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
-
-        L.DomEvent.on(button, "click", (e) => {
-          L.DomEvent.stopPropagation(e)
-          setShowHeatmaps(!showHeatmaps)
-        })
-
-        return container
-      },
-    })
-
-    const heatmapControl = new HeatmapControl({ position: "topleft" })
-    map.addControl(heatmapControl)
-
-    return () => {
-      map.removeControl(heatmapControl)
-    }
-  }, [map, showHeatmaps])
-
-  return null
+  return (
+    <MapControls
+      showHeatmaps={showHeatmaps}
+      setShowHeatmaps={setShowHeatmaps}
+      showEmojis={showEmojis}
+      setShowEmojis={setShowEmojis}
+    />
+  )
 }
 
 // Update the Legend component with better tooltip styling
@@ -838,14 +977,12 @@ const Legend: React.FC = () => {
 const MapLayerButton: React.FC = () => {
   const map = useMap()
   const [currentStyle, setCurrentStyle] = useState<string>(() => {
-    // Try to get the saved style from localStorage, default to "streets" if not found
     if (typeof window !== "undefined") {
       return localStorage.getItem("mapStyle") || "streets"
     }
     return "streets"
   })
 
-  // Define available Mapbox styles
   const mapStyles = {
     streets: `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
     satellite: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v11/tiles/{z}/{x}/{y}?access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}`,
@@ -859,19 +996,16 @@ const MapLayerButton: React.FC = () => {
     console.log("Changing map style to:", style)
     setCurrentStyle(style)
 
-    // Save the selected style to localStorage
     if (typeof window !== "undefined") {
       localStorage.setItem("mapStyle", style)
     }
 
-    // Find and remove the existing tile layer
     map.eachLayer((layer) => {
       if (layer instanceof L.TileLayer) {
         map.removeLayer(layer)
       }
     })
 
-    // Add the new tile layer
     L.tileLayer(mapStyles[style as keyof typeof mapStyles], {
       attribution:
         '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -889,7 +1023,7 @@ const MapLayerButton: React.FC = () => {
   )
 }
 
-// Update the LeafletMap component to use the MapLayerButton and include HeatmapOverlays
+// Update the LeafletMap component
 const LeafletMap: React.FC = () => {
   const defaultCenter: [number, number] = [1.5, 17.5]
   const defaultZoom = 4
@@ -897,17 +1031,16 @@ const LeafletMap: React.FC = () => {
     isLoading: false,
     error: null,
   })
+  const [showEmojis, setShowEmojis] = useState(true)
+  const [showHeatmaps, setShowHeatmaps] = useState(false)
 
-  // Check if Mapbox token is available
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   if (!mapboxToken) {
     console.warn("Mapbox token is not set in environment variables. Map functionality may be limited.")
   }
 
-  // Get the initial map style from localStorage
   const initialMapStyle = typeof window !== "undefined" ? localStorage.getItem("mapStyle") || "streets" : "streets"
 
-  // Define available Mapbox styles
   const mapStyles = {
     streets: `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
     satellite: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
@@ -928,8 +1061,14 @@ const LeafletMap: React.FC = () => {
           zoomOffset={-1}
         />
         <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
-        <MapNodes onLoadingChange={setLoadingState} />
-        <HeatmapOverlays onLoadingChange={setLoadingState} />
+        <MapNodes onLoadingChange={setLoadingState} showEmojis={showEmojis} />
+        <HeatmapOverlays
+          onLoadingChange={setLoadingState}
+          showHeatmaps={showHeatmaps}
+          setShowHeatmaps={setShowHeatmaps}
+          showEmojis={showEmojis}
+          setShowEmojis={setShowEmojis}
+        />
         <Legend />
         <MapLayerButton />
       </MapContainer>

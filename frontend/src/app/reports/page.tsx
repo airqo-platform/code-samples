@@ -171,7 +171,7 @@ function ReportContent() {
     }
 
     if (filters.city) {
-      return `The air quality in ${filters.city} is a concern, with PM2.5 levels frequently exceeding WHO guidelines. Local authorities should implement measures to reduce emissions from traffic and industry.`
+      return `The air quality in ${filters.city} is a concern, with PM<sub>2.5</sub> levels frequently exceeding WHO guidelines. Local authorities should implement measures to reduce emissions from traffic and industry.`
     }
 
     if (filters.category) {
@@ -590,7 +590,16 @@ function ReportContent() {
       .sort((a, b) => (b.pm2_5?.value || 0) - (a.pm2_5?.value || 0))
       .slice(0, limit)
   }
+    // add coldspot detection function
+  const getColdspotSites = (sites: SiteData[], limit = 3): SiteData[] => {
+    if (sites.length === 0) return []
 
+    // Sort sites by PM2.5 value in ascending order and take the top 'limit' sites
+    return [...sites]
+      .filter((site) => site.pm2_5?.value !== undefined && site.pm2_5?.value !== null)
+      .sort((a, b) => (a.pm2_5?.value || 0) - (b.pm2_5?.value || 0))
+      .slice(0, limit)
+  }
   // Add this after the getHotspotSites function
   const [showAdvancedAnalysis, setShowAdvancedAnalysis] = useState(false)
 
@@ -940,7 +949,8 @@ function ReportContent() {
         <div className="flex flex-col md:flex-row justify-between items-center mb-4">
           <h2 className="text-lg font-semibold mb-2 md:mb-0">Device Selection</h2>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={selectAllDevices} size="sm">
+            <Button variant="outline" onClick={selectAllDevices} size="sm" 
+            className="bg-blue-500 text-white border-blue-700 hover:bg-blue-600">
               Select All
             </Button>
             <Button variant="outline" onClick={clearDeviceSelection} size="sm">
@@ -1151,7 +1161,7 @@ function ReportContent() {
                         .join(", ")}).`
                     : " all monitored sites in the AirQo network."}{" "}
                 The data was collected using AirQo&apos;s network of low-cost air quality sensors, which measure
-                particulate matter (PM2.5) and other pollutants in real-time. This report analyzes the current air
+                particulate matter (PM<sub>2.5</sub>) and other pollutants in real-time. This report analyzes the current air
                 quality status, compares it with previous periods, and provides health recommendations based on the
                 findings.
               </p>
@@ -1178,7 +1188,7 @@ function ReportContent() {
                   <p className="text-2xl font-bold">{filteredData.length}</p>
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <h4 className="font-semibold text-gray-700 mb-1">Average PM2.5</h4>
+                  <h4 className="font-semibold text-gray-700 mb-1">Average PM<sub>2.5</sub></h4>
                   <p className="text-2xl font-bold">{calculateAveragePM25(filteredData).toFixed(2)} µg/m³</p>
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
@@ -1209,7 +1219,7 @@ function ReportContent() {
                 <h4 className="font-semibold text-gray-700 mb-2">Key Findings</h4>
                 <ul className="list-disc list-inside space-y-2 text-gray-700">
                   <li>
-                    The average PM2.5 concentration is{" "}
+                    The average PM<sub>2.5</sub> concentration is{" "}
                     <strong>{calculateAveragePM25(filteredData).toFixed(2)} µg/m³</strong>, which is classified as{" "}
                     <strong>{avgAQICategory}</strong>.
                   </li>
@@ -1219,7 +1229,7 @@ function ReportContent() {
                       {Math.abs(calculateAveragePercentageChange(filteredData)).toFixed(2)}%{" "}
                       {calculateAveragePercentageChange(filteredData) < 0 ? "decrease" : "increase"}
                     </strong>{" "}
-                    in PM2.5 levels compared to the previous week.
+                    in PM<sub>2.5</sub> levels compared to the previous week.
                   </li>
                   {Object.entries(calculateAQICategoryCounts(filteredData)).length > 1 && (
                     <li>
@@ -1235,7 +1245,7 @@ function ReportContent() {
                   )}
                   {selectedSite && (
                     <li>
-                      {selectedSite.siteDetails.name} has a PM2.5 reading of{" "}
+                      {selectedSite.siteDetails.name} has a PM<sub>2.5</sub> reading of{" "}
                       <strong>{(selectedSite.pm2_5?.value || 0).toFixed(2)} µg/m³</strong>, which is{" "}
                       {compareToAverage(selectedSite.pm2_5?.value || 0, calculateAveragePM25(filteredData))} the
                       regional average.
@@ -1251,6 +1261,19 @@ function ReportContent() {
                         </span>
                       ))}
                       {" are the areas with the highest pollution levels."}
+                    </li>
+                  )}
+                 
+                  {filteredData.length > 1 && getColdspotSites(filteredData).length > 0 && (
+                    <li>
+                      <strong>Lower-Pollution sites:</strong>{" "}
+                      {getColdspotSites(filteredData).map((site, index, arr) => (
+                        <span key={site._id}>
+                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(2)} µg/m³)
+                          {index < arr.length - 1 ? ", " : ""}
+                        </span>
+                      ))}
+                      {" are the areas with lower pollution levels."}
                     </li>
                   )}
                 </ul>
