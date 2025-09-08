@@ -232,7 +232,7 @@ const customPopupOptions = {
   maxWidth: 300,
   minWidth: 200,
   offset: [0, -20],
-  autoPan: false,
+  autoPan: true,
 }
 
 // Component to add the search control to the map
