@@ -8,8 +8,7 @@ import { MapContainer, TileLayer, useMap } from "react-leaflet"
 import Image from "next/image"
 import L from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
-import "leaflet-geosearch/dist/geosearch.css"
-import html2canvas from "html2canvas"
+import "leaflet-geosearch/dist/geosearch.css" 
 
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
@@ -700,6 +699,7 @@ const MapControls: React.FC<{
   const captureMapView = async () => {
     try {
       const mapContainer = map.getContainer()
+      const { default: html2canvas } = await import("html2canvas")
       const canvas = await html2canvas(mapContainer, {
         useCORS: true,
         allowTaint: true,
