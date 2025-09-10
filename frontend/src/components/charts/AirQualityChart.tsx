@@ -238,6 +238,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                   domain={yAxisDomain}
                   label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
+                  tickCount={10}
                 />
                 <Tooltip
                   formatter={(value) => [`${value} µg/m³`, "PM2.5"]}
@@ -257,6 +258,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                   domain={yAxisDomain}
                   label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
+                  tickCount={10}
                 />
                 <Tooltip
                   formatter={(value) => [`${value} µg/m³`, "PM2.5"]}
@@ -431,6 +433,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
                 <YAxis
                   label={{ value: "Count", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
+                  tickCount={10}
                 />
                 <Tooltip
                   formatter={(value) => [`${value} sites`, "Count"]}
@@ -541,7 +544,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
     change: site.averages?.percentageDifference || 0,
   }))
 
-  const allValues = chartData.flatMap((item) => [item.current, item.previous])
+  const allValues = chartData.flatMap((item) => [item.current ?? 0, item.previous ?? 0])
   const maxWeeklyValue = Math.max(...allValues)
   const weeklyYAxisDomain = [0, Math.ceil(maxWeeklyValue * 1.1)]
 
@@ -642,6 +645,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
                   domain={weeklyYAxisDomain}
                   label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
+                  tickCount={10}
                 />
                 <Tooltip formatter={(value) => [`${value} µg/m³`, ""]} labelFormatter={(label) => `Site: ${label}`} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
@@ -672,6 +676,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
                   domain={weeklyYAxisDomain}
                   label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
+                  tickCount={10}
                 />
                 <Tooltip formatter={(value) => [`${value} µg/m³`, ""]} labelFormatter={(label) => `Site: ${label}`} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
