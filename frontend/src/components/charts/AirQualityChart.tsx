@@ -120,6 +120,9 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
     color: AQI_COLORS[site.aqi_category || "Unknown"] || "#CCCCCC",
   }))
 
+  const maxValue = Math.max(...displaySites.map((site) => Number.parseFloat(site.pm25)))
+  const yAxisDomain = [0, Math.ceil(maxValue * 1.1)] // Add 10% padding above max value
+
   return (
     <Card className="w-full shadow-lg border-gray-200">
       <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
@@ -232,8 +235,10 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
               <BarChart data={displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
+                  domain={yAxisDomain}
                   label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
+                  tickCount={10}
                 />
                 <Tooltip
                   formatter={(value) => [`${value} µg/m³`, "PM2.5"]}
@@ -250,8 +255,10 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
+                  domain={yAxisDomain}
                   label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
+                  tickCount={10}
                 />
                 <Tooltip
                   formatter={(value) => [`${value} µg/m³`, "PM2.5"]}
@@ -426,6 +433,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
                 <YAxis
                   label={{ value: "Count", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
+                  tickCount={10}
                 />
                 <Tooltip
                   formatter={(value) => [`${value} sites`, "Count"]}
@@ -536,6 +544,10 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
     change: site.averages?.percentageDifference || 0,
   }))
 
+  const allValues = chartData.flatMap((item) => [item.current ?? 0, item.previous ?? 0])
+  const maxWeeklyValue = Math.max(...allValues)
+  const weeklyYAxisDomain = [0, Math.ceil(maxWeeklyValue * 1.1)]
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -560,44 +572,44 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
               <SelectValue placeholder="Chart type" />
             </SelectTrigger>
             <SelectContent>
-                <SelectItem value="bar">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4" />
-                    Bar
-                  </div>
-                </SelectItem>
-                <SelectItem value="line">
-                  <div className="flex items-center gap-2">
-                    <LineChartIcon className="h-4 w-4" />
-                    Line
-                  </div>
-                </SelectItem>
-              </SelectContent>
+              <SelectItem value="bar">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Bar
+                </div>
+              </SelectItem>
+              <SelectItem value="line">
+                <div className="flex items-center gap-2">
+                  <LineChartIcon className="h-4 w-4" />
+                  Line
+                </div>
+              </SelectItem>
+            </SelectContent>
           </Select>
           <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
             <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Sort order" />
             </SelectTrigger>
             <SelectContent>
-                <SelectItem value="none">
-                  <div className="flex items-center gap-2">
-                    <ArrowUpDown className="h-4 w-4" />
-                    No Sort
-                  </div>
-                </SelectItem>
-                <SelectItem value="highest">
-                  <div className="flex items-center gap-2">
-                    <TrendingDown className="h-4 w-4" />
-                    High to Low
-                  </div>
-                </SelectItem>
-                <SelectItem value="lowest">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    Low to High
-                  </div>
-                </SelectItem>
-              </SelectContent>
+              <SelectItem value="none">
+                <div className="flex items-center gap-2">
+                  <ArrowUpDown className="h-4 w-4" />
+                  No Sort
+                </div>
+              </SelectItem>
+              <SelectItem value="highest">
+                <div className="flex items-center gap-2">
+                  <TrendingDown className="h-4 w-4" />
+                  High to Low
+                </div>
+              </SelectItem>
+              <SelectItem value="lowest">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Low to High
+                </div>
+              </SelectItem>
+            </SelectContent>
           </Select>
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
             <SelectTrigger className="w-full md:w-[160px]">
@@ -630,8 +642,10 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
+                  domain={weeklyYAxisDomain}
                   label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
+                  tickCount={10}
                 />
                 <Tooltip formatter={(value) => [`${value} µg/m³`, ""]} labelFormatter={(label) => `Site: ${label}`} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
@@ -659,8 +673,10 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
+                  domain={weeklyYAxisDomain}
                   label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
+                  tickCount={10}
                 />
                 <Tooltip formatter={(value) => [`${value} µg/m³`, ""]} labelFormatter={(label) => `Site: ${label}`} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
