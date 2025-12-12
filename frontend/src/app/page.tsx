@@ -73,7 +73,7 @@ const Home: React.FC = () => {
               Icon={MapPin}
               title="Optimal Site Location"
               description="Use AI algorithms to determine the best locations for air quality monitors based on population density, pollution sources, and geographic factors."
-              href="/locate"
+              href="/locate/optimal-site-location"
             />
             <FeatureCard
               Icon={Wind}
