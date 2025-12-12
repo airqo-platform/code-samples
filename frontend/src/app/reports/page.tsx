@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import dynamic from "next/dynamic"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card"
 import { BarChart3, HeartPulse, Globe, ArrowDown, ArrowUp, Minus, Download, Printer } from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
@@ -21,12 +22,28 @@ import {
 } from "@/components/charts/AirQualityChart"
 import { Input } from "@/ui/input"
 import { Checkbox } from "@/ui/checkbox"
+import "leaflet/dist/leaflet.css"
+
+const GoodAir = "/images/GoodAir.png"
+const Moderate = "/images/Moderate.png"
+const UnhealthySG = "/images/UnhealthySG.png"
+const Unhealthy = "/images/Unhealthy.png"
+const VeryUnhealthy = "/images/VeryUnhealthy.png"
+const Hazardous = "/images/Hazardous.png"
+const Invalid = "/images/Invalid.png"
 
 // Add these imports at the top of the file 
 import { Zap, Layers, BrainCircuit } from "lucide-react"
 import { Switch } from "@/ui/switch"
 import { Label } from "@/ui/label"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts"
+
+// Dynamic map components for report map preview
+const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false })
+const Circle = dynamic(() => import("react-leaflet").then((mod) => mod.Circle), { ssr: false })
+const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false })
 
 export default function ReportPage() {
   return (
@@ -84,6 +101,7 @@ function ReportContent() {
 
   // Add a new state for tracking selection animation:
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
+  const [pdfMode, setPdfMode] = useState(false)
 
   // Helper functions for calculations and recommendations
   const calculateAveragePM25 = (sites: SiteData[]): number => {
@@ -425,6 +443,7 @@ function ReportContent() {
     if (!reportRef.current) return
 
     setIsGeneratingPDF(true)
+    setPdfMode(true)
 
     try {
       // If advanced analysis is enabled but only one tab is visible,
@@ -466,7 +485,7 @@ function ReportContent() {
       const marginLeft = 15 // Left margin in mm
       const marginRight = 15 // Right margin in mm
       const marginTop = 20 // Top margin in mm
-      const marginBottom = 25 // Bottom margin in mm (extra space for footer)
+      const marginBottom = 15 // Bottom margin in mm
 
       const contentWidth = pageWidth - marginLeft - marginRight
       const contentHeight = pageHeight - marginTop - marginBottom
@@ -501,23 +520,11 @@ function ReportContent() {
       // If the report is longer than a page, create multiple pages
       let heightLeft = imgHeight
       let position = marginTop // Start with top margin
-      let pageCount = 1
       let currentPage = 0
       let lastSection = 0
 
-      // Calculate how many pages we'll need
-      const totalPages = Math.ceil(imgHeight / contentHeight)
-
-      // Function to add page number
-      const addPageNumber = (pageNum: number) => {
-        pdf.setFontSize(9) // Smaller font size
-        pdf.setTextColor(100, 100, 100)
-        pdf.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: "center" })
-      }
-
       // Add first page with margins
       pdf.addImage(imgData, "PNG", marginLeft, position, imgWidth, imgHeight)
-      addPageNumber(pageCount)
 
       heightLeft -= contentHeight
       currentPage += contentHeight / imgHeight
@@ -537,18 +544,16 @@ function ReportContent() {
 
         // Add a new page
         pdf.addPage()
-        pageCount++
 
         // Calculate position for next page
         // If we're forcing a section break, align to the section
         if (forceSectionBreak) {
           position = marginTop - lastSection * canvas.height * (imgWidth / canvas.width)
         } else {
-          position = marginTop - pageHeight * (pageCount - 1)
+          position = marginTop - pageHeight * (currentPage + 1)
         }
 
         pdf.addImage(imgData, "PNG", marginLeft, position, imgWidth, imgHeight)
-        addPageNumber(pageCount)
 
         heightLeft -= contentHeight
         currentPage += contentHeight / imgHeight
@@ -577,6 +582,7 @@ function ReportContent() {
       alert("Failed to generate PDF. Please try again.")
     } finally {
       setIsGeneratingPDF(false)
+      setPdfMode(false)
     }
   }
 
@@ -602,21 +608,6 @@ function ReportContent() {
   }
   // Add this after the getHotspotSites function
   const [showAdvancedAnalysis, setShowAdvancedAnalysis] = useState(false)
-
-  if (loading) {
-    return <LoadingState />
-  }
-
-  if (error || siteData.length === 0) {
-    return (
-      <div className="flex flex-1 flex-col items-center px-4 py-12 space-y-10 text-center">
-        <div className="text-3xl font-bold text-gray-800">{error || "No report data available"}</div>
-        <p className="text-xl text-gray-600 max-w-2xl">
-          We couldn&apos;t load the air quality report data. Please try again later.
-        </p>
-      </div>
-    )
-  }
 
   // Group sites by category
   const sitesByCategory: Record<string, SiteData[]> = {}
@@ -706,6 +697,128 @@ function ReportContent() {
   }
 
   const mostCommonCategory = getMostCommonCategory(filteredData)
+
+  const mapSites = useMemo(
+    () =>
+      filteredData.filter(
+        (site) =>
+          typeof site.siteDetails?.approximate_latitude === "number" &&
+          typeof site.siteDetails?.approximate_longitude === "number",
+      ),
+    [filteredData],
+  )
+
+  const mapBounds = useMemo(() => {
+    if (mapSites.length === 0) return null
+    const lats = mapSites.map((site) => site.siteDetails.approximate_latitude)
+    const lngs = mapSites.map((site) => site.siteDetails.approximate_longitude)
+    return [
+      [Math.min(...lats), Math.min(...lngs)],
+      [Math.max(...lats), Math.max(...lngs)],
+    ] as [[number, number], [number, number]]
+  }, [mapSites])
+
+  const mapCenter = useMemo(() => {
+    if (mapSites.length === 0) return { lat: 0, lng: 0 }
+    const latSum = mapSites.reduce((sum, site) => sum + site.siteDetails.approximate_latitude, 0)
+    const lngSum = mapSites.reduce((sum, site) => sum + site.siteDetails.approximate_longitude, 0)
+    return {
+      lat: latSum / mapSites.length,
+      lng: lngSum / mapSites.length,
+    }
+  }, [mapSites])
+
+  const mapTile = useMemo(() => {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    if (token) {
+      return {
+        url: `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${token}`,
+        attribution:
+          '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        tileSize: 512 as const,
+        zoomOffset: -1 as const,
+      }
+    }
+    return {
+      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      tileSize: 256 as const,
+      zoomOffset: 0 as const,
+    }
+  }, [])
+
+  const leafletInstance = useMemo(() => {
+    if (typeof window === "undefined") return null
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require("leaflet") as typeof import("leaflet")
+  }, [])
+
+  const getMarkerIcon = useMemo(() => {
+    const pickImage = (category?: string) => {
+      const normalized = (category || "").toLowerCase()
+      switch (normalized) {
+        case "good":
+          return GoodAir
+        case "moderate":
+          return Moderate
+        case "unhealthy for sensitive groups":
+          return UnhealthySG
+        case "unhealthy":
+          return Unhealthy
+        case "very unhealthy":
+          return VeryUnhealthy
+        case "hazardous":
+          return Hazardous
+        default:
+          return Invalid
+      }
+    }
+
+    return (category?: string) => {
+      if (!leafletInstance) return undefined
+      return leafletInstance.icon({
+        iconUrl: pickImage(category),
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        popupAnchor: [0, -18],
+      })
+    }
+  }, [leafletInstance])
+
+  const getAQIMeta = (category?: string) => {
+    const normalized = (category || "").toLowerCase()
+    switch (normalized) {
+      case "good":
+        return { color: "#16a34a", label: "Good" }
+      case "moderate":
+        return { color: "#f59e0b", label: "Moderate" }
+      case "unhealthy for sensitive groups":
+        return { color: "#f97316", label: "Unhealthy for Sensitive Groups" }
+      case "unhealthy":
+        return { color: "#ef4444", label: "Unhealthy" }
+      case "very unhealthy":
+        return { color: "#a855f7", label: "Very Unhealthy" }
+      case "hazardous":
+        return { color: "#7f1d1d", label: "Hazardous" }
+      default:
+        return { color: "#6b7280", label: "Unknown" }
+    }
+  }
+
+  if (loading) {
+    return <LoadingState />
+  }
+
+  if (error || siteData.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col items-center px-4 py-12 space-y-10 text-center">
+        <div className="text-3xl font-bold text-gray-800">{error || "No report data available"}</div>
+        <p className="text-xl text-gray-600 max-w-2xl">
+          We couldn&apos;t load the air quality report data. Please try again later.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -1140,6 +1253,99 @@ function ReportContent() {
               <p className="text-gray-500 mt-1">Report Date: {format(new Date(), "MMMM d, yyyy")}</p>
             </div>
 
+            {/* Map snapshot of selected area */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+              <Card className="h-full border-blue-100 shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base text-blue-800">Area snapshot</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm text-gray-700">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Country</span>
+                    <span>{filters.country !== "all" ? filters.country : "Multiple"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">City</span>
+                    <span>{filters.city !== "all" ? filters.city : "Multiple"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">District</span>
+                    <span>{filters.district !== "all" ? filters.district : "Multiple"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Sites mapped</span>
+                    <span>{mapSites.length}</span>
+                  </div>
+                  <div className="pt-2 border-t text-xs text-blue-700">
+                    Map is filtered to the area described above. Markers show the selected devices; circles indicate a
+                    500m context radius.
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="md:col-span-2 h-[320px] rounded-xl overflow-hidden border border-blue-100 shadow">
+                {mapSites.length > 0 ? (
+                  <MapContainer
+                    key={mapSites.length}
+                    center={[mapCenter.lat, mapCenter.lng]}
+                    bounds={mapBounds || undefined}
+                    scrollWheelZoom={false}
+                    className="h-full w-full"
+                  >
+                    <TileLayer
+                      attribution={mapTile.attribution}
+                      url={mapTile.url}
+                      tileSize={mapTile.tileSize}
+                      zoomOffset={mapTile.zoomOffset}
+                    />
+                    {mapSites.slice(0, 150).map((site) => {
+                      const meta = getAQIMeta(site.aqi_category)
+                      const icon = getMarkerIcon(site.aqi_category)
+                      return (
+                        <Marker
+                          key={site._id}
+                          position={[site.siteDetails.approximate_latitude, site.siteDetails.approximate_longitude]}
+                          icon={icon}
+                        >
+                          <Popup>
+                            <div className="min-w-[200px] space-y-2">
+                              <div className="font-semibold text-sm text-gray-900">
+                                {site.siteDetails.name || site.siteDetails.formatted_name || "Unknown Site"}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span
+                                  className="inline-block w-3 h-3 rounded-full border border-white shadow"
+                                  style={{ backgroundColor: meta.color }}
+                                />
+                                <span className="font-medium">{meta.label}</span>
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                PM2.5: {(site.pm2_5?.value ?? 0).toFixed(1)} µg/m³
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {site.siteDetails.city || "Unknown City"}, {site.siteDetails.country || "Unknown"}
+                              </div>
+                            </div>
+                          </Popup>
+                        </Marker>
+                      )
+                    })}
+                    {mapSites[0] && (
+                      <Circle
+                        center={[mapCenter.lat, mapCenter.lng]}
+                        radius={500}
+                        pathOptions={{ color: "#1d4ed8", fillColor: "#bfdbfe", fillOpacity: 0.2 }}
+                      />
+                    )}
+                  </MapContainer>
+                ) : (
+                  <div className="h-full w-full bg-blue-50 text-blue-700 flex items-center justify-center text-sm">
+                    No mappable coordinates for the current selection
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Introduction */}
             <div className="mb-8">
               <h3 className="text-xl font-semibold text-gray-800 mb-3">Introduction</h3>
@@ -1280,7 +1486,7 @@ function ReportContent() {
               </div>
             </div>
 
-            {showAdvancedAnalysis && (
+            {showAdvancedAnalysis && !pdfMode && (
               <div className="mb-8">
                 <AdvancedAnalysisSection sites={filteredData} activeTab={activeTab} />
               </div>
@@ -1322,29 +1528,22 @@ function ReportContent() {
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="text-xs text-gray-500 border-t pt-4 mt-6">
-              <p>
-                Report generated by AirQo AI Platform on {format(new Date(), "MMMM d, yyyy")} at{" "}
-                {format(new Date(), "h:mm a")}.
-              </p>
-              <p>Data is based on readings from the AirQo monitoring network. For more information, visit airqo.net.</p>
-            </div>
-
             {/* Jump to Categories Button */}
-            <div className="mt-8 text-center">
-              <Button
-                onClick={() => {
-                  const categoriesElement = document.getElementById("categories-section")
-                  if (categoriesElement) {
-                    categoriesElement.scrollIntoView({ behavior: "smooth" })
-                  }
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Jump to Device Categories
-              </Button>
-            </div>
+            {!pdfMode && (
+              <div className="mt-8 text-center">
+                <Button
+                  onClick={() => {
+                    const categoriesElement = document.getElementById("categories-section")
+                    if (categoriesElement) {
+                      categoriesElement.scrollIntoView({ behavior: "smooth" })
+                    }
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Jump to Device Categories
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1534,15 +1733,16 @@ function ReportContent() {
       ))}
 
       {/* Health Tips Section */}
-      <Card className="w-full shadow-lg border border-blue-100 bg-white mt-8">
-        <CardHeader className="text-center bg-blue-500 text-white rounded-t-lg">
-          <CardTitle className="text-2xl font-bold flex items-center justify-center space-x-2">
-            <HeartPulse className="w-6 h-6" />
-            <span>Health Recommendations</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {!pdfMode && (
+        <Card className="w-full shadow-lg border border-blue-100 bg-white mt-8">
+          <CardHeader className="text-center bg-blue-500 text-white rounded-t-lg">
+            <CardTitle className="text-2xl font-bold flex items-center justify-center space-x-2">
+              <HeartPulse className="w-6 h-6" />
+              <span>Health Recommendations</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <HealthTipBox
               title="For Everyone"
               description="Check air quality before outdoor activities. Stay indoors during high pollution events."
@@ -1558,6 +1758,7 @@ function ReportContent() {
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }
