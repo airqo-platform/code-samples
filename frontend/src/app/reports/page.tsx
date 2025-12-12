@@ -3,12 +3,25 @@
 import dynamic from "next/dynamic"
 import { useEffect, useState, useRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card"
-import { BarChart3, HeartPulse, Globe, ArrowDown, ArrowUp, Minus, Download, Printer } from "lucide-react"
+import {
+  ArrowDown,
+  ArrowUp,
+  BrainCircuit,
+  ChevronDown,
+  Download,
+  Globe,
+  HeartPulse,
+  Layers,
+  Minus,
+  Printer,
+  BarChart3,
+  X,
+  Zap,
+} from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
 import type { ReactNode } from "react"
 import { getReportData } from "@/services/apiService"
 import { Skeleton } from "@/ui/skeleton"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
 import { Button } from "@/ui/button"
 import type { SiteData, Filters } from "@/lib/types"
 import { jsPDF } from "jspdf"
@@ -22,6 +35,7 @@ import {
 } from "@/components/charts/AirQualityChart"
 import { Input } from "@/ui/input"
 import { Checkbox } from "@/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover"
 import "leaflet/dist/leaflet.css"
 
 const GoodAir = "/images/GoodAir.png"
@@ -32,8 +46,6 @@ const VeryUnhealthy = "/images/VeryUnhealthy.png"
 const Hazardous = "/images/Hazardous.png"
 const Invalid = "/images/Invalid.png"
 
-// Add these imports at the top of the file 
-import { Zap, Layers, BrainCircuit } from "lucide-react"
 import { Switch } from "@/ui/switch"
 import { Label } from "@/ui/label"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts"
@@ -73,10 +85,10 @@ function ReportContent() {
 
   // Filter states
   const [filters, setFilters] = useState<Filters>({
-    country: "all",
-    city: "all",
-    district: "all",
-    category: "all",
+    country: [],
+    city: [],
+    district: [],
+    category: [],
   })
 
   // Available filter options
@@ -91,6 +103,26 @@ function ReportContent() {
     districts: [],
     categories: [],
   })
+
+  const hasActiveFilters = useMemo(
+    () => Object.values(filters).some((values) => values.length > 0),
+    [filters],
+  )
+
+  const formatSelectionLabel = (values: string[], fallback: string) => {
+    if (values.length === 0) return fallback
+    if (values.length <= 2) return values.join(", ")
+    return `${values.slice(0, 2).join(", ")} +${values.length - 2} more`
+  }
+
+  const formatSelectionList = (values: string[], fallback: string) => (values.length ? values.join(", ") : fallback)
+
+  const summarizeSelection = (values: string[], pluralLabel: string) => {
+    if (values.length === 0) return ""
+    if (values.length === 1) return values[0]
+    if (values.length === 2) return values.join(" and ")
+    return `${values.slice(0, 2).join(", ")} +${values.length - 2} more ${pluralLabel}`
+  }
 
   // Add a search state for devices
   const [deviceSearch, setDeviceSearch] = useState<string>("")
@@ -172,7 +204,7 @@ function ReportContent() {
       return `In conclusion, the air quality at ${selectedSite.siteDetails.name} requires attention. Further investigation and mitigation strategies are recommended.`
     }
 
-    if (filters.country || filters.city || filters.category) {
+    if (hasActiveFilters) {
       return `In conclusion, the air quality in the selected region requires attention. Further investigation and mitigation strategies are recommended.`
     }
 
@@ -184,16 +216,25 @@ function ReportContent() {
   }
 
   const getRegionalInsights = (filters: Filters, filteredData: SiteData[]): string => {
-    if (filters.country) {
-      return `The air quality in ${filters.country} shows varying levels of pollution, with some areas exceeding recommended limits. Targeted interventions are needed to address specific pollution sources.`
+    const countrySummary = summarizeSelection(filters.country, "countries")
+    const citySummary = summarizeSelection(filters.city, "cities")
+    const districtSummary = summarizeSelection(filters.district, "districts")
+    const categorySummary = summarizeSelection(filters.category, "categories")
+
+    if (countrySummary) {
+      return `The air quality in ${countrySummary} shows varying levels of pollution, with some areas exceeding recommended limits. Targeted interventions are needed to address specific pollution sources.`
     }
 
-    if (filters.city) {
-      return `The air quality in ${filters.city} is a concern, with PM<sub>2.5</sub> levels frequently exceeding WHO guidelines. Local authorities should implement measures to reduce emissions from traffic and industry.`
+    if (districtSummary) {
+      return `The air quality across ${districtSummary} reflects localised patterns that should guide targeted interventions and enforcement.`
     }
 
-    if (filters.category) {
-      return `The air quality at ${filters.category} sites is generally poorer than at other locations. Specific measures should be taken to protect vulnerable populations in these areas.`
+    if (citySummary) {
+      return `The air quality in ${citySummary} is a concern, with PM<sub>2.5</sub> levels frequently exceeding WHO guidelines. Local authorities should implement measures to reduce emissions from traffic and industry.`
+    }
+
+    if (categorySummary) {
+      return `The air quality across ${categorySummary} site categories is generally poorer than at other locations. Specific measures should be taken to protect vulnerable populations in these areas.`
     }
 
     if (filteredData.length === 0) {
@@ -228,16 +269,27 @@ function ReportContent() {
   const getPolicyRecommendations = (aqiCategory: string, filters: Filters): string[] => {
     const recommendations: string[] = []
 
-    if (filters.country) {
-      recommendations.push(`Implement stricter emission standards for vehicles and industries in ${filters.country}.`)
+    const countrySummary = summarizeSelection(filters.country, "countries")
+    const citySummary = summarizeSelection(filters.city, "cities")
+    const districtSummary = summarizeSelection(filters.district, "districts")
+    const categorySummary = summarizeSelection(filters.category, "categories")
+
+    if (countrySummary) {
+      recommendations.push(`Implement stricter emission standards for vehicles and industries in ${countrySummary}.`)
     }
 
-    if (filters.city) {
-      recommendations.push(`Invest in public transportation and promote cycling and walking in ${filters.city}.`)
+    if (citySummary) {
+      recommendations.push(`Invest in public transportation and promote cycling and walking in ${citySummary}.`)
     }
 
-    if (filters.category) {
-      recommendations.push(`Implement targeted measures to reduce pollution at ${filters.category} sites.`)
+    if (districtSummary) {
+      recommendations.push(`Deploy community-level monitoring and enforcement in ${districtSummary} to tackle localized pollution sources.`)
+    }
+
+    if (categorySummary) {
+      recommendations.push(
+        `Implement targeted measures to reduce pollution within the selected site categories (${categorySummary}).`,
+      )
     }
 
     switch (aqiCategory.toLowerCase()) {
@@ -289,7 +341,9 @@ function ReportContent() {
           setFilteredData(typedData)
 
           // Extract filter options
-          const countries = Array.from(new Set(typedData.map((site) => site.siteDetails?.country || "Unknown")))
+          const countries = Array.from(new Set(typedData.map((site) => site.siteDetails?.country || "Unknown"))).sort()
+          const cities = Array.from(new Set(typedData.map((site) => site.siteDetails?.city || "Unknown"))).sort()
+          const districts = Array.from(new Set(typedData.map((site) => site.siteDetails?.district || "Unknown"))).sort()
           const categories = Array.from(
             new Set(
               typedData.map((site) => {
@@ -298,12 +352,12 @@ function ReportContent() {
                 return category === "Water Body" ? "Urban Background" : category
               }),
             ),
-          )
+          ).sort()
 
           setFilterOptions({
             countries,
-            cities: [],
-            districts: [],
+            cities,
+            districts,
             categories,
           })
         } else {
@@ -322,56 +376,62 @@ function ReportContent() {
 
   // Update cities and districts when country changes
   useEffect(() => {
-    if (filters.country) {
-      const countrySites = siteData.filter((site) => site.siteDetails?.country === filters.country)
-      const cities = Array.from(new Set(countrySites.map((site) => site.siteDetails?.city || "Unknown")))
-      const districts = Array.from(new Set(countrySites.map((site) => site.siteDetails?.district || "Unknown")))
+    if (siteData.length === 0) return
 
-      setFilterOptions((prev) => ({
-        ...prev,
-        cities,
-        districts,
-      }))
+    const relevantSites =
+      filters.country.length > 0
+        ? siteData.filter((site) => filters.country.includes(site.siteDetails?.country || "Unknown"))
+        : siteData
 
-      // Reset city and district when country changes
-      setFilters((prev) => ({
-        ...prev,
-        city: "all",
-        district: "all",
-      }))
-    }
+    const cities = Array.from(new Set(relevantSites.map((site) => site.siteDetails?.city || "Unknown"))).sort()
+    const districts = Array.from(new Set(relevantSites.map((site) => site.siteDetails?.district || "Unknown"))).sort()
+
+    setFilterOptions((prev) => ({
+      ...prev,
+      cities,
+      districts,
+    }))
+
+    setFilters((prev) => ({
+      ...prev,
+      city: prev.city.filter((city) => cities.includes(city)),
+      district: prev.district.filter((district) => districts.includes(district)),
+    }))
   }, [filters.country, siteData])
+
+  const matchesSelection = (value: string | undefined, selections: string[]) =>
+    selections.length === 0 || selections.includes(value || "Unknown")
+
+  const matchesCategorySelection = (category: string | undefined, selections: string[]) => {
+    const normalizedCategory = category === "Water Body" ? "Urban Background" : category || "Uncategorized"
+    if (selections.length === 0) return true
+
+    return selections.some((selected) => {
+      if (selected === "Urban Background") {
+        return normalizedCategory === "Urban Background" || normalizedCategory === "Water Body"
+      }
+      return normalizedCategory === selected
+    })
+  }
+
+  const filterSites = (sites: SiteData[], activeFilters: Filters) =>
+    sites.filter((site) => {
+      const country = site.siteDetails?.country || "Unknown"
+      const city = site.siteDetails?.city || "Unknown"
+      const district = site.siteDetails?.district || "Unknown"
+      const category = site.siteDetails?.site_category?.category || "Uncategorized"
+
+      return (
+        matchesSelection(country, activeFilters.country) &&
+        matchesSelection(city, activeFilters.city) &&
+        matchesSelection(district, activeFilters.district) &&
+        matchesCategorySelection(category, activeFilters.category)
+      )
+    })
 
   // Apply filters
   useEffect(() => {
-    let result = [...siteData]
-
-    // Apply country filter
-    if (filters.country && filters.country !== "all") {
-      result = result.filter((site) => site.siteDetails?.country === filters.country)
-    }
-
-    // Apply city filter
-    if (filters.city && filters.city !== "all") {
-      result = result.filter((site) => site.siteDetails?.city === filters.city)
-    }
-
-    // Apply district filter
-    if (filters.district && filters.district !== "all") {
-      result = result.filter((site) => site.siteDetails?.district === filters.district)
-    }
-
-    // Apply category filter
-    if (filters.category && filters.category !== "all") {
-      result = result.filter((site) => {
-        const category = site.siteDetails?.site_category?.category || "Uncategorized"
-        // Handle the special case for Water Body -> Urban Background
-        if (filters.category === "Urban Background") {
-          return category === "Urban Background" || category === "Water Body"
-        }
-        return category === filters.category
-      })
-    }
+    const result = filterSites(siteData, filters)
 
     setFilteredData(result)
     // Reset selected site if it's no longer in filtered data
@@ -381,20 +441,27 @@ function ReportContent() {
   }, [filters, siteData, selectedSite])
 
   // Handle filter changes
-  const handleFilterChange = (filterType: keyof Filters, value: string) => {
+  const handleFilterChange = (filterType: keyof Filters, values: string[]) => {
     setFilters((prev) => ({
       ...prev,
-      [filterType]: value,
+      [filterType]: values,
+    }))
+  }
+
+  const removeFilterValue = (filterType: keyof Filters, value: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      [filterType]: prev[filterType].filter((item) => item !== value),
     }))
   }
 
   // Reset all filters
   const resetFilters = () => {
     setFilters({
-      country: "all",
-      city: "all",
-      district: "all",
-      category: "all",
+      country: [],
+      city: [],
+      district: [],
+      category: [],
     })
     setSelectedSite(null)
   }
@@ -563,12 +630,15 @@ function ReportContent() {
       let filename = "air-quality-report"
       if (selectedSite) {
         filename = `air-quality-report-${selectedSite.siteDetails.name.replace(/\s+/g, "-").toLowerCase()}`
-      } else if (filters.country || filters.city || filters.category) {
-        const parts = []
-        if (filters.country) parts.push(filters.country)
-        if (filters.city) parts.push(filters.city)
-        if (filters.category) parts.push(filters.category)
-        filename = `air-quality-report-${parts.join("-").replace(/\s+/g, "-").toLowerCase()}`
+      } else if (hasActiveFilters) {
+        const parts = [...filters.country, ...filters.city, ...filters.district, ...filters.category]
+        const slug = parts
+          .filter(Boolean)
+          .map((part) => part.replace(/\s+/g, "-").toLowerCase())
+          .join("-")
+        if (slug) {
+          filename = `air-quality-report-${slug}`
+        }
       }
 
       pdf.save(`${filename}-${format(new Date(), "yyyy-MM-dd")}.pdf`)
@@ -636,11 +706,10 @@ function ReportContent() {
     }
 
     const parts = []
-    if (filters.country) parts.push(filters.country)
-    if (filters.city) parts.push(filters.city)
-    if (filters.district) parts.push(filters.district)
-    if (filters.category)
-      parts.push(filters.category === "Urban Background" ? "Urban Background Sites" : `${filters.category} Sites`)
+    if (filters.country.length) parts.push(formatSelectionLabel(filters.country, ""))
+    if (filters.city.length) parts.push(formatSelectionLabel(filters.city, ""))
+    if (filters.district.length) parts.push(formatSelectionLabel(filters.district, ""))
+    if (filters.category.length) parts.push(`${formatSelectionLabel(filters.category, "")} Sites`)
 
     return parts.length > 0 ? `Air Quality Report for ${parts.join(", ")}` : "Comprehensive Air Quality Report"
   }
@@ -664,9 +733,9 @@ function ReportContent() {
     }
 
     return {
-      city: filters.city || "All Cities",
-      country: filters.country || "All Countries",
-      name: filters.category ? `${filters.category} Sites` : "All Sites",
+      city: formatSelectionList(filters.city, "All Cities"),
+      country: formatSelectionList(filters.country, "All Countries"),
+      name: filters.category.length ? `${formatSelectionList(filters.category, "All")} Sites` : "All Sites",
     }
   }
 
@@ -849,81 +918,43 @@ function ReportContent() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="text-sm font-medium mb-1 block">Country</label>
-            <Select value={filters.country} onValueChange={(value) => handleFilterChange("country", value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select country" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Countries</SelectItem>
-                {filterOptions.countries.map((country) => (
-                  <SelectItem key={country} value={country}>
-                    {country}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FilterMultiSelect
+            label="Country"
+            placeholder="Select countries"
+            options={filterOptions.countries}
+            values={filters.country}
+            onChange={(values) => handleFilterChange("country", values)}
+            helperText="Choose one or more countries to focus the report."
+          />
 
-          <div>
-            <label className="text-sm font-medium mb-1 block">City</label>
-            <Select
-              value={filters.city}
-              onValueChange={(value) => handleFilterChange("city", value)}
-              disabled={!filters.country}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={filters.country ? "Select city" : "Select country first"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Cities</SelectItem>
-                {filterOptions.cities.map((city) => (
-                  <SelectItem key={city} value={city}>
-                    {city}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FilterMultiSelect
+            label="City"
+            placeholder="Select cities"
+            options={filterOptions.cities}
+            values={filters.city}
+            onChange={(values) => handleFilterChange("city", values)}
+            helperText="City options narrow automatically when you pick countries."
+            disabled={filterOptions.cities.length === 0}
+          />
 
-          <div>
-            <label className="text-sm font-medium mb-1 block">District</label>
-            <Select
-              value={filters.district}
-              onValueChange={(value) => handleFilterChange("district", value)}
-              disabled={!filters.country}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={filters.country ? "Select district" : "Select country first"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Districts</SelectItem>
-                {filterOptions.districts.map((district) => (
-                  <SelectItem key={district} value={district}>
-                    {district}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FilterMultiSelect
+            label="District"
+            placeholder="Select districts"
+            options={filterOptions.districts}
+            values={filters.district}
+            onChange={(values) => handleFilterChange("district", values)}
+            helperText="Districts follow your country and city choices."
+            disabled={filterOptions.districts.length === 0}
+          />
 
-          <div>
-            <label className="text-sm font-medium mb-1 block">Category</label>
-            <Select value={filters.category} onValueChange={(value) => handleFilterChange("category", value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {filterOptions.categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FilterMultiSelect
+            label="Category"
+            placeholder="Select site categories"
+            options={filterOptions.categories}
+            values={filters.category}
+            onChange={(values) => handleFilterChange("category", values)}
+            helperText="Mix categories to compare background vs traffic-heavy sites."
+          />
         </div>
       </div>
 
@@ -931,28 +962,23 @@ function ReportContent() {
       <div className="bg-blue-50 rounded-lg p-4 mb-8 border border-blue-100">
         <div className="flex flex-wrap gap-2 items-center">
           <span className="font-medium text-blue-800">Active Filters:</span>
-          {Object.entries(filters).some(([, value]) => value) ? (
+          {hasActiveFilters ? (
             <>
-              {filters.country && (
-                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                  Country: {filters.country}
-                </span>
-              )}
-              {filters.city && (
-                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">City: {filters.city}</span>
-              )}
-              {filters.district && (
-                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                  District: {filters.district}
-                </span>
-              )}
-              {filters.category && (
-                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                  Category: {filters.category}
-                </span>
+              {(["country", "city", "district", "category"] as (keyof Filters)[]).map((key) =>
+                filters[key].map((value) => (
+                  <button
+                    type="button"
+                    key={`${key}-${value}`}
+                    onClick={() => removeFilterValue(key, value)}
+                    className="group flex items-center gap-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm hover:bg-blue-200 transition"
+                  >
+                    <span className="capitalize">{key}:</span> {value}
+                    <X className="h-3 w-3 opacity-70 group-hover:opacity-100" />
+                  </button>
+                )),
               )}
               <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                Most Common AQI Category: {mostCommonCategory}
+                Most Common AQI Category: {mostCommonCategory || "N/A"}
               </span>
             </>
           ) : (
@@ -1160,35 +1186,7 @@ function ReportContent() {
           <Button
             onClick={() => {
               // Reset to show all filtered data based on current filters
-              let result = [...siteData]
-
-              // Apply country filter
-              if (filters.country) {
-                result = result.filter((site) => site.siteDetails?.country === filters.country)
-              }
-
-              // Apply city filter
-              if (filters.city) {
-                result = result.filter((site) => site.siteDetails?.city === filters.city)
-              }
-
-              // Apply district filter
-              if (filters.district) {
-                result = result.filter((site) => site.siteDetails?.district === filters.district)
-              }
-
-              // Apply category filter
-              if (filters.category) {
-                result = result.filter((site) => {
-                  const category = site.siteDetails?.site_category?.category || "Uncategorized"
-                  if (filters.category === "Urban Background") {
-                    return category === "Urban Background" || category === "Water Body"
-                  }
-                  return category === filters.category
-                })
-              }
-
-              setFilteredData(result)
+              setFilteredData(filterSites(siteData, filters))
             }}
             className="bg-gray-600 hover:bg-gray-700 text-white ml-2"
           >
@@ -1262,15 +1260,15 @@ function ReportContent() {
                 <CardContent className="space-y-2 text-sm text-gray-700">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">Country</span>
-                    <span>{filters.country !== "all" ? filters.country : "Multiple"}</span>
+                    <span>{formatSelectionList(filters.country, "All Countries")}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-medium">City</span>
-                    <span>{filters.city !== "all" ? filters.city : "Multiple"}</span>
+                    <span>{formatSelectionList(filters.city, "All Cities")}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-medium">District</span>
-                    <span>{filters.district !== "all" ? filters.district : "Multiple"}</span>
+                    <span>{formatSelectionList(filters.district, "All Districts")}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-medium">Sites mapped</span>
@@ -1353,15 +1351,12 @@ function ReportContent() {
                 This report provides a comprehensive analysis of air quality data for
                 {selectedSite
                   ? ` ${selectedSite.siteDetails.name} in ${selectedSite.siteDetails.city || "Unknown City"}, ${selectedSite.siteDetails.country || "Unknown Country"}.`
-                  : filters.country !== "all" ||
-                      filters.city !== "all" ||
-                      filters.district !== "all" ||
-                      filters.category !== "all"
+                  : hasActiveFilters
                     ? ` the selected region (${[
-                        filters.country !== "all" ? filters.country : null,
-                        filters.city !== "all" ? filters.city : null,
-                        filters.district !== "all" ? filters.district : null,
-                        filters.category !== "all" ? filters.category : null,
+                        filters.country.length ? formatSelectionList(filters.country, "") : null,
+                        filters.city.length ? formatSelectionList(filters.city, "") : null,
+                        filters.district.length ? formatSelectionList(filters.district, "") : null,
+                        filters.category.length ? formatSelectionList(filters.category, "") : null,
                       ]
                         .filter(Boolean)
                         .join(", ")}).`
@@ -1759,6 +1754,117 @@ function ReportContent() {
         </CardContent>
       </Card>
       )}
+    </div>
+  )
+}
+
+type FilterMultiSelectProps = {
+  label: string
+  placeholder: string
+  options: string[]
+  values: string[]
+  onChange: (values: string[]) => void
+  disabled?: boolean
+  helperText?: string
+}
+
+function FilterMultiSelect({
+  label,
+  placeholder,
+  options,
+  values,
+  onChange,
+  disabled,
+  helperText,
+}: FilterMultiSelectProps) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+
+  const filteredOptions = useMemo(
+    () => options.filter((option) => option.toLowerCase().includes(search.toLowerCase())),
+    [options, search],
+  )
+
+  const toggleValue = (value: string) => {
+    if (values.includes(value)) {
+      onChange(values.filter((item) => item !== value))
+    } else {
+      onChange([...values, value])
+    }
+  }
+
+  const clearAll = () => {
+    onChange([])
+    setSearch("")
+  }
+
+  return (
+    <div>
+      <label className="text-sm font-medium mb-1 block text-gray-800">{label}</label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between"
+            disabled={disabled}
+          >
+            <span className={`flex flex-wrap items-center gap-1 ${values.length ? "text-gray-900" : "text-gray-500"}`}>
+              {values.length ? (
+                <>
+                  {values.slice(0, 3).map((value) => (
+                    <span key={value} className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-xs">
+                      {value}
+                    </span>
+                  ))}
+                  {values.length > 3 && <span className="text-xs text-gray-500">+{values.length - 3} more</span>}
+                </>
+              ) : (
+                placeholder
+              )}
+            </span>
+            <ChevronDown className="h-4 w-4 opacity-60" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-72 p-3">
+          <div className="flex items-center gap-2 mb-3">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Search ${label.toLowerCase()}`}
+              className="h-9"
+            />
+            {values.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearAll} className="text-blue-700 hover:text-blue-900">
+                Clear
+              </Button>
+            )}
+          </div>
+          <div className="max-h-52 overflow-y-auto space-y-1">
+            {filteredOptions.length ? (
+              filteredOptions.map((option) => (
+                <label
+                  key={option}
+                  className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 cursor-pointer"
+                >
+                  <Checkbox checked={values.includes(option)} onCheckedChange={() => toggleValue(option)} />
+                  <span className="text-sm text-gray-800">{option}</span>
+                </label>
+              ))
+            ) : (
+              <div className="text-xs text-gray-500 px-1 py-2">No options match your search.</div>
+            )}
+          </div>
+          <div className="flex items-center justify-between text-xs text-gray-500 mt-3 pt-2 border-t">
+            <span>{values.length} selected</span>
+            <Button variant="link" size="sm" className="px-0 text-blue-600" onClick={clearAll}>
+              Clear all
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+      {helperText && <p className="text-xs text-gray-500 mt-1">{helperText}</p>}
     </div>
   )
 }
