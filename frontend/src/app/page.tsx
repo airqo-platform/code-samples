@@ -79,7 +79,7 @@ const Home: React.FC = () => {
               Icon={Wind}
               title="Air Quality Categorization"
               description="Automatically categorize monitoring sites based on surrounding land use, traffic patterns, and environmental factors."
-              href="/categorize"
+              href="/categorize/site-categorization"
               imageSrc="/images/model/categorisemap.webp"
             />
             <FeatureCard
