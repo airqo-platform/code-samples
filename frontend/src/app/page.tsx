@@ -86,9 +86,8 @@ const Home: React.FC = () => {
               Icon={BarChart3}
               title="Data Analytics"
               description="Generate comprehensive reports with trends, forecasts, and actionable insights from air quality data."
-              href="https://analytics.airqo.net/"
+              href="/analytics/data-analytics"
               imageSrc="/images/model/analyticsHome.webp"
-              openInNewTab={true}
             />
             <FeatureCard
               Icon={BrainCircuit}
@@ -101,14 +100,14 @@ const Home: React.FC = () => {
               Icon={Shield}
               title="Health Impact Assessment"
               description="Evaluate potential health impacts of air pollution on different population groups and geographic areas."
-              href="/comingsoon"
+              href="/comingsoon/health-impact"
               imageSrc="/images/model/calibration-header.webp"
             />
             <FeatureCard
               Icon={MapPin}
               title="Interactive Mapping"
               description="Visualize air quality data across regions with interactive maps showing real-time pollution levels."
-              href="/map"
+              href="/map/interactive-mapping"
               imageSrc="/images/homemap.webp"
             />
           </div>

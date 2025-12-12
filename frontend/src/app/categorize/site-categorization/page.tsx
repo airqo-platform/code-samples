@@ -1,5 +1,6 @@
 "use client"
 import Link from "next/link"
+import Image from "next/image"
 import Navigation from "@/components/navigation/navigation"
 import { Layers, MapPin, Activity, ShieldCheck, Sparkles, ArrowRight } from "lucide-react"
 
@@ -68,31 +69,47 @@ export default function SiteCategorizationPage() {
               </Link>
             </div>
           </div>
-          <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-8 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="mt-1">
-                <MapPin className="w-5 h-5 text-blue-700" />
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl shadow-lg border border-blue-100 p-8 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="mt-1">
+                  <MapPin className="w-5 h-5 text-blue-700" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold">Why categorization matters</h3>
+                  <p className="text-gray-700">
+                    Consistent categories let you compare pollution levels across contexts, evaluate interventions, and
+                    ensure models and policies are anchored in representative data.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-xl font-semibold">Why categorization matters</h3>
-                <p className="text-gray-700">
-                  Consistent categories let you compare pollution levels across contexts, evaluate interventions, and
-                  ensure models and policies are anchored in representative data.
-                </p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
+                  <p className="text-sm text-blue-800 font-semibold mb-2">Inputs</p>
+                  <p className="text-gray-700">
+                    Single clicks on the map, CSV uploads of coordinates, or pasted lists. Optional: area of interest for focused analysis.
+                  </p>
+                </div>
+                <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
+                  <p className="text-sm text-blue-800 font-semibold mb-2">Outputs</p>
+                  <p className="text-gray-700">
+                    Category, nearby context indicators, and rationale for each point—ready for download or immediate use.
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
-                <p className="text-sm text-blue-800 font-semibold mb-2">Inputs</p>
-                <p className="text-gray-700">
-                  Single clicks on the map, CSV uploads of coordinates, or pasted lists. Optional: area of interest for focused analysis.
-                </p>
-              </div>
-              <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
-                <p className="text-sm text-blue-800 font-semibold mb-2">Outputs</p>
-                <p className="text-gray-700">
-                  Category, nearby context indicators, and rationale for each point—ready for download or immediate use.
-                </p>
+            <div className="relative rounded-2xl overflow-hidden border border-blue-100 shadow-lg">
+              <div className="absolute inset-0 bg-gradient-to-tr from-blue-900/60 via-blue-700/50 to-blue-400/50 z-10"></div>
+              <Image
+                src="/images/model/categorisemap.webp"
+                alt="Categorization map visualization"
+                width={1000}
+                height={700}
+                className="object-cover w-full h-full"
+                priority
+              />
+              <div className="absolute bottom-4 left-4 z-20 bg-white/90 px-4 py-2 rounded-lg text-sm font-semibold text-blue-900 shadow">
+                AI-assisted site categorization
               </div>
             </div>
           </div>
