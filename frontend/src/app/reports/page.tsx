@@ -596,6 +596,7 @@ function ReportContent() {
       heightLeft -= contentHeight
       currentPage += contentHeight / imgHeight
 
+      let pageNumber = 0
       // Add additional pages if content is longer than one page
       while (heightLeft > 0) {
         // Check if we need to force a page break at a section
@@ -618,6 +619,7 @@ function ReportContent() {
           position = marginTop - lastSection * canvas.height * (imgWidth / canvas.width)
         } else {
           position = marginTop - pageHeight * (currentPage + 1)
+          position = marginTop - pageHeight * pageNumber 
         }
 
         pdf.addImage(imgData, "PNG", marginLeft, position, imgWidth, imgHeight)
