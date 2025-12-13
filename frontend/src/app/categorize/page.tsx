@@ -1,11 +1,11 @@
 "use client"
 
-import { Suspense, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { Button } from "@/ui/button"
 import { FileUpload } from "@/components/Controls/FileUpload"
 import { useToast } from "@/ui/use-toast"
 import dynamic from "next/dynamic"
-import { useMapEvents } from "react-leaflet"
+import { useMap, useMapEvents } from "react-leaflet"
 
 import { getSiteCategory } from "@/lib/api"
 import type { Location } from "@/lib/types"
@@ -33,6 +33,7 @@ function SiteCategoryContent() {
   const [selectedSite, setSelectedSite] = useState<SiteCategoryInfo | null>(null)
   const [manualInput, setManualInput] = useState("")
   const [showInfo, setShowInfo] = useState(false)
+  const [mapCenter, setMapCenter] = useState<[number, number]>([1.3733, 32.2903])
   const { toast } = useToast()
 
   const fetchSiteCategory = async (lat: number, lng: number) => {
@@ -66,6 +67,7 @@ function SiteCategoryContent() {
     if (newSite) {
       setSites((prevSites) => [...prevSites, newSite])
       setSelectedSite(newSite)
+      setMapCenter([lat, lng])
     }
   }
 
@@ -84,6 +86,11 @@ function SiteCategoryContent() {
       }
 
       setSites(newSites)
+      if (newSites.length > 0) {
+        const last = newSites[newSites.length - 1]
+        setMapCenter([last.lat, last.lng])
+        setSelectedSite(last)
+      }
       toast({
         title: "Success",
         description: `Processed ${newSites.length} sites`,
@@ -125,6 +132,9 @@ function SiteCategoryContent() {
 
     if (newSites.length > 0) {
       setSites((prevSites) => [...prevSites, ...newSites])
+      const last = newSites[newSites.length - 1]
+      setMapCenter([last.lat, last.lng])
+      setSelectedSite(last)
       toast({
         title: "Success",
         description: `Processed ${newSites.length} sites`,
@@ -137,6 +147,19 @@ function SiteCategoryContent() {
 
   const MapEvents = () => {
     useMapEvents({ click: handleMapClick })
+    return null
+  }
+
+  const MapController = ({ center }: { center: [number, number] }) => {
+    const map = useMap()
+
+    useEffect(() => {
+      if (center) {
+        const targetZoom = Math.max(map.getZoom(), 3)
+        map.flyTo(center, targetZoom, { duration: 0.75 })
+      }
+    }, [center, map])
+
     return null
   }
 
@@ -157,17 +180,23 @@ function SiteCategoryContent() {
 
       <div className="flex h-screen pt-16">
         <div className="flex-1 relative">
-          <MapContainer center={[1.3733, 32.2903]} zoom={7} className="h-full w-full">
+          <MapContainer center={mapCenter} zoom={7} className="h-full w-full">
             <TileLayer
               attribution='&copy; OpenStreetMap contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <MapEvents />
+            <MapController center={mapCenter} />
             {sites.map((site, index) => (
               <Marker
                 key={`${site.lat}-${site.lng}-${index}`}
                 position={[site.lat, site.lng]}
-                eventHandlers={{ click: () => setSelectedSite(site) }}
+                eventHandlers={{
+                  click: () => {
+                    setSelectedSite(site)
+                    setMapCenter([site.lat, site.lng])
+                  },
+                }}
               >
                 <Popup>
                   <div className="p-2">

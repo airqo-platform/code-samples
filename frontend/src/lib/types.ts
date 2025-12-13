@@ -179,10 +179,10 @@ export interface SiteData {
 
 // Filter interface for reports page
 export interface Filters {
-  country: string
-  city: string
-  district: string
-  category: string
+  country: string[]
+  city: string[]
+  district: string[]
+  category: string[]
 }
 
 export interface AqiMapData {
