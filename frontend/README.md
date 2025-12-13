@@ -154,4 +154,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Contact
 
 For any questions or support, please contact us at support@airqo.net or visit our website [https://www.airqo.net](https://www.airqo.net).
-
