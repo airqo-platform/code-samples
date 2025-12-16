@@ -20,13 +20,19 @@ import {
 } from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
 import type { ReactNode } from "react"
-import { getReportData } from "@/services/apiService"
+import {
+  getReportData,
+  getReportSitesCatalog,
+  getReportTimeSeries,
+  type ReportTimeSeriesPoint,
+  type SiteReportMetrics,
+} from "@/services/apiService"
 import { Skeleton } from "@/ui/skeleton"
 import { Button } from "@/ui/button"
 import type { SiteData, Filters } from "@/lib/types"
 import { jsPDF } from "jspdf"
 import html2canvas from "html2canvas"
-import { format } from "date-fns"
+import { differenceInHours, format, parseISO, subDays, subMonths } from "date-fns"
 import {
   PM25BarChart,
   AQICategoryChart,
@@ -48,7 +54,7 @@ const Invalid = "/images/Invalid.png"
 
 import { Switch } from "@/ui/switch"
 import { Label } from "@/ui/label"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LineChart, Line } from "recharts"
 
 // Dynamic map components for report map preview
 const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false })
@@ -135,6 +141,33 @@ function ReportContent() {
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
   const [pdfMode, setPdfMode] = useState(false)
 
+  const [reportPreset, setReportPreset] = useState<"24h" | "7d" | "1m" | "3m" | "custom">("7d")
+  const [reportStart, setReportStart] = useState<Date>(() => subDays(new Date(), 7))
+  const [reportEnd, setReportEnd] = useState<Date>(() => new Date())
+  const [customStart, setCustomStart] = useState<Date>(() => subDays(new Date(), 7))
+  const [customEnd, setCustomEnd] = useState<Date>(() => new Date())
+  const [customPopoverOpen, setCustomPopoverOpen] = useState(false)
+  const [reportRangeLoading, setReportRangeLoading] = useState(false)
+  const [reportRangeError, setReportRangeError] = useState<string | null>(null)
+
+  const [seriesGroupBy, setSeriesGroupBy] = useState<"site" | "city">("city")
+  const [showTrendChart, setShowTrendChart] = useState(false)
+  const [topSeriesCount, setTopSeriesCount] = useState(8)
+  const [timeSeriesPoints, setTimeSeriesPoints] = useState<ReportTimeSeriesPoint[]>([])
+  const [timeSeriesLoading, setTimeSeriesLoading] = useState(false)
+  const [timeSeriesError, setTimeSeriesError] = useState<string | null>(null)
+  const [timeSeriesNotice, setTimeSeriesNotice] = useState<string | null>(null)
+
+  const selectedDevicesKey = useMemo(() => selectedDevices.slice().sort().join(","), [selectedDevices])
+  const timeSeriesSiteKey = useMemo(() => {
+    if (selectedDevices.length) return selectedDevicesKey
+    return filteredData
+      .slice(0, 20)
+      .map((site) => site.site_id || site._id)
+      .filter(Boolean)
+      .join(",")
+  }, [filteredData, selectedDevices.length, selectedDevicesKey])
+
   // Helper functions for calculations and recommendations
   const calculateAveragePM25 = (sites: SiteData[]): number => {
     if (sites.length === 0) return 0
@@ -196,6 +229,263 @@ function ReportContent() {
       return "lower than"
     } else {
       return "equal to"
+    }
+  }
+
+  const formatPresetLabel = (preset: typeof reportPreset) => {
+    switch (preset) {
+      case "24h":
+        return "Last 24 hours"
+      case "7d":
+        return "Last 7 days"
+      case "1m":
+        return "Last 1 month"
+      case "3m":
+        return "Last 3 months"
+      case "custom":
+        return "Custom range"
+      default:
+        return "Custom range"
+    }
+  }
+
+  const toDateTimeLocalInputValue = (date: Date) => format(date, "yyyy-MM-dd'T'HH:mm")
+
+  const mergeReportMetricsIntoSites = (sites: SiteData[], metrics: SiteReportMetrics[]) => {
+    const metricsBySiteId = new Map(metrics.map((metric) => [metric.site_id, metric]))
+
+    return sites.map((site) => {
+      const siteId = site.site_id || site._id
+      const metric = metricsBySiteId.get(siteId)
+      if (!metric) return site
+
+      return {
+        ...site,
+        time: metric.lastTime || site.time,
+        pm2_5: { ...site.pm2_5, value: metric.pm2_5_avg },
+        aqi_category: metric.aqi_category,
+        aqi_color: metric.aqi_color,
+      }
+    })
+  }
+
+  const refreshReportMetrics = async (override?: { start: Date; end: Date }) => {
+    const start = override?.start ?? reportStart
+    const end = override?.end ?? reportEnd
+
+    const siteIds = (selectedDevices.length ? selectedDevices : filteredData.map((site) => site.site_id || site._id)).filter(
+      Boolean,
+    )
+
+    if (siteIds.length === 0) return
+
+    try {
+      setReportRangeLoading(true)
+      setReportRangeError(null)
+
+      const metrics = await getReportData({
+        siteIds,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+      })
+
+      if (!metrics) {
+        setReportRangeError("Failed to load report measurements for the selected period.")
+        return
+      }
+
+      setFilteredData((prev) => mergeReportMetricsIntoSites(prev, metrics))
+
+      setSelectedSite((prev) => {
+        if (!prev) return prev
+        const merged = mergeReportMetricsIntoSites([prev], metrics)
+        return merged[0] ?? prev
+      })
+    } catch (refreshError) {
+      console.error(refreshError)
+      setReportRangeError("Failed to load report measurements for the selected period.")
+    } finally {
+      setReportRangeLoading(false)
+    }
+  }
+
+  const refreshTimeSeries = async (override?: { start?: Date; end?: Date; force?: boolean }) => {
+    if (reportPreset !== "custom" && !override?.force) return
+
+    const start = override?.start ?? reportStart
+    const end = override?.end ?? reportEnd
+
+    const siteIds = (selectedDevices.length ? selectedDevices : filteredData.map((site) => site.site_id || site._id)).filter(Boolean)
+
+    if (siteIds.length === 0) return
+
+    try {
+      setTimeSeriesLoading(true)
+      setTimeSeriesError(null)
+      setTimeSeriesNotice(null)
+
+      const maxSites = selectedDevices.length ? 30 : 20
+      const limitedSiteIds = siteIds.slice(0, maxSites)
+      if (siteIds.length > maxSites) {
+        setTimeSeriesNotice(
+          `Trend chart is limited to ${maxSites} sites for performance. Select specific devices to focus the chart.`,
+        )
+      }
+
+      const points = await getReportTimeSeries({
+        siteIds: limitedSiteIds,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+      })
+
+      if (!points) {
+        setTimeSeriesError("Failed to load the PM2.5 trend for the selected period.")
+        setTimeSeriesPoints([])
+        return
+      }
+
+      setTimeSeriesPoints(points)
+    } catch (seriesError) {
+      console.error(seriesError)
+      setTimeSeriesError("Failed to load the PM2.5 trend for the selected period.")
+      setTimeSeriesPoints([])
+    } finally {
+      setTimeSeriesLoading(false)
+    }
+  }
+
+  const timeSeriesChart = useMemo(() => {
+    if (timeSeriesPoints.length === 0) {
+      return { data: [], keys: [], colors: new Map<string, string>() }
+    }
+
+    const spanHours = differenceInHours(reportEnd, reportStart)
+    const bucketByHour = spanHours <= 48
+
+    type BucketAgg = { sum: number; count: number }
+    type BucketRow = { label: string; values: Map<string, BucketAgg> }
+
+    const buckets = new Map<number, BucketRow>()
+    const groupCounts = new Map<string, number>()
+
+    for (const point of timeSeriesPoints) {
+      if (typeof point.pm2_5 !== "number" || !Number.isFinite(point.pm2_5)) continue
+
+      const date = parseISO(point.time)
+      const bucketDate = bucketByHour
+        ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours())
+        : new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      const bucketMs = bucketDate.getTime()
+
+      const label = format(bucketDate, bucketByHour ? "MMM d, HH:mm" : "MMM d")
+      const groupKey =
+        seriesGroupBy === "city"
+          ? point.city || "Unknown City"
+          : point.siteName || `Site ${point.site_id.slice(0, 6)}`
+
+      if (!buckets.has(bucketMs)) {
+        buckets.set(bucketMs, { label, values: new Map() })
+      }
+
+      const bucket = buckets.get(bucketMs)!
+      const agg = bucket.values.get(groupKey) ?? { sum: 0, count: 0 }
+      agg.sum += point.pm2_5
+      agg.count += 1
+      bucket.values.set(groupKey, agg)
+
+      groupCounts.set(groupKey, (groupCounts.get(groupKey) ?? 0) + 1)
+    }
+
+    const keys = Array.from(groupCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, Math.max(1, topSeriesCount))
+      .map(([key]) => key)
+
+    const palette = [
+      "#2563EB",
+      "#DC2626",
+      "#16A34A",
+      "#7C3AED",
+      "#EA580C",
+      "#0891B2",
+      "#DB2777",
+      "#0F766E",
+    ]
+    const colors = new Map(keys.map((key, index) => [key, palette[index % palette.length]]))
+
+    const data = Array.from(buckets.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([, bucket]) => {
+        const row: Record<string, any> = { label: bucket.label }
+        for (const key of keys) {
+          const agg = bucket.values.get(key)
+          row[key] = agg ? agg.sum / agg.count : null
+        }
+        return row
+      })
+
+    return { data, keys, colors }
+  }, [reportEnd, reportStart, seriesGroupBy, timeSeriesPoints, topSeriesCount])
+
+  const timeSeriesSummary = useMemo(() => {
+    if (timeSeriesPoints.length === 0) return []
+
+    type Agg = { sum: number; count: number; min: number; max: number }
+    const byGroup = new Map<string, Agg>()
+
+    for (const point of timeSeriesPoints) {
+      if (typeof point.pm2_5 !== "number" || !Number.isFinite(point.pm2_5)) continue
+      const groupKey =
+        seriesGroupBy === "city"
+          ? point.city || "Unknown City"
+          : point.siteName || `Site ${point.site_id.slice(0, 6)}`
+
+      const current = byGroup.get(groupKey) ?? { sum: 0, count: 0, min: point.pm2_5, max: point.pm2_5 }
+      current.sum += point.pm2_5
+      current.count += 1
+      current.min = Math.min(current.min, point.pm2_5)
+      current.max = Math.max(current.max, point.pm2_5)
+      byGroup.set(groupKey, current)
+    }
+
+    return Array.from(byGroup.entries())
+      .map(([key, agg]) => ({
+        key,
+        avg: agg.count ? agg.sum / agg.count : null,
+        min: agg.min,
+        max: agg.max,
+        count: agg.count,
+      }))
+      .filter((row) => typeof row.avg === "number" && Number.isFinite(row.avg))
+      .sort((a, b) => (b.avg ?? 0) - (a.avg ?? 0))
+      .slice(0, 4)
+  }, [seriesGroupBy, timeSeriesPoints])
+
+  const applyPresetRange = async (preset: typeof reportPreset) => {
+    const now = new Date()
+    const start =
+      preset === "24h"
+        ? subDays(now, 1)
+        : preset === "7d"
+          ? subDays(now, 7)
+          : preset === "1m"
+            ? subMonths(now, 1)
+            : preset === "3m"
+              ? subMonths(now, 3)
+              : reportStart
+
+    setReportPreset(preset)
+    setReportStart(start)
+    setReportEnd(now)
+    setCustomStart(start)
+    setCustomEnd(now)
+    setShowTrendChart(false)
+    setTimeSeriesPoints([])
+    setTimeSeriesError(null)
+    setTimeSeriesNotice(null)
+
+    if (showReportOnPage) {
+      await refreshReportMetrics({ start, end: now })
     }
   }
 
@@ -334,9 +624,12 @@ function ReportContent() {
     async function fetchData() {
       try {
         setLoading(true)
-        const data = await getReportData()
+        const data = await getReportSitesCatalog()
         if (data) {
-          const typedData = data as SiteData[]
+          const typedData = (data as SiteData[]).map((site) => ({
+            ...site,
+            _id: site.site_id || site._id,
+          }))
           setSiteData(typedData)
           setFilteredData(typedData)
 
@@ -439,6 +732,13 @@ function ReportContent() {
       setSelectedSite(null)
     }
   }, [filters, siteData, selectedSite])
+
+  useEffect(() => {
+    if (!showReportOnPage) return
+    if (reportPreset !== "custom") return
+    if (!showTrendChart) return
+    void refreshTimeSeries({ force: true })
+  }, [showReportOnPage, reportPreset, reportStart, reportEnd, timeSeriesSiteKey, showTrendChart])
 
   // Handle filter changes
   const handleFilterChange = (filterType: keyof Filters, values: string[]) => {
@@ -992,6 +1292,136 @@ function ReportContent() {
         </div>
       </div>
 
+      {/* Timeline */}
+      <div className="bg-white rounded-lg shadow-md p-4 mb-8 border border-gray-100">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">Timeline</span>
+            <div className="flex items-center gap-1 rounded-lg border bg-white p-1">
+              <Button size="sm" variant={reportPreset === "24h" ? "default" : "outline"} onClick={() => applyPresetRange("24h")}>
+                24h
+              </Button>
+              <Button size="sm" variant={reportPreset === "7d" ? "default" : "outline"} onClick={() => applyPresetRange("7d")}>
+                7d
+              </Button>
+              <Button size="sm" variant={reportPreset === "1m" ? "default" : "outline"} onClick={() => applyPresetRange("1m")}>
+                1m
+              </Button>
+              <Button size="sm" variant={reportPreset === "3m" ? "default" : "outline"} onClick={() => applyPresetRange("3m")}>
+                3m
+              </Button>
+            </div>
+
+            <Popover open={customPopoverOpen} onOpenChange={setCustomPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button size="sm" variant={reportPreset === "custom" ? "default" : "outline"}>
+                  Customize time
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-sm">Start time</Label>
+                    <Input
+                      type="datetime-local"
+                      value={toDateTimeLocalInputValue(customStart)}
+                      onChange={(e) => setCustomStart(new Date(e.target.value))}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm">End time</Label>
+                    <Input
+                      type="datetime-local"
+                      value={toDateTimeLocalInputValue(customEnd)}
+                      onChange={(e) => setCustomEnd(new Date(e.target.value))}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button variant="outline" size="sm" onClick={() => setCustomPopoverOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        if (customStart >= customEnd) {
+                          setReportRangeError("Start time must be before end time.")
+                          return
+                        }
+                        setReportPreset("custom")
+                        setReportStart(customStart)
+                        setReportEnd(customEnd)
+                        setShowTrendChart(true)
+                        const shouldUseCity = selectedDevices.length === 0 || selectedDevices.length > 12
+                        setSeriesGroupBy(shouldUseCity ? "city" : "site")
+                        setTopSeriesCount(shouldUseCity ? 8 : Math.min(12, Math.max(4, selectedDevices.length || 8)))
+                        setCustomPopoverOpen(false)
+                        if (showReportOnPage) {
+                          await refreshReportMetrics({ start: customStart, end: customEnd })
+                          await refreshTimeSeries({ start: customStart, end: customEnd, force: true })
+                        }
+                      }}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            <span className="text-sm text-gray-600">
+              {format(reportStart, "MMM d, yyyy HH:mm")} – {format(reportEnd, "MMM d, yyyy HH:mm")}
+            </span>
+
+            {reportPreset === "custom" && (
+              <div className="flex items-center gap-2 ml-0 lg:ml-2">
+                <span className="text-xs text-gray-600">Trend</span>
+                <Button size="sm" variant={showTrendChart ? "default" : "outline"} onClick={() => setShowTrendChart((v) => !v)}>
+                  {showTrendChart ? "On" : "Off"}
+                </Button>
+                <span className="text-xs text-gray-600">Hue by</span>
+                <Button
+                  size="sm"
+                  variant={seriesGroupBy === "city" ? "default" : "outline"}
+                  onClick={() => setSeriesGroupBy("city")}
+                >
+                  City
+                </Button>
+                <Button
+                  size="sm"
+                  variant={seriesGroupBy === "site" ? "default" : "outline"}
+                  onClick={() => setSeriesGroupBy("site")}
+                >
+                  Site
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 justify-end">
+            {reportRangeError && <span className="text-sm text-red-600">{reportRangeError}</span>}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                await refreshReportMetrics()
+                if (reportPreset === "custom" && showTrendChart) {
+                  await refreshTimeSeries({ force: true })
+                }
+              }}
+              disabled={reportRangeLoading || timeSeriesLoading || !showReportOnPage}
+              title={showReportOnPage ? "Refresh measurements for the selected period" : "Open the report to load measurements"}
+            >
+              {reportRangeLoading ? "Refreshing..." : "Refresh data"}
+            </Button>
+          </div>
+        </div>
+        {reportPreset === "custom" && (
+          <div className="mt-2 text-xs text-gray-500">
+            Custom range enables a PM2.5 trend chart in the report (calibrated PM2.5, grouped by {seriesGroupBy}).
+          </div>
+        )}
+      </div>
+
       {/* Selected Devices Counter */}
       {selectedDevices.length > 0 && (
         <div className="bg-blue-600 text-white rounded-lg p-4 mb-8 shadow-lg transform transition-all duration-300 hover:scale-105">
@@ -1059,6 +1489,7 @@ function ReportContent() {
                   // Show the report on page with a slight delay for visual effect
                   setTimeout(() => {
                     setShowReportOnPage(true)
+                    void refreshReportMetrics()
                     setReportGenerating(false)
 
                     // Scroll to the report
@@ -1128,6 +1559,7 @@ function ReportContent() {
                   // Show the report on page with a slight delay for visual effect
                   setTimeout(() => {
                     setShowReportOnPage(true)
+                    void refreshReportMetrics()
                     setReportGenerating(false)
                   }, 800)
                 }
@@ -1179,7 +1611,13 @@ function ReportContent() {
       {/* Report Action Buttons */}
       <div className="flex justify-end mb-6">
         <Button
-          onClick={() => setShowReportOnPage(!showReportOnPage)}
+          onClick={() => {
+            const willShow = !showReportOnPage
+            setShowReportOnPage(willShow)
+            if (willShow) {
+              setTimeout(() => void refreshReportMetrics(), 0)
+            }
+          }}
           className="bg-green-600 hover:bg-green-700 text-white"
         >
           {showReportOnPage ? "Hide Report" : "View Report"}
@@ -1243,6 +1681,88 @@ function ReportContent() {
             <Switch id="advanced-mode" checked={showAdvancedAnalysis} onCheckedChange={setShowAdvancedAnalysis} />
           </div>
 
+          {false && (
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Report period</span>
+              <div className="flex items-center gap-1 rounded-lg border bg-white p-1">
+                <Button size="sm" variant={reportPreset === "24h" ? "default" : "outline"} onClick={() => applyPresetRange("24h")}>
+                  24h
+                </Button>
+                <Button size="sm" variant={reportPreset === "7d" ? "default" : "outline"} onClick={() => applyPresetRange("7d")}>
+                  7d
+                </Button>
+                <Button size="sm" variant={reportPreset === "1m" ? "default" : "outline"} onClick={() => applyPresetRange("1m")}>
+                  1m
+                </Button>
+                <Button size="sm" variant={reportPreset === "3m" ? "default" : "outline"} onClick={() => applyPresetRange("3m")}>
+                  3m
+                </Button>
+              </div>
+
+              <Popover open={customPopoverOpen} onOpenChange={setCustomPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button size="sm" variant={reportPreset === "custom" ? "default" : "outline"}>
+                    Customize time
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80">
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-sm">Start time</Label>
+                      <Input
+                        type="datetime-local"
+                        value={toDateTimeLocalInputValue(customStart)}
+                        onChange={(e) => setCustomStart(new Date(e.target.value))}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm">End time</Label>
+                      <Input
+                        type="datetime-local"
+                        value={toDateTimeLocalInputValue(customEnd)}
+                        onChange={(e) => setCustomEnd(new Date(e.target.value))}
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button variant="outline" size="sm" onClick={() => setCustomPopoverOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          if (customStart >= customEnd) {
+                            setReportRangeError("Start time must be before end time.")
+                            return
+                          }
+                          setReportPreset("custom")
+                          setReportStart(customStart)
+                          setReportEnd(customEnd)
+                          setCustomPopoverOpen(false)
+                          await refreshReportMetrics({ start: customStart, end: customEnd })
+                        }}
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <span className="text-sm text-gray-600">
+                {format(reportStart, "MMM d, yyyy HH:mm")} – {format(reportEnd, "MMM d, yyyy HH:mm")}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 justify-end">
+              {reportRangeError && <span className="text-sm text-red-600">{reportRangeError}</span>}
+              <Button size="sm" variant="outline" onClick={() => refreshReportMetrics()} disabled={reportRangeLoading}>
+                {reportRangeLoading ? "Refreshing..." : "Refresh data"}
+              </Button>
+            </div>
+          </div>
+          )}
+
           <div ref={reportRef} className="space-y-6">
             {/* Report Header */}
             <div className="text-center mb-6 border-b pb-6">
@@ -1251,7 +1771,119 @@ function ReportContent() {
                 {getLocationInfo().city}, {getLocationInfo().country}
               </p>
               <p className="text-gray-500 mt-1">Report Date: {format(new Date(), "MMMM d, yyyy")}</p>
+              <p className="text-gray-500 mt-1">
+                Report Period: {format(reportStart, "MMM d, yyyy HH:mm")} – {format(reportEnd, "MMM d, yyyy HH:mm")} (
+                {formatPresetLabel(reportPreset)})
+              </p>
             </div>
+
+            {reportPreset === "custom" && showTrendChart && (
+              <Card className="border-indigo-100 shadow-sm">
+                <CardHeader className="pb-2">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <CardTitle className="text-base text-indigo-900">PM2.5 trend for your custom range</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-600">Hue by</span>
+                      <Button
+                        size="sm"
+                        variant={seriesGroupBy === "city" ? "default" : "outline"}
+                        onClick={() => setSeriesGroupBy("city")}
+                      >
+                        City
+                      </Button>
+                        <Button
+                          size="sm"
+                          variant={seriesGroupBy === "site" ? "default" : "outline"}
+                          onClick={() => setSeriesGroupBy("site")}
+                        >
+                          Site
+                        </Button>
+                        <span className="text-xs text-gray-600 ml-2">Series</span>
+                        <Button
+                          size="sm"
+                          variant={topSeriesCount === 4 ? "default" : "outline"}
+                          onClick={() => setTopSeriesCount(4)}
+                        >
+                          4
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={topSeriesCount === 8 ? "default" : "outline"}
+                          onClick={() => setTopSeriesCount(8)}
+                        >
+                          8
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={topSeriesCount === 12 ? "default" : "outline"}
+                          onClick={() => setTopSeriesCount(12)}
+                        >
+                          12
+                        </Button>
+                      </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="pt-2">
+                  {timeSeriesSummary.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                      {timeSeriesSummary.map((row) => (
+                        <div key={row.key} className="rounded-lg border bg-white p-3">
+                          <div className="text-xs text-gray-500 truncate">{row.key}</div>
+                          <div className="text-lg font-semibold text-gray-900">
+                            {(row.avg ?? 0).toFixed(1)} µg/m³
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            Range: {row.min.toFixed(1)} – {row.max.toFixed(1)} ({row.count} pts)
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {timeSeriesLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-[320px] w-full" />
+                    </div>
+                  ) : timeSeriesError ? (
+                    <div className="text-sm text-red-600">{timeSeriesError}</div>
+                  ) : timeSeriesChart.data.length === 0 ? (
+                    <div className="text-sm text-gray-600">
+                      No measurements available for this custom range. Try widening the time window.
+                    </div>
+                  ) : (
+                    <div className="h-[320px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={timeSeriesChart.data} margin={{ top: 10, right: 18, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 12 }} />
+                          <Tooltip
+                            formatter={(value: any) =>
+                              value === null || value === undefined || Number.isNaN(Number(value))
+                                ? "—"
+                                : `${Number(value).toFixed(1)} µg/m³`
+                            }
+                          />
+                          <Legend />
+                          {timeSeriesChart.keys.map((key) => (
+                            <Line
+                              key={key}
+                              type="monotone"
+                              dataKey={key}
+                              stroke={timeSeriesChart.colors.get(key) ?? "#2563EB"}
+                              strokeWidth={2}
+                              dot={false}
+                              connectNulls
+                            />
+                          ))}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                  {timeSeriesNotice && <div className="mt-2 text-xs text-gray-500">{timeSeriesNotice}</div>}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Map snapshot of selected area */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
@@ -1320,7 +1952,7 @@ function ReportContent() {
                                 <span className="font-medium">{meta.label}</span>
                               </div>
                               <div className="text-sm text-gray-700">
-                                PM2.5: {(site.pm2_5?.value ?? 0).toFixed(1)} µg/m³
+                                PM2.5 (avg): {(site.pm2_5?.value ?? 0).toFixed(1)} µg/m³
                               </div>
                               <div className="text-xs text-gray-500">
                                 {site.siteDetails.city || "Unknown City"}, {site.siteDetails.country || "Unknown"}
@@ -1708,6 +2340,7 @@ function ReportContent() {
                       // Show the report on page with a slight delay for visual effect
                       setTimeout(() => {
                         setShowReportOnPage(true)
+                        void refreshReportMetrics()
                         setReportGenerating(false)
 
                         // Scroll to the report
@@ -1990,7 +2623,7 @@ function SiteCard({
 
         <div className="flex justify-between items-center mb-4">
           <div>
-            <span className="text-xs font-medium">Current PM2.5</span>
+            <span className="text-xs font-medium">Avg PM2.5 (calibrated)</span>
             <div className="text-2xl font-bold">{pm25Value.toFixed(2)} µg/m³</div>
           </div>
           <div className="text-right">
