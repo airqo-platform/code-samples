@@ -625,8 +625,8 @@ const ForecastPanel: React.FC<{
   return (
     <aside className="flex h-full w-[420px] flex-col border-l bg-white/90 backdrop-blur-xl">
       <div className="border-b bg-white/70 backdrop-blur-xl">
-        <div className="flex items-start justify-between gap-3 px-5 py-4">
-          <div className="min-w-0">
+        <div className="flex items-start gap-3 px-5 py-4">
+          <div className="min-w-0 order-last flex-1">
             <div className="truncate text-lg font-semibold text-gray-900">{title}</div>
             {selectedNode?.site_id ? (
               <div className="truncate text-xs text-gray-500">{selectedNode.site_id}</div>
@@ -635,7 +635,7 @@ const ForecastPanel: React.FC<{
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            className="order-first shrink-0 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
             aria-label="Close forecast panel"
           >
             ×
@@ -866,11 +866,11 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
       {active ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-4">
           <div className="text-xs text-gray-500">Selected day</div>
-          <div className="mt-1 flex items-baseline justify-between gap-3">
-            <div className="min-w-0 truncate text-sm font-semibold text-gray-900">{activeLabel}</div>
-            <div className="text-right">
+          <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+            <div className="min-w-0 text-sm font-semibold text-gray-900 sm:truncate">{activeLabel}</div>
+            <div className="sm:text-right">
               <div className="text-xs text-gray-500">PM₂.₅</div>
-              <div className="text-lg font-semibold text-gray-900">
+              <div className="whitespace-nowrap text-base font-semibold text-gray-900 sm:text-lg">
                 {typeof active.pm2_5 === "number" ? active.pm2_5.toFixed(1) : "—"}
                 <span className="ml-1 text-xs font-normal text-gray-500">µg/m³</span>
               </div>
@@ -880,11 +880,11 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
       ) : null}
 
       <div className="rounded-2xl border border-gray-200 bg-white p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col items-start justify-between gap-1 sm:flex-row sm:items-center">
           <div className="text-sm font-semibold text-gray-900">This week vs last week</div>
           <div className={["text-sm font-semibold", percentClass].join(" ")}>{percentText}</div>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-xl bg-gray-50 p-3">
             <div className="text-xs text-gray-500">Last week avg</div>
             <div className="text-base font-semibold text-gray-900">
