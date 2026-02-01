@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css"
 import type React from "react"
 import { useEffect, useRef, useState, useMemo } from "react"
 import ReactDOM from "react-dom/client"
-import { MapContainer, TileLayer, useMap } from "react-leaflet"
+import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet"
 import Image from "next/image"
 import L from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
@@ -13,7 +13,7 @@ import "leaflet-geosearch/dist/geosearch.css"
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
-import { getSatelliteData, getMapNodes, getHeatmapData } from "@/services/apiService"
+import { getSatelliteData, getMapNodes, getHeatmapData, getDailyForecast } from "@/services/apiService"
 import { MapLayerControl } from "./MapLayerControl"
 
 // Create a custom MapboxProvider class since the import might not work directly
@@ -60,6 +60,25 @@ const Unhealthy = "/images/Unhealthy.png"
 const VeryUnhealthy = "/images/VeryUnhealthy.png"
 const Hazardous = "/images/Hazardous.png"
 const Invalid = "/images/Invalid.png"
+
+const getAqiImageByCategory = (aqiCategory?: string) => {
+  switch ((aqiCategory || "").toLowerCase()) {
+    case "good":
+      return GoodAir
+    case "moderate":
+      return Moderate
+    case "unhealthy for sensitive groups":
+      return UnhealthySG
+    case "unhealthy":
+      return Unhealthy
+    case "very unhealthy":
+      return VeryUnhealthy
+    case "hazardous":
+      return Hazardous
+    default:
+      return Invalid
+  }
+}
 
 // Set default icon for markers
 const DefaultIcon = L.icon({
@@ -410,6 +429,13 @@ interface MapNode {
   aqi_category: string
   aqi_color: string
   pm2_5: { value: number | null }
+  averages?: {
+    percentageDifference?: number
+    weeklyAverages?: {
+      currentWeek?: number
+      previousWeek?: number
+    }
+  }
   siteDetails: {
     location_name?: string
     name?: string
@@ -423,6 +449,20 @@ interface MapNode {
 interface LoadingState {
   isLoading: boolean
   error: string | null
+}
+
+interface DailyForecastItem {
+  time: string
+  pm2_5: number | null
+  aqi_category?: string
+  aqi_color?: string
+  aqi_color_name?: string
+}
+
+interface ForecastState {
+  isLoading: boolean
+  error: string | null
+  forecasts: DailyForecastItem[] | null
 }
 
 // Create a loading indicator component
@@ -441,6 +481,251 @@ const LoadingIndicator: React.FC<LoadingState> = ({ isLoading, error }) => {
           <span className="text-sm">{error}</span>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+const parseForecastTime = (time: string) => {
+  // API returns "YYYY-MM-DD HH:mm:ss+00:00" (space instead of "T")
+  const normalized = (time || "").includes(" ") ? time.replace(" ", "T") : time
+  const dt = new Date(normalized)
+  return Number.isNaN(dt.getTime()) ? null : dt
+}
+
+const ForecastDayPill: React.FC<{
+  item: DailyForecastItem
+  isActive: boolean
+  onClick: () => void
+}> = ({ item, isActive, onClick }) => {
+  const dt = parseForecastTime(item.time)
+  const weekday = dt
+    ? dt.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 1).toUpperCase()
+    : (item.time || "?").slice(0, 1).toUpperCase()
+  const dayNum = dt ? String(dt.getDate()).padStart(2, "0") : "—"
+  const imageSrc = getAqiImageByCategory(item.aqi_category)
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "flex h-[78px] w-[52px] flex-col items-center justify-between rounded-full border px-3 py-2 transition-colors",
+        isActive ? "border-blue-600 bg-blue-600 text-white" : "border-amber-100 bg-white text-gray-700 hover:bg-gray-50",
+      ].join(" ")}
+      aria-label={`Forecast for ${weekday} ${dayNum}`}
+    >
+      <div className="text-[11px] font-semibold leading-none">{weekday}</div>
+      <div className={["text-sm font-bold leading-none", isActive ? "text-white" : "text-gray-700"].join(" ")}>
+        {dayNum}
+      </div>
+      <div
+        className={["relative h-5 w-5 rounded-full", isActive ? "bg-white/15" : "bg-amber-50"].join(" ")}
+        title={item.aqi_color_name || item.aqi_category || "Unknown"}
+      >
+        <Image src={imageSrc} alt={item.aqi_category || "Unknown"} fill className="object-contain p-[2px]" />
+      </div>
+    </button>
+  )
+}
+
+const ForecastPanel: React.FC<{
+  selectedNode: MapNode | null
+  forecastState: ForecastState
+  onClose: () => void
+}> = ({ selectedNode, forecastState, onClose }) => {
+  const title =
+    selectedNode?.siteDetails?.name ||
+    selectedNode?.siteDetails?.formatted_name ||
+    selectedNode?.siteDetails?.location_name ||
+    "Select a site"
+
+  return (
+    <aside className="flex h-full w-[420px] flex-col border-l bg-white/90 backdrop-blur-xl">
+      <div className="border-b bg-white/70 backdrop-blur-xl">
+        <div className="flex items-start justify-between gap-3 px-5 py-4">
+          <div className="min-w-0">
+            <div className="truncate text-lg font-semibold text-gray-900">{title}</div>
+            {selectedNode?.site_id ? (
+              <div className="truncate text-xs text-gray-500">{selectedNode.site_id}</div>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            aria-label="Close forecast panel"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 px-5 py-4">
+        {!selectedNode ? (
+          <div className="rounded-xl border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-600">
+            Click a site on the map to load the next days&apos; forecast.
+          </div>
+        ) : forecastState.isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-blue-600"></div>
+            Loading forecast...
+          </div>
+        ) : forecastState.error ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {forecastState.error}
+          </div>
+        ) : !forecastState.forecasts?.length ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">No forecast data.</div>
+        ) : (
+          <div className="space-y-3">
+            <ForecastContent selectedNode={selectedNode} forecasts={forecastState.forecasts} />
+            <div className="hidden">
+              {forecastState.forecasts.map((f) => {
+              const dt = parseForecastTime(f.time)
+              const dayLabel = dt
+                ? dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+                : f.time
+              const bg = (f.aqi_color || "").replace("#", "")
+              const chipStyle = bg ? { backgroundColor: `#${bg}` } : undefined
+              const imageSrc = getAqiImageByCategory(f.aqi_category)
+
+              return (
+                <div key={`${f.time}-${f.aqi_category}`} className="rounded-2xl border border-gray-200 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-gray-900">{dayLabel}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span
+                          className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium text-white"
+                          style={chipStyle}
+                          title={f.aqi_color_name || f.aqi_category}
+                        >
+                          <span className="relative h-5 w-5">
+                            <Image src={imageSrc} alt={f.aqi_category || "Unknown"} fill className="object-contain" />
+                          </span>
+                          <span className="truncate">{f.aqi_category || "Unknown"}</span>
+                        </span>
+                        <span className="text-xs text-gray-500">{dt ? dt.toLocaleTimeString() : null}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500">PM2.5</div>
+                      <div className="text-lg font-semibold text-gray-900">
+                        {typeof f.pm2_5 === "number" ? f.pm2_5.toFixed(1) : "—"}
+                      </div>
+                      <div className="text-xs text-gray-500">µg/m³</div>
+                    </div>
+                  </div>
+                </div>
+              )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style jsx global>{`
+        .forecast-strip::-webkit-scrollbar {
+          height: 10px;
+        }
+        .forecast-strip::-webkit-scrollbar-track {
+          background: #e5e7eb;
+          border-radius: 999px;
+        }
+        .forecast-strip::-webkit-scrollbar-thumb {
+          background: #6b7280;
+          border-radius: 999px;
+        }
+        .forecast-strip {
+          scrollbar-color: #6b7280 #e5e7eb;
+          scrollbar-width: thin;
+        }
+      `}</style>
+    </aside>
+  )
+}
+
+function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | null; forecasts: DailyForecastItem[] }) {
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  useEffect(() => {
+    setActiveIndex(0)
+  }, [selectedNode?.site_id])
+
+  const currentWeek = selectedNode?.averages?.weeklyAverages?.currentWeek
+  const previousWeek = selectedNode?.averages?.weeklyAverages?.previousWeek
+  const percentChange = selectedNode?.averages?.percentageDifference
+
+  const percentText =
+    typeof percentChange === "number" && Number.isFinite(percentChange)
+      ? `${percentChange > 0 ? "+" : ""}${percentChange.toFixed(1)}%`
+      : "—"
+  const percentClass =
+    typeof percentChange === "number" && Number.isFinite(percentChange)
+      ? percentChange > 0
+        ? "text-red-600"
+        : percentChange < 0
+          ? "text-green-600"
+          : "text-gray-600"
+      : "text-gray-600"
+
+  const active = forecasts[activeIndex] || forecasts[0]
+  const dt = active ? parseForecastTime(active.time) : null
+  const activeLabel = dt ? dt.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }) : ""
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <div className="forecast-strip flex gap-3 overflow-x-auto pb-2">
+          {forecasts.slice(0, 14).map((f, idx) => (
+            <ForecastDayPill
+              key={`${f.time}-${idx}`}
+              item={f}
+              isActive={idx === activeIndex}
+              onClick={() => setActiveIndex(idx)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {active ? (
+        <div className="rounded-2xl border border-gray-200 bg-white p-4">
+          <div className="text-xs text-gray-500">Selected day</div>
+          <div className="mt-1 flex items-baseline justify-between gap-3">
+            <div className="min-w-0 truncate text-sm font-semibold text-gray-900">{activeLabel}</div>
+            <div className="text-right">
+              <div className="text-xs text-gray-500">PM2.5</div>
+              <div className="text-lg font-semibold text-gray-900">
+                {typeof active.pm2_5 === "number" ? active.pm2_5.toFixed(1) : "—"}
+                <span className="ml-1 text-xs font-normal text-gray-500">µg/m³</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-4">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-semibold text-gray-900">This week vs last week</div>
+          <div className={["text-sm font-semibold", percentClass].join(" ")}>{percentText}</div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="rounded-xl bg-gray-50 p-3">
+            <div className="text-xs text-gray-500">Last week avg</div>
+            <div className="text-base font-semibold text-gray-900">
+              {typeof previousWeek === "number" && Number.isFinite(previousWeek) ? previousWeek.toFixed(1) : "—"}
+              <span className="ml-1 text-xs font-normal text-gray-500">µg/m³</span>
+            </div>
+          </div>
+          <div className="rounded-xl bg-gray-50 p-3">
+            <div className="text-xs text-gray-500">This week avg</div>
+            <div className="text-base font-semibold text-gray-900">
+              {typeof currentWeek === "number" && Number.isFinite(currentWeek) ? currentWeek.toFixed(1) : "—"}
+              <span className="ml-1 text-xs font-normal text-gray-500">µg/m³</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -472,7 +757,8 @@ const fetchWithRetry = async (fetchFn: () => Promise<any>, retries = 3, initialD
 const MapNodes: React.FC<{
   onLoadingChange: (state: LoadingState) => void
   showEmojis: boolean
-}> = ({ onLoadingChange, showEmojis }) => {
+  onNodeSelect: (node: MapNode) => void
+}> = ({ onLoadingChange, showEmojis, onNodeSelect }) => {
   const map = useMap()
   const [nodes, setNodes] = useState<MapNode[]>([])
   const markersRef = useRef<L.Marker[]>([])
@@ -606,7 +892,11 @@ const MapNodes: React.FC<{
             })
 
             // Handle click to open popup
-            marker.on("click", () => {
+            marker.on("click", (e: any) => {
+              try {
+                L.DomEvent.stopPropagation(e)
+              } catch {}
+              onNodeSelect(node)
               // Close other popups
               markersRef.current.forEach((m) => {
                 if (m !== marker) {
@@ -676,6 +966,15 @@ const MapNodes: React.FC<{
     }
   }, [nodes, map, onLoadingChange, showEmojis])
 
+  return null
+}
+
+const ClearSelectionOnMapClick: React.FC<{ onClear: () => void }> = ({ onClear }) => {
+  useMapEvents({
+    click: () => {
+      onClear()
+    },
+  })
   return null
 }
 
@@ -1033,6 +1332,12 @@ const LeafletMap: React.FC = () => {
   })
   const [showEmojis, setShowEmojis] = useState(true)
   const [showHeatmaps, setShowHeatmaps] = useState(false)
+  const [selectedNode, setSelectedNode] = useState<MapNode | null>(null)
+  const [forecastState, setForecastState] = useState<ForecastState>({
+    isLoading: false,
+    error: null,
+    forecasts: null,
+  })
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   if (!mapboxToken) {
@@ -1050,57 +1355,84 @@ const LeafletMap: React.FC = () => {
     navigation: `https://api.mapbox.com/styles/v1/mapbox/navigation-day-v1/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
   }
 
+  useEffect(() => {
+    const siteId = selectedNode?.site_id
+    if (!siteId) {
+      setForecastState({ isLoading: false, error: null, forecasts: null })
+      return
+    }
+
+    let isActive = true
+    setForecastState({ isLoading: true, error: null, forecasts: null })
+
+    getDailyForecast(siteId)
+      .then((forecasts) => {
+        if (!isActive) return
+        if (!forecasts?.length) {
+          setForecastState({ isLoading: false, error: "No forecast returned for this site.", forecasts: null })
+          return
+        }
+        setForecastState({ isLoading: false, error: null, forecasts: forecasts as DailyForecastItem[] })
+      })
+      .catch((error) => {
+        if (!isActive) return
+        console.error(error)
+        setForecastState({ isLoading: false, error: "Failed to load forecast.", forecasts: null })
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [selectedNode?.site_id])
+
+  const isPanelOpen = !!selectedNode
+
   return (
-    <div className="relative w-full h-full">
-      <LoadingIndicator isLoading={loadingState.isLoading} error={loadingState.error} />
-      <MapContainer center={defaultCenter} zoom={defaultZoom} style={{ height: "100vh", width: "100%" }}>
-        <TileLayer
-          url={mapStyles[initialMapStyle as keyof typeof mapStyles]}
-          attribution='&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          tileSize={512}
-          zoomOffset={-1}
-        />
-        <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
-        <MapNodes onLoadingChange={setLoadingState} showEmojis={showEmojis} />
-        <HeatmapOverlays
-          onLoadingChange={setLoadingState}
-          showHeatmaps={showHeatmaps}
-          setShowHeatmaps={setShowHeatmaps}
-          showEmojis={showEmojis}
-          setShowEmojis={setShowEmojis}
-        />
-        <Legend />
-        <MapLayerButton />
-      </MapContainer>
+    <div className="h-full w-full">
+      <div className="flex h-full w-full">
+        <div className="relative flex-1">
+          <LoadingIndicator isLoading={loadingState.isLoading} error={loadingState.error} />
+          <MapContainer center={defaultCenter} zoom={defaultZoom} style={{ height: "100%", width: "100%" }}>
+            <TileLayer
+              url={mapStyles[initialMapStyle as keyof typeof mapStyles]}
+              attribution='&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              tileSize={512}
+              zoomOffset={-1}
+            />
+            <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
+            <ClearSelectionOnMapClick onClear={() => setSelectedNode(null)} />
+            <MapNodes onLoadingChange={setLoadingState} showEmojis={showEmojis} onNodeSelect={setSelectedNode} />
+            <HeatmapOverlays
+              onLoadingChange={setLoadingState}
+              showHeatmaps={showHeatmaps}
+              setShowHeatmaps={setShowHeatmaps}
+              showEmojis={showEmojis}
+              setShowEmojis={setShowEmojis}
+            />
+            <Legend />
+            <MapLayerButton />
+          </MapContainer>
+        </div>
+
+        <div
+          className={[
+            "h-full overflow-hidden transition-[width] duration-300 ease-out",
+            isPanelOpen ? "w-[420px]" : "w-0",
+          ].join(" ")}
+          aria-hidden={!isPanelOpen}
+        >
+          {isPanelOpen ? (
+            <ForecastPanel selectedNode={selectedNode} forecastState={forecastState} onClose={() => setSelectedNode(null)} />
+          ) : null}
+        </div>
+      </div>
     </div>
   )
 }
 
 // Create a custom icon based on AQI category
 const getCustomIcon = (aqiCategory: string) => {
-  let imageSrc
-  switch (aqiCategory.toLowerCase()) {
-    case "good":
-      imageSrc = GoodAir
-      break
-    case "moderate":
-      imageSrc = Moderate
-      break
-    case "unhealthy for sensitive groups":
-      imageSrc = UnhealthySG
-      break
-    case "unhealthy":
-      imageSrc = Unhealthy
-      break
-    case "very unhealthy":
-      imageSrc = VeryUnhealthy
-      break
-    case "hazardous":
-      imageSrc = Hazardous
-      break
-    default:
-      imageSrc = Invalid
-  }
+  const imageSrc = getAqiImageByCategory(aqiCategory)
 
   return L.icon({
     iconUrl: imageSrc,

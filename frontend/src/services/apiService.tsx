@@ -76,6 +76,14 @@ interface HeatmapData {
   message: string
 }
 
+interface DailyForecastItem {
+  time: string
+  pm2_5: number | null
+  aqi_category?: string
+  aqi_color?: string
+  aqi_color_name?: string
+}
+
 // Satellite API service to fetch data with POST request
 export const getSatelliteData = async (body = {}) => {
   try {
@@ -171,4 +179,32 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
   
   console.error("All 5 attempts failed to fetch heatmap data");
   return null;
+}
+
+export const getDailyForecast = async (siteId: string): Promise<DailyForecastItem[] | null> => {
+  try {
+    const response = await apiService.get("/predict/daily-forecast", {
+      params: {
+        site_id: siteId,
+        token: apiToken,
+      },
+    })
+
+    const data = response.data
+
+    if (Array.isArray(data)) {
+      const first = data[0]
+      if (first && Array.isArray(first.forecasts)) return first.forecasts
+      if (data.every((x) => x && typeof x === "object" && "time" in x)) return data as DailyForecastItem[]
+    }
+
+    if (data && typeof data === "object" && Array.isArray((data as any).forecasts)) {
+      return (data as any).forecasts as DailyForecastItem[]
+    }
+
+    return null
+  } catch (error) {
+    console.error("Error fetching daily forecast:", error)
+    return null
+  }
 }
