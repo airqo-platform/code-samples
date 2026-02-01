@@ -10,7 +10,7 @@ import L from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
 import "leaflet-geosearch/dist/geosearch.css" 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { AlertTriangle, ChevronDown, ChevronUp } from "lucide-react"
+import { ChevronDown, ChevronUp, Wind } from "lucide-react"
 
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
@@ -869,7 +869,7 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
           <div className="mt-1 flex items-baseline justify-between gap-3">
             <div className="min-w-0 truncate text-sm font-semibold text-gray-900">{activeLabel}</div>
             <div className="text-right">
-              <div className="text-xs text-gray-500">PM2.5</div>
+              <div className="text-xs text-gray-500">PM₂.₅</div>
               <div className="text-lg font-semibold text-gray-900">
                 {typeof active.pm2_5 === "number" ? active.pm2_5.toFixed(1) : "—"}
                 <span className="ml-1 text-xs font-normal text-gray-500">µg/m³</span>
@@ -910,10 +910,10 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
           aria-expanded={insightsOpen}
         >
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-50 text-red-600">
-              <AlertTriangle className="h-4 w-4" />
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-blue-700">
+              <Wind className="h-4 w-4" />
             </span>
-            <span className="text-sm font-semibold text-gray-900">More Insights</span>
+            <span className="text-sm font-semibold text-gray-900">PM₂.₅ Trend</span>
           </div>
           {insightsOpen ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
         </button>
@@ -921,29 +921,6 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
         {insightsOpen ? (
           <div className="border-t px-4 py-4">
             <div className="text-xs text-gray-500">PM₂.₅ (µg/m³)</div>
-            {historicalState.stats ? (
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                <div className="rounded-lg bg-gray-50 p-2">
-                  <div className="text-[11px] text-gray-500">Avg</div>
-                  <div className="text-sm font-semibold text-gray-900">{historicalState.stats.avg.toFixed(1)}</div>
-                </div>
-                <div className="rounded-lg bg-gray-50 p-2">
-                  <div className="text-[11px] text-gray-500">Min-Max</div>
-                  <div className="text-sm font-semibold text-gray-900">
-                    {historicalState.stats.min.toFixed(1)}-{historicalState.stats.max.toFixed(1)}
-                  </div>
-                </div>
-                <div className="rounded-lg bg-gray-50 p-2">
-                  <div className="text-[11px] text-gray-500">Samples</div>
-                  <div className="text-sm font-semibold text-gray-900">
-                    {historicalState.stats.samples}
-                    <span className="ml-1 text-[11px] font-normal text-gray-500">
-                      ({historicalState.stats.days}d)
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ) : null}
             <div className="mt-2 h-[170px]">
               {historicalState.isLoading ? (
                 <div className="flex h-full items-center justify-center text-sm text-gray-600">Loading...</div>
@@ -953,7 +930,15 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
                 <div className="flex h-full items-center justify-center text-sm text-gray-600">No data.</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={historicalState.points} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  {(() => {
+                    const yValues = historicalState.points
+                      ?.map((p) => p.pm25)
+                      .filter((v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 500) // clamp to realistic PM2.5 range
+                    const max = yValues?.length ? Math.max(...yValues) : 0
+                    const yMax = Math.max(10, Math.ceil(max / 5) * 5)
+
+                    return (
+                      <AreaChart data={historicalState.points} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="pm25Fill" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
@@ -973,7 +958,16 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
                           : dt.toLocaleDateString(undefined, { month: "short", day: "2-digit" })
                       }}
                     />
-                    <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#6b7280" }} width={32} />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12, fill: "#6b7280" }}
+                      tickMargin={8}
+                      width={44}
+                      domain={[0, yMax]}
+                      tickCount={5}
+                      tickFormatter={(v: any) => (typeof v === "number" ? v.toFixed(0) : v)}
+                    />
                     <Tooltip
                       formatter={(v: any) => [`${typeof v === "number" ? v.toFixed(1) : v}`, "PM2.5"]}
                       labelFormatter={(d: any) => {
@@ -992,7 +986,9 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
                       dot={false}
                       activeDot={{ r: 4 }}
                     />
-                  </AreaChart>
+                      </AreaChart>
+                    )
+                  })()}
                 </ResponsiveContainer>
               )}
             </div>
@@ -1170,6 +1166,16 @@ const MapNodes: React.FC<{
                 L.DomEvent.stopPropagation(e)
               } catch {}
               onNodeSelect(node)
+
+              // Zoom in and center on the selected site
+              try {
+                const currentZoom = map.getZoom()
+                const targetZoom = Math.max(currentZoom, 11)
+                map.flyTo([latitude, longitude], targetZoom, { animate: true, duration: 0.8 })
+              } catch (error) {
+                console.error("Error centering map on selected site:", error)
+              }
+
               // Close other popups
               markersRef.current.forEach((m) => {
                 if (m !== marker) {
