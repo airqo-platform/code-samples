@@ -9,11 +9,13 @@ import Image from "next/image"
 import L from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
 import "leaflet-geosearch/dist/geosearch.css" 
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { AlertTriangle, ChevronDown, ChevronUp } from "lucide-react"
 
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
-import { getSatelliteData, getMapNodes, getHeatmapData, getDailyForecast } from "@/services/apiService"
+import { getSatelliteData, getMapNodes, getHeatmapData, getDailyForecast, getSiteHistorical } from "@/services/apiService"
 import { MapLayerControl } from "./MapLayerControl"
 
 // Create a custom MapboxProvider class since the import might not work directly
@@ -465,6 +467,87 @@ interface ForecastState {
   forecasts: DailyForecastItem[] | null
 }
 
+type HistoricalPoint = { date: Date; pm25: number }
+
+type HistoricalSeriesPoint = { x: Date; pm25: number }
+type HistoricalSeriesMode = "daily" | "hourly"
+
+const extractHistoricalTime = (row: any): string | null => {
+  if (!row) return null
+  const t = row.time || row.timestamp || row.datetime
+  return typeof t === "string" ? t : null
+}
+
+const extractHistoricalPm25 = (row: any): number | null => {
+  if (!row) return null
+  const pm = row.pm2_5
+  if (typeof pm === "number") return Number.isFinite(pm) ? pm : null
+  if (pm && typeof pm === "object" && typeof pm.value === "number") return Number.isFinite(pm.value) ? pm.value : null
+  if (typeof row.pm2_5_calibrated_value === "number") return Number.isFinite(row.pm2_5_calibrated_value) ? row.pm2_5_calibrated_value : null
+  if (typeof row.pm2_5_raw_value === "number") return Number.isFinite(row.pm2_5_raw_value) ? row.pm2_5_raw_value : null
+  return null
+}
+
+const buildHourlySeries = (rows: any[]): HistoricalSeriesPoint[] => {
+  const points: HistoricalSeriesPoint[] = []
+  rows.forEach((row) => {
+    const time = extractHistoricalTime(row)
+    const pm25 = extractHistoricalPm25(row)
+    if (!time || typeof pm25 !== "number") return
+    const dt = new Date(time)
+    if (Number.isNaN(dt.getTime())) return
+    points.push({ x: dt, pm25 })
+  })
+  points.sort((a, b) => a.x.getTime() - b.x.getTime())
+  return points
+}
+
+const toIsoUtc = (d: Date) => {
+  const dt = new Date(d)
+  return dt.toISOString()
+}
+
+const getLastNDaysRangeIso = (days: number) => {
+  const end = new Date()
+  const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000)
+  return { startIso: toIsoUtc(start), endIso: toIsoUtc(end) }
+}
+
+const buildLast7DaysDailyAverage = (rows: any[]): HistoricalPoint[] => {
+  const byDay = new Map<string, { date: Date; sum: number; count: number }>()
+
+  rows.forEach((row) => {
+    const time = extractHistoricalTime(row)
+    const pm25 = extractHistoricalPm25(row)
+    if (!time || typeof pm25 !== "number") return
+
+    const dt = new Date(time)
+    if (Number.isNaN(dt.getTime())) return
+
+    const key = dt.toISOString().slice(0, 10) // yyyy-mm-dd (UTC)
+    const bucket = byDay.get(key) || { date: new Date(key), sum: 0, count: 0 }
+    bucket.sum += pm25
+    bucket.count += 1
+    byDay.set(key, bucket)
+  })
+
+  return Array.from(byDay.values())
+    .map((b) => ({ date: b.date, pm25: b.count ? b.sum / b.count : 0 }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+}
+
+const uniqueDayCount = (rows: any[]): number => {
+  const set = new Set<string>()
+  rows.forEach((row) => {
+    const time = extractHistoricalTime(row)
+    if (!time) return
+    const dt = new Date(time)
+    if (Number.isNaN(dt.getTime())) return
+    set.add(dt.toISOString().slice(0, 10))
+  })
+  return set.size
+}
+
 // Create a loading indicator component
 const LoadingIndicator: React.FC<LoadingState> = ({ isLoading, error }) => {
   if (!isLoading && !error) return null
@@ -501,7 +584,7 @@ const ForecastDayPill: React.FC<{
   const weekday = dt
     ? dt.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 1).toUpperCase()
     : (item.time || "?").slice(0, 1).toUpperCase()
-  const dayNum = dt ? String(dt.getDate()).padStart(2, "0") : "—"
+  const dayNum = dt ? String(dt.getDate()).padStart(2, "0") : "--"
   const imageSrc = getAqiImageByCategory(item.aqi_category)
 
   return (
@@ -647,10 +730,102 @@ const ForecastPanel: React.FC<{
 
 function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | null; forecasts: DailyForecastItem[] }) {
   const [activeIndex, setActiveIndex] = useState(0)
+  const [insightsOpen, setInsightsOpen] = useState(false)
+  const [historicalState, setHistoricalState] = useState<{
+    isLoading: boolean
+    error: string | null
+    mode: HistoricalSeriesMode
+    points: HistoricalSeriesPoint[] | null
+    stats: null | {
+      samples: number
+      days: number
+      avg: number
+      min: number
+      max: number
+      latestTime: Date | null
+      latestPm25: number | null
+    }
+  }>({
+    isLoading: false,
+    error: null,
+    mode: "daily",
+    points: null,
+    stats: null,
+  })
 
   useEffect(() => {
     setActiveIndex(0)
+    setInsightsOpen(false)
+    setHistoricalState({ isLoading: false, error: null, mode: "daily", points: null, stats: null })
   }, [selectedNode?.site_id])
+
+  useEffect(() => {
+    const siteId = selectedNode?.site_id
+    if (!insightsOpen || !siteId) return
+
+    let isActive = true
+    setHistoricalState({ isLoading: true, error: null, mode: "daily", points: null, stats: null })
+
+    const { startIso, endIso } = getLastNDaysRangeIso(7)
+
+    getSiteHistorical(siteId, startIso, endIso)
+      .then((rows) => {
+        if (!isActive) return
+        if (!rows?.length) {
+          setHistoricalState({ isLoading: false, error: "No historical data returned for this site.", mode: "daily", points: null, stats: null })
+          return
+        }
+
+        const samples = rows.length
+        const days = uniqueDayCount(rows)
+
+        const values = rows
+          .map((r) => extractHistoricalPm25(r))
+          .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+        const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0
+        const min = values.length ? Math.min(...values) : 0
+        const max = values.length ? Math.max(...values) : 0
+
+        const sortedHourly = buildHourlySeries(rows)
+        const latest = sortedHourly.length ? sortedHourly[sortedHourly.length - 1] : null
+
+        const mode: HistoricalSeriesMode = days >= 3 ? "daily" : "hourly"
+        const points: HistoricalSeriesPoint[] =
+          mode === "daily"
+            ? buildLast7DaysDailyAverage(rows).map((p) => ({ x: p.date, pm25: p.pm25 }))
+            : sortedHourly
+
+        if (!points.length) {
+          setHistoricalState({ isLoading: false, error: "No historical data returned for this site.", mode, points: null, stats: null })
+          return
+        }
+
+        setHistoricalState({
+          isLoading: false,
+          error: null,
+          mode,
+          points,
+          stats: {
+            samples,
+            days,
+            avg,
+            min,
+            max,
+            latestTime: latest?.x ?? null,
+            latestPm25: latest?.pm25 ?? null,
+          },
+        })
+      })
+      .catch((error) => {
+        if (!isActive) return
+        console.error(error)
+        setHistoricalState({ isLoading: false, error: "Failed to load historical data.", mode: "daily", points: null, stats: null })
+      })
+
+    return () => {
+      isActive = false
+    }
+  }, [insightsOpen, selectedNode?.site_id])
 
   const currentWeek = selectedNode?.averages?.weeklyAverages?.currentWeek
   const previousWeek = selectedNode?.averages?.weeklyAverages?.previousWeek
@@ -725,6 +900,104 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setInsightsOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-4 py-3"
+          aria-expanded={insightsOpen}
+        >
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-red-50 text-red-600">
+              <AlertTriangle className="h-4 w-4" />
+            </span>
+            <span className="text-sm font-semibold text-gray-900">More Insights</span>
+          </div>
+          {insightsOpen ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+        </button>
+
+        {insightsOpen ? (
+          <div className="border-t px-4 py-4">
+            <div className="text-xs text-gray-500">PM₂.₅ (µg/m³)</div>
+            {historicalState.stats ? (
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <div className="rounded-lg bg-gray-50 p-2">
+                  <div className="text-[11px] text-gray-500">Avg</div>
+                  <div className="text-sm font-semibold text-gray-900">{historicalState.stats.avg.toFixed(1)}</div>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-2">
+                  <div className="text-[11px] text-gray-500">Min-Max</div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    {historicalState.stats.min.toFixed(1)}-{historicalState.stats.max.toFixed(1)}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-2">
+                  <div className="text-[11px] text-gray-500">Samples</div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    {historicalState.stats.samples}
+                    <span className="ml-1 text-[11px] font-normal text-gray-500">
+                      ({historicalState.stats.days}d)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            <div className="mt-2 h-[170px]">
+              {historicalState.isLoading ? (
+                <div className="flex h-full items-center justify-center text-sm text-gray-600">Loading...</div>
+              ) : historicalState.error ? (
+                <div className="flex h-full items-center justify-center text-sm text-red-700">{historicalState.error}</div>
+              ) : !historicalState.points?.length ? (
+                <div className="flex h-full items-center justify-center text-sm text-gray-600">No data.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={historicalState.points} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="pm25Fill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="x"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 12, fill: "#6b7280" }}
+                      tickFormatter={(d: any) => {
+                        const dt = d instanceof Date ? d : new Date(d)
+                        return historicalState.mode === "hourly"
+                          ? dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+                          : dt.toLocaleDateString(undefined, { month: "short", day: "2-digit" })
+                      }}
+                    />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "#6b7280" }} width={32} />
+                    <Tooltip
+                      formatter={(v: any) => [`${typeof v === "number" ? v.toFixed(1) : v}`, "PM2.5"]}
+                      labelFormatter={(d: any) => {
+                        const dt = d instanceof Date ? d : new Date(d)
+                        return historicalState.mode === "hourly"
+                          ? dt.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                          : dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="pm25"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      fill="url(#pm25Fill)"
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   )

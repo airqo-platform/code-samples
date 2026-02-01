@@ -84,6 +84,15 @@ interface DailyForecastItem {
   aqi_color_name?: string
 }
 
+interface SiteHistoricalItem {
+  time?: string
+  timestamp?: string
+  datetime?: string
+  pm2_5?: MeasurementValue | number | null
+  pm2_5_calibrated_value?: number | null
+  pm2_5_raw_value?: number | null
+}
+
 // Satellite API service to fetch data with POST request
 export const getSatelliteData = async (body = {}) => {
   try {
@@ -205,6 +214,93 @@ export const getDailyForecast = async (siteId: string): Promise<DailyForecastIte
     return null
   } catch (error) {
     console.error("Error fetching daily forecast:", error)
+    return null
+  }
+}
+
+export const getSiteHistorical = async (
+  siteId: string,
+  startTime: string = "LAST7DAYS",
+  endTime: string = "TODAY",
+): Promise<SiteHistoricalItem[] | null> => {
+  try {
+    const extractMeasurements = (value: any): SiteHistoricalItem[] | null => {
+      const isMeasurementRow = (row: any) =>
+        row &&
+        typeof row === "object" &&
+        (typeof row.time === "string" || typeof row.timestamp === "string" || typeof row.datetime === "string") &&
+        ("pm2_5" in row || "pm2_5_calibrated_value" in row || "pm2_5_raw_value" in row)
+
+      const unwrapSingles = (v: any) => {
+        let current = v
+        // Some endpoints wrap response as `[[[{...}]]]` etc.
+        for (let i = 0; i < 6; i++) {
+          if (Array.isArray(current) && current.length === 1) {
+            current = current[0]
+            continue
+          }
+          break
+        }
+        return current
+      }
+
+      const v = unwrapSingles(value)
+
+      if (Array.isArray(v)) {
+        // Case A: array of measurement rows
+        if (v.length && isMeasurementRow(v[0])) return v as SiteHistoricalItem[]
+
+        // Case B: array of wrapper objects each with measurements
+        const collected: SiteHistoricalItem[] = []
+        v.forEach((item) => {
+          const unwrappedItem = unwrapSingles(item)
+          if (unwrappedItem && typeof unwrappedItem === "object" && Array.isArray((unwrappedItem as any).measurements)) {
+            collected.push(...((unwrappedItem as any).measurements as SiteHistoricalItem[]))
+            return
+          }
+          if (unwrappedItem && typeof unwrappedItem === "object" && Array.isArray((unwrappedItem as any).data)) {
+            collected.push(...((unwrappedItem as any).data as SiteHistoricalItem[]))
+            return
+          }
+          if (unwrappedItem && typeof unwrappedItem === "object" && Array.isArray((unwrappedItem as any).results)) {
+            collected.push(...((unwrappedItem as any).results as SiteHistoricalItem[]))
+            return
+          }
+        })
+        return collected.length ? collected : null
+      }
+
+      if (v && typeof v === "object") {
+        if (Array.isArray((v as any).measurements)) return (v as any).measurements as SiteHistoricalItem[]
+        if (Array.isArray((v as any).data)) return (v as any).data as SiteHistoricalItem[]
+        if (Array.isArray((v as any).results)) return (v as any).results as SiteHistoricalItem[]
+      }
+
+      return null
+    }
+
+    const fetchHistorical = async (s: string, e: string) => {
+      const response = await apiService.get(`/devices/measurements/sites/${siteId}/historical`, {
+        params: {
+          token: apiToken,
+          startTime: s,
+          endTime: e,
+        },
+      })
+      return extractMeasurements(response.data)
+    }
+
+    // Prefer explicit ISO times (some deployments don't accept LAST7DAYS/TODAY reliably).
+    const isoResult = await fetchHistorical(startTime, endTime)
+    if (isoResult?.length) return isoResult
+
+    // Fallback to keyword params if the caller passed ISO (or vice versa).
+    const keywordResult = await fetchHistorical("LAST7DAYS", "TODAY")
+    if (keywordResult?.length) return keywordResult
+
+    return isoResult || keywordResult || null
+  } catch (error) {
+    console.error("Error fetching site historical:", error)
     return null
   }
 }
