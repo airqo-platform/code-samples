@@ -1,7 +1,8 @@
 import type {
   SiteLocatorPayload,
   SiteLocatorResponse,
-  SiteCategoryResponse,
+  LegacyCategorizeSiteResponse,
+  SourceMetadataResponse,
   AirQualityReportPayload,
   AirQualityReportResponse,
   Grid,
@@ -22,7 +23,7 @@ async function baseFetch<T>(
   endpoint: string,
   options: {
     method?: string
-    queryParams?: Record<string, string | number>
+    queryParams?: Record<string, string | number | boolean>
     json?: unknown
   } = {},
 ): Promise<T> {
@@ -82,14 +83,103 @@ export async function submitLocations(payload: SiteLocatorPayload): Promise<Site
   }
 }
 
-export async function getSiteCategory(latitude: number, longitude: number): Promise<SiteCategoryResponse> {
+export async function getSiteCategory(
+  latitude: number,
+  longitude: number,
+  includeSatellite = true,
+): Promise<SourceMetadataResponse> {
   try {
-    return await baseFetch<SiteCategoryResponse>("spatial/categorize_site", {
+    if (includeSatellite) {
+      const response = await baseFetch<unknown>("spatial/source_metadata", {
+        queryParams: { latitude, longitude, include_satellite: true },
+      })
+      return unwrapSourceMetadataResponse(response)
+    }
+
+    const response = await baseFetch<unknown>("spatial/categorize_site", {
       queryParams: { latitude, longitude },
     })
+    return normalizeLegacyCategorizeSiteResponse(response, latitude, longitude)
   } catch (error) {
     console.error("Error getting site category:", error)
     throw error
+  }
+}
+
+function unwrapSourceMetadataResponse(payload: unknown): SourceMetadataResponse {
+  let current = payload
+
+  while (Array.isArray(current)) {
+    if (current.length === 0) {
+      throw new Error("Empty source metadata response.")
+    }
+    current = current[0]
+  }
+
+  if (!current || typeof current !== "object" || !("data" in current) || !("message" in current)) {
+    throw new Error("Unexpected source metadata response format.")
+  }
+
+  return current as SourceMetadataResponse
+}
+
+function normalizeLegacyCategorizeSiteResponse(
+  payload: unknown,
+  latitude: number,
+  longitude: number,
+): SourceMetadataResponse {
+  let current = payload
+
+  while (Array.isArray(current)) {
+    if (current.length === 0) {
+      throw new Error("Empty categorize site response.")
+    }
+    current = current[0]
+  }
+
+  if (!current || typeof current !== "object" || !("site" in current)) {
+    throw new Error("Unexpected categorize site response format.")
+  }
+
+  const response = current as LegacyCategorizeSiteResponse
+  const siteCategory = response.site["site-category"]
+
+  return {
+    data: {
+      candidate_sources: [],
+      evidence: {
+        osm_debug_info: response.site.OSM_info ?? [],
+        satellite_error: null,
+        satellite_pollutants_mean: {},
+        satellite_reasoning: [],
+        site_category: {
+          area_name: siteCategory?.area_name ?? null,
+          category: siteCategory?.category ?? null,
+          highway: siteCategory?.highway ?? null,
+          landuse: siteCategory?.landuse ?? null,
+          natural: siteCategory?.natural ?? null,
+          search_radius: siteCategory?.search_radius ?? null,
+          waterway: siteCategory?.waterway ?? null,
+        },
+        site_reasoning: [],
+      },
+      location: {
+        latitude: siteCategory?.latitude ?? latitude,
+        longitude: siteCategory?.longitude ?? longitude,
+      },
+      metadata: {
+        computed_at_utc: "",
+        data_sources: ["OpenStreetMap (Overpass)"],
+        date_range: {
+          start_date: "",
+          end_date: "",
+        },
+        disclaimer: "Site category is inferred from OpenStreetMap context only.",
+        model_version: "",
+      },
+      primary_source: null,
+    },
+    message: "Operation successful",
   }
 }
 
