@@ -37,7 +37,8 @@ interface SiteCategoryInfo extends Location {
   computed_at_utc: string | null
   data_sources: string[]
   date_range: SourceMetadataDateRange | null
-  disclaimer: string | null 
+  disclaimer: string | null
+  message: string
   model_version: string | null
   osm_debug_info: string[]
   primary_confidence: number | null
@@ -72,6 +73,42 @@ const timeLabel = (value: string | null | undefined) => {
 const siteKey = (site: Pick<SiteCategoryInfo, "lat" | "lng" | "satellite_enabled">) =>
   `${site.lat}-${site.lng}-${site.satellite_enabled ? "sat" : "nosat"}`
 
+const getModeTheme = (satelliteEnabled: boolean) =>
+  satelliteEnabled
+    ? {
+        accentText: "text-emerald-700",
+        badge: "border border-emerald-200 bg-emerald-100 text-emerald-800",
+        detailCard: "border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-lime-50",
+        detailPanel: "border-emerald-200 bg-emerald-50/70",
+        dot: "bg-emerald-500",
+        muted: "text-emerald-700/80",
+        resultCard: "border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-lime-50 hover:border-emerald-300 hover:bg-emerald-50",
+        resultSelected: "border-emerald-400 bg-emerald-50 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]",
+        switch: "data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-slate-300",
+        tone: "Satellite Enriched",
+      }
+    : {
+        accentText: "text-slate-700",
+        badge: "border border-slate-200 bg-slate-200/80 text-slate-700",
+        detailCard: "border-slate-300 bg-gradient-to-br from-slate-100 via-white to-slate-50",
+        detailPanel: "border-slate-300 bg-slate-100/80",
+        dot: "bg-slate-500",
+        muted: "text-slate-600",
+        resultCard: "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100/70",
+        resultSelected: "border-slate-400 bg-slate-100",
+        switch: "data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-slate-400",
+        tone: "Context Only",
+      }
+
+const resultTitle = (site: SiteCategoryInfo) =>
+  displayValue(site.area_name) !== "N/A" ? displayValue(site.area_name) : `${site.lat.toFixed(5)}, ${site.lng.toFixed(5)}`
+
+const hasMeaningfulContextValue = (value: string | null | undefined) => {
+  if (!value) return false
+  const normalized = value.trim().toLowerCase()
+  return normalized !== "" && normalized !== "unknown" && normalized !== "n/a"
+}
+
 const toSiteInfo = (response: SourceMetadataResponse, lat: number, lng: number, satelliteEnabled: boolean): SiteCategoryInfo => {
   const details = response.data.evidence.site_category
   const primary = response.data.primary_source ?? response.data.candidate_sources[0] ?? null
@@ -85,7 +122,8 @@ const toSiteInfo = (response: SourceMetadataResponse, lat: number, lng: number, 
     computed_at_utc: response.data.metadata?.computed_at_utc ?? null,
     data_sources: response.data.metadata?.data_sources ?? [],
     date_range: response.data.metadata?.date_range ?? null,
-    disclaimer: response.data.metadata?.disclaimer ?? null, 
+    disclaimer: response.data.metadata?.disclaimer ?? null,
+    message: response.message,
     model_version: response.data.metadata?.model_version ?? null,
     osm_debug_info: response.data.evidence.osm_debug_info ?? [],
     primary_confidence: primary?.confidence ?? null,
@@ -261,6 +299,17 @@ function SiteCategoryContent() {
 
   const selectedKey = selectedSite ? siteKey(selectedSite) : null
   const pollutantEntries = selectedSite ? Object.entries(selectedSite.satellite_pollutants_mean) : []
+  const requestTheme = getModeTheme(includeSatellite)
+  const selectedTheme = getModeTheme(selectedSite?.satellite_enabled ?? includeSatellite)
+  const localComputedAt = new Date().toLocaleString()
+  const contextFields = selectedSite
+    ? [
+        { label: "Highway", value: selectedSite.site_category?.highway },
+        { label: "Land Use", value: selectedSite.site_category?.landuse },
+        { label: "Natural", value: selectedSite.site_category?.natural },
+        { label: "Waterway", value: selectedSite.site_category?.waterway },
+      ].filter((field) => hasMeaningfulContextValue(field.value))
+    : []
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -276,10 +325,14 @@ function SiteCategoryContent() {
                 <Marker key={siteKey(site)} position={[site.lat, site.lng]} eventHandlers={{ click: () => { setSelectedSite(site); setMapCenter([site.lat, site.lng]) } }}>
                   <Popup>
                     <div className="space-y-1 p-1 text-sm">
-                      <p><strong>Primary Source:</strong> {sourceLabel(site.primary_source)}</p>
-                      <p><strong>Confidence:</strong> {confidenceLabel(site.primary_confidence)}</p>
+                      <p><strong>Location:</strong> {resultTitle(site)}</p>
                       <p><strong>Site Category:</strong> {displayValue(site.category)}</p>
-                      <p><strong>Satellite:</strong> {site.satellite_enabled ? "On" : "Off"}</p>
+                      {site.satellite_enabled && (
+                        <>
+                          <p><strong>Primary Source:</strong> {sourceLabel(site.primary_source)}</p>
+                          <p><strong>Confidence:</strong> {confidenceLabel(site.primary_confidence)}</p>
+                        </>
+                      )}
                     </div>
                   </Popup>
                 </Marker>
@@ -290,17 +343,33 @@ function SiteCategoryContent() {
             </Button>
           </div>
           <div className="w-[28rem] shrink-0 space-y-4 overflow-y-auto border-l border-slate-200 bg-white p-4">
-            <Card>
+            <Card className={cn("border", requestTheme.detailPanel)}>
               <CardHeader className="pb-3"><CardTitle className="text-lg">Request Settings</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between gap-4 rounded-xl border bg-slate-50 p-3">
+                <div className={cn("flex items-center justify-between gap-4 rounded-xl border p-3", requestTheme.detailCard)}>
                   <div>
-                    <Label htmlFor="satellite-toggle" className="font-semibold">Include Satellite Data</Label>
-                    <p className="text-xs text-slate-500">New lookups use satellite data by default.</p>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("h-2.5 w-2.5 rounded-full", requestTheme.dot)} />
+                      <Label htmlFor="satellite-toggle" className="font-semibold">Include Satellite Data</Label>
+                    </div>
+                    <p className={cn("mt-1 text-xs", requestTheme.muted)}>
+                      {includeSatellite
+                        ? "Using source metadata with satellite-enhanced evidence."
+                        : "Using the OSM-only categorize_site endpoint for context-based categorization."}
+                    </p>
                   </div>
-                  <Switch id="satellite-toggle" checked={includeSatellite} onCheckedChange={setIncludeSatellite} />
+                  <Switch
+                    id="satellite-toggle"
+                    checked={includeSatellite}
+                    onCheckedChange={setIncludeSatellite}
+                    className={requestTheme.switch}
+                  />
                 </div>
-                <Button onClick={downloadCSV} disabled={sites.length === 0} className="w-full bg-blue-500 text-white hover:bg-blue-600"><Download className="mr-2 h-4 w-4" />Download CSV</Button>
+                <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-600">
+                  <span>Current mode</span>
+                  <span className={cn("rounded-full px-2.5 py-1 font-semibold", requestTheme.badge)}>{requestTheme.tone}</span>
+                </div>
+                <Button onClick={downloadCSV} disabled={sites.length === 0} className={cn("w-full text-white", includeSatellite ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-600 hover:bg-slate-700")}><Download className="mr-2 h-4 w-4" />Download CSV</Button>
                 <FileUpload onUpload={processLocations} />
               </CardContent>
             </Card>
@@ -332,12 +401,28 @@ function SiteCategoryContent() {
               <CardHeader className="pb-3"><CardTitle className="text-lg">Results</CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {sites.length === 0 ? <p className="text-sm text-slate-500">Click the map, upload a CSV, or paste coordinates to fetch source metadata.</p> : sites.slice().reverse().map((site) => (
-                  <button key={siteKey(site)} type="button" onClick={() => { setSelectedSite(site); setMapCenter([site.lat, site.lng]) }} className={cn("w-full rounded-xl border p-3 text-left transition", selectedKey === siteKey(site) ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:border-blue-200 hover:bg-slate-50")}>
+                  <button
+                    key={siteKey(site)}
+                    type="button"
+                    onClick={() => { setSelectedSite(site); setMapCenter([site.lat, site.lng]) }}
+                    className={cn(
+                      "w-full rounded-xl border p-3 text-left transition",
+                      getModeTheme(site.satellite_enabled).resultCard,
+                      selectedKey === siteKey(site) && getModeTheme(site.satellite_enabled).resultSelected,
+                    )}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-semibold text-slate-900">{sourceLabel(site.primary_source)}</p>
-                        <p className="text-sm text-slate-500">{displayValue(site.area_name)}</p>
-                        <p className="text-xs text-slate-500">Category: {displayValue(site.category)}</p>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("h-2.5 w-2.5 rounded-full", getModeTheme(site.satellite_enabled).dot)} />
+                          <p className="font-semibold text-slate-900">{resultTitle(site)}</p>
+                        </div>
+                        <p className="mt-1 text-sm text-slate-600">Category: {displayValue(site.category)}</p>
+                        {site.satellite_enabled && site.primary_source ? (
+                          <p className="text-xs text-emerald-700">Primary source: {sourceLabel(site.primary_source)}</p>
+                        ) : (
+                          <p className="text-xs text-slate-500">OSM context classification</p>
+                        )}
                       </div>
                     </div>
                     <p className="mt-2 text-xs text-slate-500">{site.lat.toFixed(5)}, {site.lng.toFixed(5)}</p>
@@ -346,51 +431,76 @@ function SiteCategoryContent() {
               </CardContent>
             </Card>
             {selectedSite && (
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-lg">Source Metadata</CardTitle></CardHeader>
+              <Card className={cn("border", selectedTheme.detailPanel)}>
+                <CardHeader className="pb-3"><CardTitle className="text-lg">{selectedSite.satellite_enabled ? "Source Metadata" : "Site Context"}</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="rounded-xl border bg-slate-50 p-4">
+                  <div className={cn("rounded-xl border p-4", selectedTheme.detailCard)}>
                     <div className="flex items-start justify-between gap-3">
-                      <div><p className="text-sm text-slate-500">Primary Source</p><h2 className="text-xl font-bold text-slate-900">{sourceLabel(selectedSite.primary_source)}</h2></div>
-                      <div className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700">{confidenceLabel(selectedSite.primary_confidence)}</div>
+                      <div>
+                        <p className={cn("text-sm", selectedTheme.muted)}>{selectedTheme.tone}</p>
+                        <h2 className="text-xl font-bold text-slate-900">{resultTitle(selectedSite)}</h2>
+                        <p className="mt-1 text-sm text-slate-600">Category: {displayValue(selectedSite.category)}</p>
+                      </div>
+                      <div className={cn("rounded-full px-3 py-1 text-sm font-semibold", selectedTheme.badge)}>
+                        {selectedSite.satellite_enabled
+                          ? confidenceLabel(selectedSite.primary_confidence)
+                          : "OSM Classified"}
+                      </div>
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                      <p><strong>Category:</strong> {displayValue(selectedSite.category)}</p>
-                      <p><strong>Satellite:</strong> {selectedSite.satellite_enabled ? "On" : "Off"}</p>
-                      <p className="col-span-2"><strong>Area:</strong> {displayValue(selectedSite.area_name)}</p>
+                      {selectedSite.satellite_enabled ? (
+                        <p><strong>Primary Source:</strong> {sourceLabel(selectedSite.primary_source)}</p>
+                      ) : (
+                        <p><strong>Primary Source:</strong> Not available in `categorize_site` mode</p>
+                      )}
+                      <p><strong>Mode:</strong> {selectedTheme.tone}</p>
+                      <p className="col-span-2"><strong>Area:</strong> {resultTitle(selectedSite)}</p>
                       <p><strong>Latitude:</strong> {selectedSite.lat.toFixed(6)}</p>
                       <p><strong>Longitude:</strong> {selectedSite.lng.toFixed(6)}</p>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-semibold text-slate-900">Candidate Sources</h3>
-                    {selectedSite.candidate_sources.length === 0 ? <p className="text-sm text-slate-500">No candidate source ranking returned.</p> : selectedSite.candidate_sources.map((item) => (
-                      <div key={`${item.source_type}-${item.confidence}`} className="rounded-xl border p-3">
-                        <div className="mb-2 flex items-center justify-between"><span className="font-medium text-slate-900">{sourceLabel(item.source_type)}</span><span className="text-sm font-semibold text-slate-600">{confidenceLabel(item.confidence)}</span></div>
-                        <div className="h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-blue-500" style={{ width: `${Math.max(item.confidence * 100, 4)}%` }} /></div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-xl border p-3"><p className="text-slate-500">Highway</p><p className="font-medium">{displayValue(selectedSite.site_category?.highway)}</p></div>
-                    <div className="rounded-xl border p-3"><p className="text-slate-500">Land Use</p><p className="font-medium">{displayValue(selectedSite.site_category?.landuse)}</p></div>
-                    <div className="rounded-xl border p-3"><p className="text-slate-500">Natural</p><p className="font-medium">{displayValue(selectedSite.site_category?.natural)}</p></div>
-                    <div className="rounded-xl border p-3"><p className="text-slate-500">Waterway</p><p className="font-medium">{displayValue(selectedSite.site_category?.waterway)}</p></div>
-                  </div>
+                  {selectedSite.satellite_enabled && (
+                    <div className="space-y-2">
+                      <h3 className={cn("text-sm font-semibold", selectedTheme.accentText)}>Candidate Sources</h3>
+                      {selectedSite.candidate_sources.length === 0 ? <p className="text-sm text-slate-500">No candidate source ranking returned.</p> : selectedSite.candidate_sources.map((item) => (
+                        <div key={`${item.source_type}-${item.confidence}`} className="rounded-xl border border-emerald-200 bg-white/80 p-3">
+                          <div className="mb-2 flex items-center justify-between"><span className="font-medium text-slate-900">{sourceLabel(item.source_type)}</span><span className="text-sm font-semibold text-emerald-700">{confidenceLabel(item.confidence)}</span></div>
+                          <div className="h-2 rounded-full bg-emerald-100"><div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.max(item.confidence * 100, 4)}%` }} /></div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {contextFields.length > 0 && (
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      {contextFields.map((field) => (
+                        <div key={field.label} className="rounded-xl border p-3">
+                          <p className="text-slate-500">{field.label}</p>
+                          <p className="font-medium">{field.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="space-y-3">
-                    <div className="rounded-xl border p-3"><p className="mb-2 text-sm font-semibold text-slate-900">Site Reasoning</p>{selectedSite.site_reasoning.length ? selectedSite.site_reasoning.map((item) => <p key={item} className="text-sm text-slate-600">{item}</p>) : <p className="text-sm text-slate-500">No site-only reasoning was returned.</p>}</div>
-                    <div className="rounded-xl border p-3"><div className="mb-2 flex items-center gap-2"><Satellite className="h-4 w-4 text-blue-500" /><p className="text-sm font-semibold text-slate-900">Satellite Reasoning</p></div>{selectedSite.satellite_enabled ? (selectedSite.satellite_reasoning.length ? selectedSite.satellite_reasoning.map((item) => <p key={item} className="text-sm text-slate-600">{item}</p>) : <p className="text-sm text-slate-500">No satellite reasoning was returned.</p>) : <p className="text-sm text-slate-500">Satellite data was disabled for this request.</p>}</div>
+                    {(selectedSite.satellite_enabled || selectedSite.site_reasoning.length > 0) && (
+                      <div className="rounded-xl border p-3"><p className="mb-2 text-sm font-semibold text-slate-900">Site Reasoning</p>{selectedSite.site_reasoning.length ? selectedSite.site_reasoning.map((item) => <p key={item} className="text-sm text-slate-600">{item}</p>) : <p className="text-sm text-slate-500">No site-only reasoning was returned.</p>}</div>
+                    )}
+                    {selectedSite.satellite_enabled && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3"><div className="mb-2 flex items-center gap-2"><Satellite className="h-4 w-4 text-emerald-500" /><p className="text-sm font-semibold text-slate-900">Satellite Reasoning</p></div>{selectedSite.satellite_reasoning.length ? selectedSite.satellite_reasoning.map((item) => <p key={item} className="text-sm text-slate-600">{item}</p>) : <p className="text-sm text-slate-500">No satellite reasoning was returned.</p>}</div>
+                    )}
                     {selectedSite.satellite_error && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><div className="mb-1 flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" />Satellite Error</div><p>{selectedSite.satellite_error}</p></div>}
                   </div>
-                  <div>
-                    <h3 className="mb-2 text-sm font-semibold text-slate-900">Satellite Pollutants Mean</h3>
-                    {selectedSite.satellite_enabled && pollutantEntries.length ? <div className="grid grid-cols-2 gap-3">{pollutantEntries.map(([key, value]) => <div key={key} className="rounded-xl border p-3"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{key}</p><p className="mt-1 text-sm font-medium text-slate-900">{value == null ? "N/A" : value.toFixed(6)}</p></div>)}</div> : <p className="text-sm text-slate-500">{selectedSite.satellite_enabled ? "No pollutant averages were returned." : "Satellite pollutant averages are unavailable because satellite data was disabled."}</p>}
-                  </div>
-                  <div className="rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">
-                    <p><strong>Computed At:</strong> {timeLabel(selectedSite.computed_at_utc)}</p>
-                    <p><strong>Date Range:</strong> {selectedSite.date_range ? `${selectedSite.date_range.start_date} to ${selectedSite.date_range.end_date}` : "N/A"}</p>
+                  {selectedSite.satellite_enabled && (
+                    <div>
+                      <h3 className="mb-2 text-sm font-semibold text-slate-900">Satellite Pollutants Mean</h3>
+                      {pollutantEntries.length ? <div className="grid grid-cols-2 gap-3">{pollutantEntries.map(([key, value]) => <div key={key} className="rounded-xl border border-emerald-200 bg-white/80 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{key}</p><p className="mt-1 text-sm font-medium text-slate-900">{value == null ? "N/A" : value.toFixed(6)}</p></div>)}</div> : <p className="text-sm text-slate-500">No pollutant averages were returned.</p>}
+                    </div>
+                  )}
+                  <div className={cn("rounded-xl border p-4 text-sm text-slate-600", selectedTheme.detailCard)}>
+                    <p><strong>Computed At:</strong> {selectedSite.satellite_enabled ? timeLabel(selectedSite.computed_at_utc) : localComputedAt}</p>
+                    {selectedSite.satellite_enabled && <p><strong>Date Range:</strong> {selectedSite.date_range ? `${selectedSite.date_range.start_date} to ${selectedSite.date_range.end_date}` : "N/A"}</p>}
                     <p><strong>Data Sources:</strong> {selectedSite.data_sources.length ? selectedSite.data_sources.join(", ") : "N/A"}</p>
-                    <p><strong>Model Version:</strong> {displayValue(selectedSite.model_version)}</p> 
+                    {selectedSite.satellite_enabled && <p><strong>Model Version:</strong> {displayValue(selectedSite.model_version)}</p>}
+                    {selectedSite.satellite_enabled && <p><strong>Status:</strong> {displayValue(selectedSite.message)}</p>}
                     <p><strong>Disclaimer:</strong> {displayValue(selectedSite.disclaimer)}</p>
                   </div>
                 </CardContent>
@@ -405,14 +515,14 @@ function SiteCategoryContent() {
             <CardHeader className="pr-12"><CardTitle className="text-xl">How Categorize Works</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm text-slate-600">
               <Button variant="ghost" className="absolute right-2 top-2 text-slate-500 hover:text-slate-700" onClick={() => setShowInfo(false)}><X className="h-5 w-5" /></Button>
-              <p>The page now calls `spatial/source_metadata` and returns inferred primary source, candidate sources, site context, satellite diagnostics, and metadata for each coordinate.</p>
-              <p>`Include Satellite Data` is on by default. Keep it on to combine site context with Sentinel-5P signals, or turn it off to inspect site-based reasoning only.</p>
-              <p>Click the map, upload a CSV with latitude and longitude columns, or paste coordinates manually. Results are stored separately for satellite on and off requests.</p>
+              <p>When satellite is on, the page uses `spatial/source_metadata` and shows source ranking, satellite reasoning, pollutants, and metadata in a green enriched view.</p>
+              <p>When satellite is off, the page switches to `spatial/categorize_site` and shows an OSM-driven grey context-only view based on site category data.</p>
+              <p>Click the map, upload a CSV with latitude and longitude columns, or paste coordinates manually. Results are stored separately for the two modes.</p>
             </CardContent>
           </Card>
         </div>
       )}
-      {loading && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="flex items-center space-x-2 rounded-lg bg-white p-4"><Loader2 className="h-4 w-4 animate-spin" /><span className="font-bold text-slate-700">Processing source metadata...</span></div></div>}
+      {loading && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="flex items-center space-x-2 rounded-lg bg-white p-4"><Loader2 className="h-4 w-4 animate-spin" /><span className="font-bold text-slate-700">{includeSatellite ? "Processing satellite-enriched source metadata..." : "Processing OSM site categorization..."}</span></div></div>}
     </div>
   )
 }

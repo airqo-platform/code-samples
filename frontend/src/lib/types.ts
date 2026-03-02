@@ -97,6 +97,23 @@ export interface SourceMetadataResponse {
   message: string
 }
 
+export interface LegacyCategorizeSiteResponse {
+  site: {
+    OSM_info: string[]
+    "site-category": {
+      area_name: string
+      category: string
+      highway: string | null
+      landuse: string | null
+      latitude: number
+      longitude: number
+      natural: string | null
+      search_radius: number | null
+      waterway: string | null
+    }
+  }
+}
+
 export interface GridOption {
   grid_id: string // Grid identifier
   grid_name: string // Name of the grid
