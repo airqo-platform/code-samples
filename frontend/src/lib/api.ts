@@ -1,7 +1,7 @@
 import type {
   SiteLocatorPayload,
   SiteLocatorResponse,
-  SiteCategoryResponse,
+  SourceMetadataResponse,
   AirQualityReportPayload,
   AirQualityReportResponse,
   Grid,
@@ -22,7 +22,7 @@ async function baseFetch<T>(
   endpoint: string,
   options: {
     method?: string
-    queryParams?: Record<string, string | number>
+    queryParams?: Record<string, string | number | boolean>
     json?: unknown
   } = {},
 ): Promise<T> {
@@ -82,15 +82,37 @@ export async function submitLocations(payload: SiteLocatorPayload): Promise<Site
   }
 }
 
-export async function getSiteCategory(latitude: number, longitude: number): Promise<SiteCategoryResponse> {
+export async function getSiteCategory(
+  latitude: number,
+  longitude: number,
+  includeSatellite = true,
+): Promise<SourceMetadataResponse> {
   try {
-    return await baseFetch<SiteCategoryResponse>("spatial/categorize_site", {
-      queryParams: { latitude, longitude },
+    const response = await baseFetch<unknown>("spatial/source_metadata", {
+      queryParams: { latitude, longitude, include_satellite: includeSatellite },
     })
+    return unwrapSourceMetadataResponse(response)
   } catch (error) {
     console.error("Error getting site category:", error)
     throw error
   }
+}
+
+function unwrapSourceMetadataResponse(payload: unknown): SourceMetadataResponse {
+  let current = payload
+
+  while (Array.isArray(current)) {
+    if (current.length === 0) {
+      throw new Error("Empty source metadata response.")
+    }
+    current = current[0]
+  }
+
+  if (!current || typeof current !== "object" || !("data" in current) || !("message" in current)) {
+    throw new Error("Unexpected source metadata response format.")
+  }
+
+  return current as SourceMetadataResponse
 }
 
 export async function getAirQualityReport(payload: AirQualityReportPayload): Promise<AirQualityReportResponse> {

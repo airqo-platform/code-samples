@@ -44,21 +44,57 @@ export interface ControlPanelProps {
   onMustHaveLocationsChange: (locations: Location[]) => void // Callback for changes in must-have locations
 }
 
-export interface SiteCategoryResponse {
-  site: {
-    OSM_info: string[] // OpenStreetMap info
-    "site-category": {
-      area_name: string
-      category: string
-      highway: string
-      landuse: string
-      latitude: number
-      longitude: number
-      natural: string
-      search_radius: number
-      waterway: string
-    }
+export interface SourceCandidate {
+  confidence: number
+  source_type: string
+}
+
+export interface SourceMetadataSiteCategory {
+  area_name: string | null
+  category: string | null
+  highway: string | null
+  landuse: string | null
+  natural: string | null
+  search_radius: number | null
+  waterway: string | null
+}
+
+export interface SourceMetadataEvidence {
+  osm_debug_info: string[]
+  satellite_error: string | null
+  satellite_pollutants_mean: Record<string, number | null>
+  satellite_reasoning: string[]
+  site_category: SourceMetadataSiteCategory | null
+  site_reasoning: string[]
+}
+
+export interface SourceMetadataDateRange {
+  end_date: string
+  start_date: string
+}
+
+export interface SourceMetadataMetadata {
+  computed_at_utc: string
+  data_sources: string[]
+  date_range: SourceMetadataDateRange
+  disclaimer: string
+  model_version: string
+}
+
+export interface SourceMetadataPayload {
+  candidate_sources: SourceCandidate[]
+  evidence: SourceMetadataEvidence
+  location: {
+    latitude: number
+    longitude: number
   }
+  metadata: SourceMetadataMetadata
+  primary_source: SourceCandidate | null
+}
+
+export interface SourceMetadataResponse {
+  data: SourceMetadataPayload
+  message: string
 }
 
 export interface GridOption {
