@@ -1,7 +1,8 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
+import "leaflet-geosearch/dist/geosearch.css"
 import Papa from "papaparse"
 import { useMap, useMapEvents } from "react-leaflet"
 import { AlertTriangle, ChevronDown, Download, Info, Loader2, Satellite, X } from "lucide-react"
@@ -147,6 +148,31 @@ function SiteCategoryContent() {
   const [loading, setLoading] = useState(false)
   const [mapCenter, setMapCenter] = useState<[number, number]>([1.3733, 32.2903])
   const { toast } = useToast()
+  const sitesRef = useRef<SiteCategoryInfo[]>([])
+  const includeSatelliteRef = useRef(includeSatellite)
+  const sidebarRef = useRef<HTMLDivElement | null>(null)
+  const selectedPreviewRef = useRef<HTMLDivElement | null>(null)
+  const metadataRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    sitesRef.current = sites
+  }, [sites])
+
+  useEffect(() => {
+    includeSatelliteRef.current = includeSatellite
+  }, [includeSatellite])
+
+  useEffect(() => {
+    if (!selectedSite || !sidebarRef.current || !selectedPreviewRef.current) return
+
+    const sidebar = sidebarRef.current
+    const targetTop = Math.max(0, selectedPreviewRef.current.offsetTop - 45) // 45px is an estimated offset for the top padding and title
+
+    sidebar.scrollTo({
+      top: targetTop,
+      behavior: "smooth",
+    })
+  }, [selectedSite])
 
   const exists = (lat: number, lng: number, satelliteEnabled: boolean) =>
     sites.some((site) => site.lat === lat && site.lng === lng && site.satellite_enabled === satelliteEnabled)
@@ -203,12 +229,13 @@ function SiteCategoryContent() {
     }
   }
 
-  const handleMapClick = async (e: { latlng: { lat: number; lng: number } }) => {
-    const { lat, lng } = e.latlng
-    const satelliteEnabled = includeSatellite
+  const selectOrFetchLocation = async (lat: number, lng: number) => {
+    const satelliteEnabled = includeSatelliteRef.current
 
-    if (exists(lat, lng, satelliteEnabled)) {
-      const match = sites.find((site) => site.lat === lat && site.lng === lng && site.satellite_enabled === satelliteEnabled)
+    if (sitesRef.current.some((site) => site.lat === lat && site.lng === lng && site.satellite_enabled === satelliteEnabled)) {
+      const match = sitesRef.current.find(
+        (site) => site.lat === lat && site.lng === lng && site.satellite_enabled === satelliteEnabled,
+      )
       if (match) {
         setSelectedSite(match)
         setMapCenter([lat, lng])
@@ -219,7 +246,11 @@ function SiteCategoryContent() {
     setLoading(true)
     try {
       const nextSite = await fetchSite(lat, lng, satelliteEnabled)
-      setSites((prev) => [...prev, nextSite])
+      setSites((prev) => {
+        const updatedSites = [...prev, nextSite]
+        sitesRef.current = updatedSites
+        return updatedSites
+      })
       setSelectedSite(nextSite)
       setMapCenter([lat, lng])
     } catch (error) {
@@ -228,6 +259,11 @@ function SiteCategoryContent() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleMapClick = async (e: { latlng: { lat: number; lng: number } }) => {
+    const { lat, lng } = e.latlng
+    await selectOrFetchLocation(lat, lng)
   }
 
   const handleManualSubmit = async () => {
@@ -289,6 +325,79 @@ function SiteCategoryContent() {
     return null
   }
 
+  const SearchControl = () => {
+    const map = useMap()
+
+    useEffect(() => {
+      let disposed = false
+      let searchControl: any = null
+      let handleSearchLocation: ((result: any) => Promise<void>) | null = null
+
+      const setupSearch = async () => {
+        const geosearch = await import("leaflet-geosearch")
+        if (disposed) return
+
+        const provider = new geosearch.OpenStreetMapProvider()
+        searchControl = new geosearch.GeoSearchControl({
+          provider,
+          style: "bar",
+          autoComplete: true,
+          autoCompleteDelay: 250,
+          position: "topright",
+        })
+
+        map.addControl(searchControl)
+
+        const searchBar = document.querySelector(".leaflet-control-geosearch form")
+        if (searchBar) {
+          searchBar.classList.add("bg-white", "text-black", "border", "border-gray-300", "rounded-md", "relative")
+
+          const searchContainer = document.querySelector(".leaflet-control-geosearch")
+          if (searchContainer) {
+            searchContainer.classList.add("!right-4", "!top-4", "!left-auto", "!transform-none", "!w-72")
+          }
+
+          const existingIcon = searchBar.querySelector(".categorize-search-icon")
+          if (!existingIcon) {
+            const searchIcon = document.createElement("div")
+            searchIcon.className = "categorize-search-icon absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            searchIcon.innerHTML =
+              '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>'
+            searchBar.appendChild(searchIcon)
+          }
+
+          const searchInput = searchBar.querySelector("input")
+          if (searchInput) {
+            searchInput.setAttribute("placeholder", "Search place name on the map")
+            ;(searchInput as HTMLInputElement).style.paddingLeft = "2.5rem"
+          }
+        }
+
+        handleSearchLocation = async (result: any) => {
+          const location = result?.location
+          if (!location || typeof location.x !== "number" || typeof location.y !== "number") return
+          await selectOrFetchLocation(location.y, location.x)
+        }
+
+        map.on("geosearch/showlocation", handleSearchLocation)
+      }
+
+      void setupSearch()
+
+      return () => {
+        disposed = true
+        if (handleSearchLocation) {
+          map.off("geosearch/showlocation", handleSearchLocation)
+        }
+        if (searchControl) {
+          map.removeControl(searchControl)
+        }
+      }
+    }, [map])
+
+    return null
+  }
+
   const MapController = ({ center }: { center: [number, number] }) => {
     const map = useMap()
     useEffect(() => {
@@ -310,15 +419,48 @@ function SiteCategoryContent() {
         { label: "Waterway", value: selectedSite.site_category?.waterway },
       ].filter((field) => hasMeaningfulContextValue(field.value))
     : []
+  const visibleSites = selectedSite ? sites.slice().reverse().filter((site) => siteKey(site) !== selectedKey) : sites.slice().reverse()
+
+  const renderResultCard = (site: SiteCategoryInfo, pinned = false) => (
+    <button
+      key={`${siteKey(site)}-${pinned ? "pinned" : "list"}`}
+      type="button"
+      onClick={() => { setSelectedSite(site); setMapCenter([site.lat, site.lng]) }}
+      className={cn(
+        "w-full rounded-xl border p-3 text-left transition",
+        getModeTheme(site.satellite_enabled).resultCard,
+        pinned || selectedKey === siteKey(site) ? getModeTheme(site.satellite_enabled).resultSelected : "",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className={cn("h-2.5 w-2.5 rounded-full", getModeTheme(site.satellite_enabled).dot)} />
+            <p className="font-semibold text-slate-900">{resultTitle(site)}</p>
+          </div>
+          <p className="mt-1 text-sm text-slate-600">Category: {displayValue(site.category)}</p>
+          {site.satellite_enabled && site.primary_source ? (
+            <p className="text-xs text-emerald-700">
+              Primary source: {sourceLabel(site.primary_source)} ({confidenceLabel(site.primary_confidence)})
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500">OSM context classification</p>
+          )}
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">{site.lat.toFixed(5)}, {site.lng.toFixed(5)}</p>
+    </button>
+  )
 
   return (
     <div className="min-h-screen bg-slate-50">
       <Suspense fallback={<div>Loading navigation...</div>}><Navigation /></Suspense>
-      <div className="pt-16">
+      <div>
         <div className="flex h-[calc(100vh-4rem)]">
           <div className="relative flex-1">
             <MapContainer center={mapCenter} zoom={7} className="h-full w-full">
               <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <SearchControl />
               <MapEvents />
               <MapController center={mapCenter} />
               {sites.map((site) => (
@@ -342,10 +484,10 @@ function SiteCategoryContent() {
               <Info className="h-5 w-5" />
             </Button>
           </div>
-          <div className="w-[28rem] shrink-0 space-y-4 overflow-y-auto border-l border-slate-200 bg-white p-4">
+          <div ref={sidebarRef} className="w-[28rem] shrink-0 space-y-4 overflow-y-auto border-l border-slate-200 bg-white p-4">
             <Card className={cn("border", requestTheme.detailPanel)}>
-              <CardHeader className="pb-3"><CardTitle className="text-lg">Request Settings</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
+              <CardHeader className="pb-1"><CardTitle className="text-lg">Request Settings</CardTitle></CardHeader>
+              <CardContent className="space-y-4 pt-1">
                 <div className={cn("flex items-center justify-between gap-4 rounded-xl border p-3", requestTheme.detailCard)}>
                   <div>
                     <div className="flex items-center gap-2">
@@ -370,7 +512,7 @@ function SiteCategoryContent() {
                   <span className={cn("rounded-full px-2.5 py-1 font-semibold", requestTheme.badge)}>{requestTheme.tone}</span>
                 </div>
                 <Button onClick={downloadCSV} disabled={sites.length === 0} className={cn("w-full text-white", includeSatellite ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-600 hover:bg-slate-700")}><Download className="mr-2 h-4 w-4" />Download CSV</Button>
-                <FileUpload onUpload={processLocations} />
+                {sites.length === 0 && <FileUpload onUpload={processLocations} />}
               </CardContent>
             </Card>
             <Card>
@@ -400,72 +542,30 @@ function SiteCategoryContent() {
             <Card>
               <CardHeader className="pb-3"><CardTitle className="text-lg">Results</CardTitle></CardHeader>
               <CardContent className="space-y-2">
-                {sites.length === 0 ? <p className="text-sm text-slate-500">Click the map, upload a CSV, or paste coordinates to fetch source metadata.</p> : sites.slice().reverse().map((site) => (
-                  <button
-                    key={siteKey(site)}
-                    type="button"
-                    onClick={() => { setSelectedSite(site); setMapCenter([site.lat, site.lng]) }}
-                    className={cn(
-                      "w-full rounded-xl border p-3 text-left transition",
-                      getModeTheme(site.satellite_enabled).resultCard,
-                      selectedKey === siteKey(site) && getModeTheme(site.satellite_enabled).resultSelected,
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className={cn("h-2.5 w-2.5 rounded-full", getModeTheme(site.satellite_enabled).dot)} />
-                          <p className="font-semibold text-slate-900">{resultTitle(site)}</p>
-                        </div>
-                        <p className="mt-1 text-sm text-slate-600">Category: {displayValue(site.category)}</p>
-                        {site.satellite_enabled && site.primary_source ? (
-                          <p className="text-xs text-emerald-700">Primary source: {sourceLabel(site.primary_source)}</p>
-                        ) : (
-                          <p className="text-xs text-slate-500">OSM context classification</p>
-                        )}
-                      </div>
-                    </div>
-                    <p className="mt-2 text-xs text-slate-500">{site.lat.toFixed(5)}, {site.lng.toFixed(5)}</p>
-                  </button>
-                ))}
+                {sites.length === 0 ? <p className="text-sm text-slate-500">Click the map, upload a CSV, or paste coordinates to fetch source metadata.</p> : visibleSites.map((site) => renderResultCard(site))}
               </CardContent>
             </Card>
             {selectedSite && (
-              <Card className={cn("border", selectedTheme.detailPanel)}>
-                <CardHeader className="pb-3"><CardTitle className="text-lg">{selectedSite.satellite_enabled ? "Source Metadata" : "Site Context"}</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <div className={cn("rounded-xl border p-4", selectedTheme.detailCard)}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className={cn("text-sm", selectedTheme.muted)}>{selectedTheme.tone}</p>
-                        <h2 className="text-xl font-bold text-slate-900">{resultTitle(selectedSite)}</h2>
-                        <p className="mt-1 text-sm text-slate-600">Category: {displayValue(selectedSite.category)}</p>
-                      </div>
-                      <div className={cn("rounded-full px-3 py-1 text-sm font-semibold", selectedTheme.badge)}>
-                        {selectedSite.satellite_enabled
-                          ? confidenceLabel(selectedSite.primary_confidence)
-                          : "OSM Classified"}
-                      </div>
-                    </div>
-                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                      {selectedSite.satellite_enabled ? (
-                        <p><strong>Primary Source:</strong> {sourceLabel(selectedSite.primary_source)}</p>
-                      ) : (
-                        <p><strong>Primary Source:</strong> Not available in `categorize_site` mode</p>
-                      )}
-                      <p><strong>Mode:</strong> {selectedTheme.tone}</p>
-                      <p className="col-span-2"><strong>Area:</strong> {resultTitle(selectedSite)}</p>
-                      <p><strong>Latitude:</strong> {selectedSite.lat.toFixed(6)}</p>
-                      <p><strong>Longitude:</strong> {selectedSite.lng.toFixed(6)}</p>
-                    </div>
-                  </div>
+              <>
+                <div ref={selectedPreviewRef} className="space-y-2">
+                  <p className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Result</p>
+                  {renderResultCard(selectedSite, true)}
+                </div>
+                <Card ref={metadataRef} className={cn("border", selectedTheme.detailPanel)}>
+                <CardHeader className="pb-1"><CardTitle className="text-lg">{selectedSite.satellite_enabled ? "Source Metadata" : "Site Context"}</CardTitle></CardHeader>
+                <CardContent className="space-y-4 pt-1">
                   {selectedSite.satellite_enabled && (
                     <div className="space-y-2">
                       <h3 className={cn("text-sm font-semibold", selectedTheme.accentText)}>Candidate Sources</h3>
                       {selectedSite.candidate_sources.length === 0 ? <p className="text-sm text-slate-500">No candidate source ranking returned.</p> : selectedSite.candidate_sources.map((item) => (
                         <div key={`${item.source_type}-${item.confidence}`} className="rounded-xl border border-emerald-200 bg-white/80 p-3">
-                          <div className="mb-2 flex items-center justify-between"><span className="font-medium text-slate-900">{sourceLabel(item.source_type)}</span><span className="text-sm font-semibold text-emerald-700">{confidenceLabel(item.confidence)}</span></div>
-                          <div className="h-2 rounded-full bg-emerald-100"><div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.max(item.confidence * 100, 4)}%` }} /></div>
+                          <div className="flex items-center gap-3">
+                            <span className="min-w-0 shrink font-medium text-slate-900">{sourceLabel(item.source_type)}</span>
+                            <div className="h-2 flex-1 rounded-full bg-emerald-100">
+                              <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${Math.max(item.confidence * 100, 4)}%` }} />
+                            </div>
+                            <span className="shrink-0 text-sm font-semibold text-emerald-700">{confidenceLabel(item.confidence)}</span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -492,7 +592,7 @@ function SiteCategoryContent() {
                   {selectedSite.satellite_enabled && (
                     <div>
                       <h3 className="mb-2 text-sm font-semibold text-slate-900">Satellite Pollutants Mean</h3>
-                      {pollutantEntries.length ? <div className="grid grid-cols-2 gap-3">{pollutantEntries.map(([key, value]) => <div key={key} className="rounded-xl border border-emerald-200 bg-white/80 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{key}</p><p className="mt-1 text-sm font-medium text-slate-900">{value == null ? "N/A" : value.toFixed(6)}</p></div>)}</div> : <p className="text-sm text-slate-500">No pollutant averages were returned.</p>}
+                      {pollutantEntries.length ? <div className="grid grid-cols-2 gap-3">{pollutantEntries.map(([key, value]) => <div key={key} className="rounded-xl border border-emerald-200 bg-white/80 p-3"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{key}</p><p className="text-sm font-medium text-slate-900">{value == null ? "N/A" : value.toFixed(6)}</p></div></div>)}</div> : <p className="text-sm text-slate-500">No pollutant averages were returned.</p>}
                     </div>
                   )}
                   <div className={cn("rounded-xl border p-4 text-sm text-slate-600", selectedTheme.detailCard)}>
@@ -504,7 +604,8 @@ function SiteCategoryContent() {
                     <p><strong>Disclaimer:</strong> {displayValue(selectedSite.disclaimer)}</p>
                   </div>
                 </CardContent>
-              </Card>
+                </Card>
+              </>
             )}
           </div>
         </div>
