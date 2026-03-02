@@ -334,8 +334,11 @@ function SiteCategoryContent() {
                 {sites.length === 0 ? <p className="text-sm text-slate-500">Click the map, upload a CSV, or paste coordinates to fetch source metadata.</p> : sites.slice().reverse().map((site) => (
                   <button key={siteKey(site)} type="button" onClick={() => { setSelectedSite(site); setMapCenter([site.lat, site.lng]) }} className={cn("w-full rounded-xl border p-3 text-left transition", selectedKey === siteKey(site) ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:border-blue-200 hover:bg-slate-50")}>
                     <div className="flex items-start justify-between gap-3">
-                      <div><p className="font-semibold text-slate-900">{sourceLabel(site.primary_source)}</p><p className="text-sm text-slate-500">{displayValue(site.area_name)}</p></div>
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">Sat {site.satellite_enabled ? "On" : "Off"}</span>
+                      <div>
+                        <p className="font-semibold text-slate-900">{sourceLabel(site.primary_source)}</p>
+                        <p className="text-sm text-slate-500">{displayValue(site.area_name)}</p>
+                        <p className="text-xs text-slate-500">Category: {displayValue(site.category)}</p>
+                      </div>
                     </div>
                     <p className="mt-2 text-xs text-slate-500">{site.lat.toFixed(5)}, {site.lng.toFixed(5)}</p>
                   </button>
