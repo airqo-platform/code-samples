@@ -492,7 +492,9 @@ function SiteCategoryContent() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className={cn("h-2.5 w-2.5 rounded-full", requestTheme.dot)} />
-                      <Label htmlFor="satellite-toggle" className="font-semibold">Include Satellite Data</Label>
+                      <Label htmlFor="satellite-toggle" className="font-semibold">
+                        {includeSatellite ? "Include Satellite Data" : "Using the OSM-only"}
+                      </Label>
                     </div>
                     <p className={cn("mt-1 text-xs", requestTheme.muted)}>
                       {includeSatellite
@@ -599,9 +601,7 @@ function SiteCategoryContent() {
                     <p><strong>Computed At:</strong> {selectedSite.satellite_enabled ? timeLabel(selectedSite.computed_at_utc) : localComputedAt}</p>
                     {selectedSite.satellite_enabled && <p><strong>Date Range:</strong> {selectedSite.date_range ? `${selectedSite.date_range.start_date} to ${selectedSite.date_range.end_date}` : "N/A"}</p>}
                     <p><strong>Data Sources:</strong> {selectedSite.data_sources.length ? selectedSite.data_sources.join(", ") : "N/A"}</p>
-                    {selectedSite.satellite_enabled && <p><strong>Model Version:</strong> {displayValue(selectedSite.model_version)}</p>}
-                    {selectedSite.satellite_enabled && <p><strong>Status:</strong> {displayValue(selectedSite.message)}</p>}
-                    <p><strong>Disclaimer:</strong> {displayValue(selectedSite.disclaimer)}</p>
+                     <p><strong>Disclaimer:</strong> {displayValue(selectedSite.disclaimer)}</p>
                   </div>
                 </CardContent>
                 </Card>
