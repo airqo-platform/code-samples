@@ -207,7 +207,9 @@ const PopupContent: React.FC<{
       </div>
       <div className="text-sm font-medium mb-2">{label}</div>
       <div className="text-lg font-semibold mb-1">{level}</div>
-      <div className="text-sm text-gray-700">PM2.5: {data.pm2_5_prediction?.toFixed(1) ?? "N/A"} ug/m3</div>
+      <div className="text-sm text-gray-700">
+        <Pm25Label />: {data.pm2_5_prediction?.toFixed(1) ?? "N/A"} ug/m3
+      </div>
       <div className="text-xs text-gray-500 mt-2">Updated {timestamp}</div>
     </div>
   )
@@ -617,6 +619,14 @@ const formatForecastMetricWithUnit = (
 const hasForecastMetricValue = (value: number | null | undefined) =>
   typeof value === "number" && Number.isFinite(value)
 
+function Pm25Label() {
+  return (
+    <>
+      PM<sub className="align-sub text-[0.7em] leading-none">2.5</sub>
+    </>
+  )
+}
+
 const normalizeHexColor = (value?: string | null, fallback = "#E4B84A") => {
   const raw = typeof value === "string" ? value.trim() : ""
   if (!raw) return fallback
@@ -998,6 +1008,21 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
     typeof active?.pm2_5 === "number" && Number.isFinite(active.pm2_5)
       ? clampNumber((active.pm2_5 / rangeMaxValue) * 100, 0, 100)
       : null
+  const confidenceRaw =
+    typeof active?.forecast_confidence === "number" && Number.isFinite(active.forecast_confidence)
+      ? active.forecast_confidence
+      : null
+  const confidencePercent =
+    confidenceRaw === null ? null : clampNumber(confidenceRaw <= 1 ? confidenceRaw * 100 : confidenceRaw, 0, 100)
+  const confidenceText = confidencePercent === null ? "N/A" : `${confidencePercent.toFixed(0)}%`
+  const pm25MeanText = formatForecastMetric(active?.pm2_5, 1)
+  const confidenceRangeText =
+    rangeLow !== null && rangeHigh !== null
+      ? `${formatForecastMetric(Math.min(rangeLow, rangeHigh), 1)} - ${formatForecastMetric(
+          Math.max(rangeLow, rangeHigh),
+          1,
+        )} ug/m3`
+      : null
   const metricCards: Array<{ label: string; value: string; Icon: LucideIcon; span?: string }> = []
 
   if (hasForecastMetricValue(active?.air_temperature)) {
@@ -1074,13 +1099,11 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
             </div>
             <div className="grid grid-cols-4 gap-3">
               <div className="min-w-0">
-                <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">PM2.5 mean</div>
-                <div className="mt-1 text-sm font-semibold text-slate-950">{formatForecastMetric(active.pm2_5, 1)}</div>
-                <div className="text-xs font-medium text-slate-500">ug/m3</div>
-                <div className="mt-1 text-xs font-semibold text-slate-700">
-                  {formatForecastMetric(active.forecast_confidence, 0, "%")}
-                  <span className="ml-1 font-medium text-slate-500">confidence</span>
+                <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">
+                  <Pm25Label /> mean
                 </div>
+                <div className="mt-1 text-sm font-semibold text-slate-950">{pm25MeanText}</div>
+                <div className="text-xs font-medium text-slate-500">ug/m3</div>
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Forecast range</div>
@@ -1100,8 +1123,30 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
                 <div className="text-xs font-medium text-slate-500">vs last week</div>
               </div>
             </div>
+            <div className="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">
+                    Forecast confidence
+                  </div>
+                  <div className="mt-0.5 text-xs font-medium text-slate-600">
+                    Chance <Pm25Label /> falls within {confidenceRangeText ?? "the forecast range"}
+                  </div>
+                </div>
+                <div className="text-sm font-semibold text-slate-950">{confidenceText}</div>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${confidencePercent ?? 0}%`,
+                    backgroundColor: activeBadgeStyle.dotColor,
+                  }}
+                />
+              </div>
+            </div>
             {createdAt ? (
-              <div className="text-xs text-slate-500">
+              <div className="text-[11px] font-medium text-slate-200">
                 Updated {createdAt.toLocaleDateString(undefined, { month: "short", day: "numeric" })} at{" "}
                 {createdAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
               </div>
@@ -1112,11 +1157,11 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
 
       {active && metricCards.length ? (
         <div className="rounded-[8px] border border-slate-200 bg-[#F8FAFC] p-4">
-          <div className="grid grid-cols-4 gap-2">
+          <div className="flex flex-wrap gap-2">
             {metricCards.map((metric) => (
               <div
                 key={metric.label}
-                className="min-w-0 rounded-[8px] border border-slate-200 bg-white px-2 py-2"
+                className="min-w-[5rem] max-w-full flex-1 rounded-[8px] border border-slate-200 bg-white px-2 py-2 sm:flex-none"
                 aria-label={`${metric.label}: ${metric.value}`}
                 title={metric.label}
               >
@@ -1126,7 +1171,9 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
                   </span>
                   <span className="sr-only">{metric.label}</span>
                 </div>
-                <div className="mt-1 truncate text-xs font-semibold text-slate-950">{metric.value}</div>
+                <div className="mt-1 whitespace-normal break-words text-xs font-semibold leading-tight text-slate-950">
+                  {metric.value}
+                </div>
               </div>
             ))}
           </div>
@@ -1144,7 +1191,9 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-blue-700">
               <Wind className="h-4 w-4" />
             </span>
-            <span className="text-sm font-semibold text-gray-900">PM2.5 Trend</span>
+            <span className="text-sm font-semibold text-gray-900">
+              <Pm25Label /> Trend
+            </span>
           </div>
           {insightsOpen ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
         </button>
@@ -1165,7 +1214,9 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
                 </div>
               </div>
             ) : null}
-            <div className="text-xs text-gray-500">PM2.5 (ug/m3)</div>
+            <div className="text-xs text-gray-500">
+              <Pm25Label /> (ug/m3)
+            </div>
             <div className="mt-2 h-[170px]">
               {historicalState.isLoading ? (
                 <div className="flex h-full items-center justify-center text-sm text-gray-600">Loading...</div>
@@ -1214,7 +1265,7 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
                       tickFormatter={(v: any) => (typeof v === "number" ? v.toFixed(0) : v)}
                     />
                     <Tooltip
-                      formatter={(v: any) => [`${typeof v === "number" ? v.toFixed(1) : v}`, "PM2.5"]}
+                      formatter={(v: any) => [`${typeof v === "number" ? v.toFixed(1) : v}`, <Pm25Label key="pm25" />]}
                       labelFormatter={(d: any) => {
                         const dt = d instanceof Date ? d : new Date(d)
                         return historicalState.mode === "hourly"
