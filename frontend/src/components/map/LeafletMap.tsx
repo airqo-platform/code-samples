@@ -10,12 +10,29 @@ import L from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
 import "leaflet-geosearch/dist/geosearch.css" 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { ChevronDown, ChevronUp, Wind } from "lucide-react"
+import {
+  CalendarDays,
+  ChevronDown,
+  ChevronUp,
+  CloudRain,
+  Droplets,
+  LoaderCircle,
+  Thermometer,
+  Wind,
+  type LucideIcon,
+} from "lucide-react"
 
 // Use direct URLs for Leaflet marker icons
 const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
 const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
-import { getSatelliteData, getMapNodes, getHeatmapData, getDailyForecast, getSiteHistorical } from "@/services/apiService"
+import {
+  getSatelliteData,
+  getMapNodes,
+  getHeatmapData,
+  getDailyForecastCollection,
+  getSiteHistorical,
+  type DailyForecastResponse,
+} from "@/services/apiService"
 import { MapLayerControl } from "./MapLayerControl"
 
 // Create a custom MapboxProvider class since the import might not work directly
@@ -185,12 +202,14 @@ const PopupContent: React.FC<{
           />
         </div>
         <button className="text-gray-500 hover:text-gray-700" onClick={onClose}>
-          ✕
+          x
         </button>
       </div>
       <div className="text-sm font-medium mb-2">{label}</div>
       <div className="text-lg font-semibold mb-1">{level}</div>
-      <div className="text-sm text-gray-700">PM2.5: {data.pm2_5_prediction?.toFixed(1) ?? "N/A"} µg/m³</div>
+      <div className="text-sm text-gray-700">
+        <Pm25Label />: {data.pm2_5_prediction?.toFixed(1) ?? "N/A"} ug/m3
+      </div>
       <div className="text-xs text-gray-500 mt-2">Updated {timestamp}</div>
     </div>
   )
@@ -207,7 +226,7 @@ const LoadingPopupContent: React.FC<{
         <div className="animate-pulse bg-gray-200 h-full w-full rounded-full" />
       </div>
       <button className="text-gray-500 hover:text-gray-700" onClick={onClose}>
-        ✕
+        x
       </button>
     </div>
     <div className="text-sm font-medium mb-2">{label}</div>
@@ -238,7 +257,7 @@ const ErrorPopupContent: React.FC<{
         />
       </div>
       <button className="text-gray-500 hover:text-gray-700" onClick={onClose}>
-        ✕
+        x
       </button>
     </div>
     <div className="text-sm font-medium mb-2">{label}</div>
@@ -456,15 +475,25 @@ interface LoadingState {
 interface DailyForecastItem {
   time: string
   pm2_5: number | null
+  pm2_5_low?: number | null
+  pm2_5_high?: number | null
+  pm2_5_max?: number | null
+  forecast_confidence?: number | null
+  air_temperature?: number | null
+  relative_humidity?: number | null
+  precipitation_amount?: number | null
+  wind_speed?: number | null
+  wind_direction_compass?: string
   aqi_category?: string
   aqi_color?: string
   aqi_color_name?: string
+  created_at?: string
 }
 
 interface ForecastState {
   isLoading: boolean
   error: string | null
-  forecasts: DailyForecastItem[] | null
+  collection: DailyForecastResponse | null
 }
 
 type HistoricalPoint = { date: Date; pm25: number }
@@ -569,10 +598,122 @@ const LoadingIndicator: React.FC<LoadingState> = ({ isLoading, error }) => {
 }
 
 const parseForecastTime = (time: string) => {
-  // API returns "YYYY-MM-DD HH:mm:ss+00:00" (space instead of "T")
-  const normalized = (time || "").includes(" ") ? time.replace(" ", "T") : time
+  const raw = time || ""
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw.includes(" ") ? raw.replace(" ", "T") : raw
   const dt = new Date(normalized)
   return Number.isNaN(dt.getTime()) ? null : dt
+}
+
+const formatForecastMetric = (value: number | null | undefined, digits = 1, suffix = "") =>
+  typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : "N/A"
+
+const formatForecastMetricWithUnit = (
+  value: number | null | undefined,
+  digits = 1,
+  unit = "",
+) => {
+  const formatted = formatForecastMetric(value, digits)
+  return formatted === "N/A" || !unit ? formatted : `${formatted} ${unit}`
+}
+
+const hasForecastMetricValue = (value: number | null | undefined) =>
+  typeof value === "number" && Number.isFinite(value)
+
+function Pm25Label() {
+  return (
+    <>
+      PM<sub className="align-sub text-[0.7em] leading-none">2.5</sub>
+    </>
+  )
+}
+
+const normalizeHexColor = (value?: string | null, fallback = "#E4B84A") => {
+  const raw = typeof value === "string" ? value.trim() : ""
+  if (!raw) return fallback
+  return raw.startsWith("#") ? raw : `#${raw}`
+}
+
+const hexToRgba = (hex: string, alpha: number) => {
+  const normalized = normalizeHexColor(hex).replace("#", "")
+  const value = normalized.length === 3 ? normalized.split("").map((char) => `${char}${char}`).join("") : normalized
+
+  if (value.length !== 6) return `rgba(228, 184, 74, ${alpha})`
+
+  const r = Number.parseInt(value.slice(0, 2), 16)
+  const g = Number.parseInt(value.slice(2, 4), 16)
+  const b = Number.parseInt(value.slice(4, 6), 16)
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
+
+const getAqiBadgeStyle = (category?: string | null, fallbackColor = "#E4B84A") => {
+  const normalized = (category || "").toLowerCase()
+  const styles: Record<string, { borderColor: string; backgroundColor: string; color: string; dotColor: string }> = {
+    good: {
+      borderColor: "#BBF7D0",
+      backgroundColor: "#F0FDF4",
+      color: "#166534",
+      dotColor: "#22C55E",
+    },
+    moderate: {
+      borderColor: "#FDE68A",
+      backgroundColor: "#FFFBEB",
+      color: "#92400E",
+      dotColor: "#F59E0B",
+    },
+    "unhealthy for sensitive groups": {
+      borderColor: "#FED7AA",
+      backgroundColor: "#FFF7ED",
+      color: "#9A3412",
+      dotColor: "#F97316",
+    },
+    unhealthy: {
+      borderColor: "#FECACA",
+      backgroundColor: "#FEF2F2",
+      color: "#991B1B",
+      dotColor: "#EF4444",
+    },
+    "very unhealthy": {
+      borderColor: "#E9D5FF",
+      backgroundColor: "#FAF5FF",
+      color: "#6B21A8",
+      dotColor: "#A855F7",
+    },
+    hazardous: {
+      borderColor: "#FBCFE8",
+      backgroundColor: "#FDF2F8",
+      color: "#9D174D",
+      dotColor: "#DB2777",
+    },
+  }
+
+  return (
+    styles[normalized] || {
+      borderColor: hexToRgba(fallbackColor, 0.28),
+      backgroundColor: hexToRgba(fallbackColor, 0.1),
+      color: "#334155",
+      dotColor: fallbackColor,
+    }
+  )
+}
+
+const ForecastStatusBadge: React.FC<{ forecastState: ForecastState }> = ({ forecastState }) => {
+  if (!forecastState.isLoading && !forecastState.error) return null
+
+  return (
+    <div className="absolute left-4 top-4 z-[1000] max-w-[260px] rounded-md border border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
+      {forecastState.isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-slate-700">
+          <LoaderCircle className="h-4 w-4 animate-spin text-blue-600" />
+          <span>Loading forecast coverage...</span>
+        </div>
+      ) : forecastState.error ? (
+        <div className="text-sm text-rose-700">{forecastState.error}</div>
+      ) : null}
+    </div>
+  )
 }
 
 const ForecastDayPill: React.FC<{
@@ -581,31 +722,45 @@ const ForecastDayPill: React.FC<{
   onClick: () => void
 }> = ({ item, isActive, onClick }) => {
   const dt = parseForecastTime(item.time)
-  const weekday = dt
-    ? dt.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 1).toUpperCase()
-    : (item.time || "?").slice(0, 1).toUpperCase()
-  const dayNum = dt ? String(dt.getDate()).padStart(2, "0") : "--"
+  const weekday = dt ? dt.toLocaleDateString(undefined, { weekday: "short" }) : (item.time || "?").slice(0, 3)
+  const dayMark = weekday.charAt(0).toUpperCase()
+  const dayNum = dt ? String(dt.getDate()) : "--"
   const imageSrc = getAqiImageByCategory(item.aqi_category)
+  const accentColor = normalizeHexColor(item.aqi_color)
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={[
-        "flex h-[78px] w-[52px] flex-col items-center justify-between rounded-full border px-3 py-2 transition-colors",
-        isActive ? "border-blue-600 bg-blue-600 text-white" : "border-amber-100 bg-white text-gray-700 hover:bg-gray-50",
+        "flex h-[104px] w-[56px] shrink-0 items-center justify-center rounded-[28px] border text-center shadow-sm transition-all duration-200",
+        isActive
+          ? "border-transparent bg-gradient-to-b from-[#3B82F6] to-[#1D4ED8] text-white shadow-[0_10px_24px_rgba(37,99,235,0.28)]"
+          : "bg-white text-slate-700 hover:-translate-y-0.5 hover:shadow-md",
       ].join(" ")}
+      style={isActive ? undefined : { borderColor: "#EBCF90" }}
       aria-label={`Forecast for ${weekday} ${dayNum}`}
     >
-      <div className="text-[11px] font-semibold leading-none">{weekday}</div>
-      <div className={["text-sm font-bold leading-none", isActive ? "text-white" : "text-gray-700"].join(" ")}>
-        {dayNum}
-      </div>
-      <div
-        className={["relative h-5 w-5 rounded-full", isActive ? "bg-white/15" : "bg-amber-50"].join(" ")}
-        title={item.aqi_color_name || item.aqi_category || "Unknown"}
-      >
-        <Image src={imageSrc} alt={item.aqi_category || "Unknown"} fill className="object-contain p-[2px]" />
+      <div className="flex h-full flex-col items-center justify-between px-1 py-3">
+        <div className={["text-[11px] font-semibold leading-none", isActive ? "text-white/90" : "text-slate-500"].join(" ")}>
+          {dayMark}
+        </div>
+        <div className={["text-[23px] font-semibold leading-none", isActive ? "text-white" : "text-slate-900"].join(" ")}>{dayNum}</div>
+        <div className="flex flex-col items-center gap-1">
+          <div
+            className={[
+              "relative flex h-6 w-6 items-center justify-center rounded-full border",
+              isActive ? "border-white/30 bg-white/20" : "bg-[#FFF8E7]",
+            ].join(" ")}
+            style={isActive ? undefined : { borderColor: hexToRgba(accentColor, 0.28) }}
+            title={item.aqi_color_name || item.aqi_category || "Unknown"}
+          >
+            <Image src={imageSrc} alt={item.aqi_category || "Unknown"} fill className="object-contain p-[3px]" />
+          </div>
+          <div className={["text-[10px] font-semibold leading-none", isActive ? "text-white/80" : "text-slate-400"].join(" ")}>
+            {typeof item.pm2_5 === "number" ? item.pm2_5.toFixed(0) : "--"}
+          </div>
+        </div>
       </div>
     </button>
   )
@@ -616,14 +771,44 @@ const ForecastPanel: React.FC<{
   forecastState: ForecastState
   onClose: () => void
 }> = ({ selectedNode, forecastState, onClose }) => {
+  const selectedSiteForecast = useMemo(() => {
+    const siteId = selectedNode?.site_id
+    if (!siteId || !forecastState.collection?.forecasts?.length) return null
+
+    return forecastState.collection.forecasts.find((site) => site.site_details?.site_id === siteId) || null
+  }, [forecastState.collection, selectedNode?.site_id])
+
+  const selectedForecasts = useMemo<DailyForecastItem[] | null>(() => {
+    if (!selectedSiteForecast?.forecasts?.length) return null
+
+    return selectedSiteForecast.forecasts.map((item) => ({
+      time: item.date,
+      pm2_5: typeof item.forecast.pm2_5_mean === "number" ? item.forecast.pm2_5_mean : item.aqi.aqi_value,
+      pm2_5_low: item.forecast.pm2_5_low,
+      pm2_5_high: item.forecast.pm2_5_high,
+      pm2_5_max: item.forecast.pm2_5_max,
+      forecast_confidence: item.forecast.forecast_confidence,
+      air_temperature: item.met.air_temperature,
+      relative_humidity: item.met.relative_humidity,
+      precipitation_amount: item.met.precipitation_amount,
+      wind_speed: item.met.wind_speed,
+      wind_direction_compass: item.met.wind_direction_compass,
+      aqi_category: item.aqi.aqi_category,
+      aqi_color: item.aqi.aqi_color,
+      aqi_color_name: item.aqi.aqi_color_name,
+      created_at: item.created_at,
+    }))
+  }, [selectedSiteForecast])
+
   const title =
+    selectedSiteForecast?.site_details?.site_name ||
     selectedNode?.siteDetails?.name ||
     selectedNode?.siteDetails?.formatted_name ||
     selectedNode?.siteDetails?.location_name ||
     "Select a site"
 
   return (
-    <aside className="flex h-full w-[420px] flex-col border-l bg-white/90 backdrop-blur-xl">
+    <aside className="flex h-full w-[448px] flex-col border-l bg-white/92 backdrop-blur-xl">
       <div className="border-b bg-white/70 backdrop-blur-xl">
         <div className="flex items-start gap-3 px-5 py-4">
           <div className="min-w-0 order-last flex-1">
@@ -638,7 +823,7 @@ const ForecastPanel: React.FC<{
             className="order-first shrink-0 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
             aria-label="Close forecast panel"
           >
-            ×
+            x
           </button>
         </div>
       </div>
@@ -657,52 +842,11 @@ const ForecastPanel: React.FC<{
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {forecastState.error}
           </div>
-        ) : !forecastState.forecasts?.length ? (
+        ) : !selectedForecasts?.length ? (
           <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">No forecast data.</div>
         ) : (
           <div className="space-y-3">
-            <ForecastContent selectedNode={selectedNode} forecasts={forecastState.forecasts} />
-            <div className="hidden">
-              {forecastState.forecasts.map((f) => {
-              const dt = parseForecastTime(f.time)
-              const dayLabel = dt
-                ? dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
-                : f.time
-              const bg = (f.aqi_color || "").replace("#", "")
-              const chipStyle = bg ? { backgroundColor: `#${bg}` } : undefined
-              const imageSrc = getAqiImageByCategory(f.aqi_category)
-
-              return (
-                <div key={`${f.time}-${f.aqi_category}`} className="rounded-2xl border border-gray-200 bg-white p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-gray-900">{dayLabel}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span
-                          className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium text-white"
-                          style={chipStyle}
-                          title={f.aqi_color_name || f.aqi_category}
-                        >
-                          <span className="relative h-5 w-5">
-                            <Image src={imageSrc} alt={f.aqi_category || "Unknown"} fill className="object-contain" />
-                          </span>
-                          <span className="truncate">{f.aqi_category || "Unknown"}</span>
-                        </span>
-                        <span className="text-xs text-gray-500">{dt ? dt.toLocaleTimeString() : null}</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-gray-500">PM2.5</div>
-                      <div className="text-lg font-semibold text-gray-900">
-                        {typeof f.pm2_5 === "number" ? f.pm2_5.toFixed(1) : "—"}
-                      </div>
-                      <div className="text-xs text-gray-500">µg/m³</div>
-                    </div>
-                  </div>
-                </div>
-              )
-              })}
-            </div>
+            <ForecastContent selectedNode={selectedNode} forecasts={selectedForecasts} />
           </div>
         )}
       </div>
@@ -827,14 +971,12 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
     }
   }, [insightsOpen, selectedNode?.site_id])
 
-  const currentWeek = selectedNode?.averages?.weeklyAverages?.currentWeek
-  const previousWeek = selectedNode?.averages?.weeklyAverages?.previousWeek
   const percentChange = selectedNode?.averages?.percentageDifference
 
   const percentText =
     typeof percentChange === "number" && Number.isFinite(percentChange)
       ? `${percentChange > 0 ? "+" : ""}${percentChange.toFixed(1)}%`
-      : "—"
+      : "N/A"
   const percentClass =
     typeof percentChange === "number" && Number.isFinite(percentChange)
       ? percentChange > 0
@@ -847,11 +989,83 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
   const active = forecasts[activeIndex] || forecasts[0]
   const dt = active ? parseForecastTime(active.time) : null
   const activeLabel = dt ? dt.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }) : ""
+  const activeAccentColor = normalizeHexColor(active?.aqi_color)
+  const activeBadgeStyle = getAqiBadgeStyle(active?.aqi_category, activeAccentColor)
+  const createdAt = active?.created_at ? parseForecastTime(active.created_at) : null
+  const rangeLow = typeof active?.pm2_5_low === "number" && Number.isFinite(active.pm2_5_low) ? active.pm2_5_low : null
+  const rangeHigh = typeof active?.pm2_5_high === "number" && Number.isFinite(active.pm2_5_high) ? active.pm2_5_high : null
+  const rangeMaxValue = Math.max(
+    typeof active?.pm2_5_max === "number" && Number.isFinite(active.pm2_5_max) ? active.pm2_5_max : 0,
+    typeof active?.pm2_5 === "number" && Number.isFinite(active.pm2_5) ? active.pm2_5 : 0,
+    rangeHigh ?? 0,
+    10,
+  )
+  const lowPosition = rangeLow === null ? 0 : clampNumber((rangeLow / rangeMaxValue) * 100, 0, 100)
+  const highPosition = rangeHigh === null ? lowPosition : clampNumber((rangeHigh / rangeMaxValue) * 100, 0, 100)
+  const rangeStart = Math.min(lowPosition, highPosition)
+  const rangeWidth = Math.max(Math.abs(highPosition - lowPosition), 6)
+  const meanPosition =
+    typeof active?.pm2_5 === "number" && Number.isFinite(active.pm2_5)
+      ? clampNumber((active.pm2_5 / rangeMaxValue) * 100, 0, 100)
+      : null
+  const confidenceRaw =
+    typeof active?.forecast_confidence === "number" && Number.isFinite(active.forecast_confidence)
+      ? active.forecast_confidence
+      : null
+  const confidencePercent =
+    confidenceRaw === null ? null : clampNumber(confidenceRaw <= 1 ? confidenceRaw * 100 : confidenceRaw, 0, 100)
+  const confidenceText = confidencePercent === null ? "N/A" : `${confidencePercent.toFixed(0)}%`
+  const pm25MeanText = formatForecastMetric(active?.pm2_5, 1)
+  const confidenceRangeText =
+    rangeLow !== null && rangeHigh !== null
+      ? `${formatForecastMetric(Math.min(rangeLow, rangeHigh), 1)} - ${formatForecastMetric(
+          Math.max(rangeLow, rangeHigh),
+          1,
+        )} ug/m3`
+      : null
+  const metricCards: Array<{ label: string; value: string; Icon: LucideIcon; span?: string }> = []
+
+  if (hasForecastMetricValue(active?.air_temperature)) {
+    metricCards.push({
+      label: "Temperature",
+      value: formatForecastMetricWithUnit(active?.air_temperature, 1, "degC"),
+      Icon: Thermometer,
+    })
+  }
+
+  if (hasForecastMetricValue(active?.precipitation_amount)) {
+    metricCards.push({
+      label: "Rain",
+      value: formatForecastMetricWithUnit(active?.precipitation_amount, 1, "mm"),
+      Icon: CloudRain,
+    })
+  }
+
+  if (hasForecastMetricValue(active?.relative_humidity)) {
+    metricCards.push({
+      label: "Humidity",
+      value: formatForecastMetric(active?.relative_humidity, 0, "%"),
+      Icon: Droplets,
+    })
+  }
+
+  if (hasForecastMetricValue(active?.wind_speed)) {
+    metricCards.push({
+      label: "Wind",
+      Icon: Wind,
+      value: `${formatForecastMetric(active?.wind_speed, 1)} m/s${
+        active?.wind_direction_compass ? ` ${active.wind_direction_compass}` : ""
+      }`,
+    })
+  }
 
   return (
     <div className="space-y-5">
       <div>
-        <div className="forecast-strip flex gap-3 overflow-x-auto pb-2">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="text-sm font-semibold text-slate-900">Forecast outlook</div> 
+        </div>
+        <div className="forecast-strip flex gap-3 overflow-x-auto rounded-[8px] bg-[#F6F7FB] px-2 py-3 pb-4">
           {forecasts.slice(0, 14).map((f, idx) => (
             <ForecastDayPill
               key={`${f.time}-${idx}`}
@@ -864,45 +1078,109 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
       </div>
 
       {active ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-4">
-          <div className="text-xs text-gray-500">Selected day</div>
-          <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-            <div className="min-w-0 text-sm font-semibold text-gray-900 sm:truncate">{activeLabel}</div>
-            <div className="sm:text-right">
-              <div className="text-xs text-gray-500">PM₂.₅</div>
-              <div className="whitespace-nowrap text-base font-semibold text-gray-900 sm:text-lg">
-                {typeof active.pm2_5 === "number" ? active.pm2_5.toFixed(1) : "—"}
-                <span className="ml-1 text-xs font-normal text-gray-500">µg/m³</span>
+        <div className="rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                <CalendarDays className="h-3.5 w-3.5" />
+                <span>{activeLabel}</span>
+              </div>
+              <div
+                className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm"
+                style={{
+                  borderColor: activeBadgeStyle.borderColor,
+                  backgroundColor: activeBadgeStyle.backgroundColor,
+                  color: activeBadgeStyle.color,
+                }}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: activeBadgeStyle.dotColor }} />
+                <span>{active.aqi_category || "Unknown"}</span>
               </div>
             </div>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="min-w-0">
+                <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">
+                  <Pm25Label /> mean
+                </div>
+                <div className="mt-1 text-sm font-semibold text-slate-950">{pm25MeanText}</div>
+                <div className="text-xs font-medium text-slate-500">ug/m3</div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Forecast range</div>
+                <div className="mt-1 text-sm font-semibold text-slate-950">
+                  {formatForecastMetric(active.pm2_5_low, 1)} - {formatForecastMetric(active.pm2_5_high, 1)}
+                </div>
+                <div className="text-xs font-medium text-slate-500">ug/m3</div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Peak</div>
+                <div className="mt-1 text-sm font-semibold text-slate-950">{formatForecastMetric(active.pm2_5_max, 1)}</div>
+                <div className="text-xs font-medium text-slate-500">ug/m3</div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Change</div>
+                <div className={["mt-1 text-sm font-semibold", percentClass].join(" ")}>{percentText}</div>
+                <div className="text-xs font-medium text-slate-500">vs last week</div>
+              </div>
+            </div>
+            <div className="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">
+                    Forecast confidence
+                  </div>
+                  <div className="mt-0.5 text-xs font-medium text-slate-600">
+                    Chance <Pm25Label /> falls within {confidenceRangeText ?? "the forecast range"}
+                  </div>
+                </div>
+                <div className="text-sm font-semibold text-slate-950">{confidenceText}</div>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${confidencePercent ?? 0}%`,
+                    backgroundColor: activeBadgeStyle.dotColor,
+                  }}
+                />
+              </div>
+            </div>
+            {createdAt ? (
+              <div className="text-[11px] font-medium text-slate-200">
+                Updated {createdAt.toLocaleDateString(undefined, { month: "short", day: "numeric" })} at{" "}
+                {createdAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-4">
-        <div className="flex flex-col items-start justify-between gap-1 sm:flex-row sm:items-center">
-          <div className="text-sm font-semibold text-gray-900">This week vs last week</div>
-          <div className={["text-sm font-semibold", percentClass].join(" ")}>{percentText}</div>
-        </div>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-xl bg-gray-50 p-3">
-            <div className="text-xs text-gray-500">Last week avg</div>
-            <div className="text-base font-semibold text-gray-900">
-              {typeof previousWeek === "number" && Number.isFinite(previousWeek) ? previousWeek.toFixed(1) : "—"}
-              <span className="ml-1 text-xs font-normal text-gray-500">µg/m³</span>
-            </div>
+      {active && metricCards.length ? (
+        <div className="rounded-[8px] border border-slate-200 bg-[#F8FAFC] p-4">
+          <div className="flex flex-wrap gap-2">
+            {metricCards.map((metric) => (
+              <div
+                key={metric.label}
+                className="min-w-[5rem] max-w-full flex-1 rounded-[8px] border border-slate-200 bg-white px-2 py-2 sm:flex-none"
+                aria-label={`${metric.label}: ${metric.value}`}
+                title={metric.label}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-slate-100 text-slate-600">
+                    <metric.Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  </span>
+                  <span className="sr-only">{metric.label}</span>
+                </div>
+                <div className="mt-1 whitespace-normal break-words text-xs font-semibold leading-tight text-slate-950">
+                  {metric.value}
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="rounded-xl bg-gray-50 p-3">
-            <div className="text-xs text-gray-500">This week avg</div>
-            <div className="text-base font-semibold text-gray-900">
-              {typeof currentWeek === "number" && Number.isFinite(currentWeek) ? currentWeek.toFixed(1) : "—"}
-              <span className="ml-1 text-xs font-normal text-gray-500">µg/m³</span>
-            </div>
-          </div>
         </div>
-      </div>
+      ) : null}
 
-      <div className="rounded-2xl border border-gray-200 bg-white">
+      <div className="rounded-[8px] border border-gray-200 bg-white">
         <button
           type="button"
           onClick={() => setInsightsOpen((v) => !v)}
@@ -913,14 +1191,32 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-50 text-blue-700">
               <Wind className="h-4 w-4" />
             </span>
-            <span className="text-sm font-semibold text-gray-900">PM₂.₅ Trend</span>
+            <span className="text-sm font-semibold text-gray-900">
+              <Pm25Label /> Trend
+            </span>
           </div>
           {insightsOpen ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
         </button>
 
         {insightsOpen ? (
           <div className="border-t px-4 py-4">
-            <div className="text-xs text-gray-500">PM₂.₅ (µg/m³)</div>
+            {historicalState.stats ? (
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <div className="rounded-[8px] bg-slate-50 px-3 py-2">
+                  <div className="text-xs font-medium text-slate-500">7-day avg</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-950">{historicalState.stats.avg.toFixed(1)} ug/m3</div>
+                </div>
+                <div className="rounded-[8px] bg-slate-50 px-3 py-2">
+                  <div className="text-xs font-medium text-slate-500">Observed range</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-950">
+                    {historicalState.stats.min.toFixed(1)} - {historicalState.stats.max.toFixed(1)}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            <div className="text-xs text-gray-500">
+              <Pm25Label /> (ug/m3)
+            </div>
             <div className="mt-2 h-[170px]">
               {historicalState.isLoading ? (
                 <div className="flex h-full items-center justify-center text-sm text-gray-600">Loading...</div>
@@ -969,7 +1265,7 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
                       tickFormatter={(v: any) => (typeof v === "number" ? v.toFixed(0) : v)}
                     />
                     <Tooltip
-                      formatter={(v: any) => [`${typeof v === "number" ? v.toFixed(1) : v}`, "PM2.5"]}
+                      formatter={(v: any) => [`${typeof v === "number" ? v.toFixed(1) : v}`, <Pm25Label key="pm25" />]}
                       labelFormatter={(d: any) => {
                         const dt = d instanceof Date ? d : new Date(d)
                         return historicalState.mode === "hourly"
@@ -1321,7 +1617,7 @@ const MapControls: React.FC<{
 
         // Heatmap toggle button
         const heatmapButton = L.DomUtil.create("button", "", container)
-        heatmapButton.innerHTML = showHeatmaps ? "🗺️ Heatmap ON" : "🗺️ Heatmap OFF"
+        heatmapButton.innerHTML = showHeatmaps ? "Heatmap ON" : "Heatmap OFF"
         heatmapButton.style.border = "none"
         heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"
         heatmapButton.style.fontSize = "13px"
@@ -1340,7 +1636,7 @@ const MapControls: React.FC<{
 
         // Emoji toggle button
         const emojiButton = L.DomUtil.create("button", "", container)
-        emojiButton.innerHTML = showEmojis ? "😷 Emojis ON" : "😷 Emojis OFF"
+        emojiButton.innerHTML = showEmojis ? "Emojis ON" : "Emojis OFF"
         emojiButton.style.border = "none"
         emojiButton.style.background = showEmojis ? "#dcfce7" : "transparent"
         emojiButton.style.fontSize = "13px"
@@ -1359,7 +1655,7 @@ const MapControls: React.FC<{
 
         // Download map view button
         const downloadMapButton = L.DomUtil.create("button", "", container)
-        downloadMapButton.innerHTML = "📸 Capture View"
+        downloadMapButton.innerHTML = "Capture View"
         downloadMapButton.style.border = "none"
         downloadMapButton.style.background = "#f3e8ff"
         downloadMapButton.style.fontSize = "13px"
@@ -1496,32 +1792,32 @@ const Legend: React.FC = () => {
   const pollutantLevels = useMemo(
     () => [
       {
-        range: "0.0µg/m³ - 9.0µg/m³",
+        range: "0.0 ug/m3 - 9.0 ug/m3",
         label: "Air Quality is Good",
         image: GoodAir,
       },
       {
-        range: "9.1µg/m³ - 35.4µg/m³",
+        range: "9.1 ug/m3 - 35.4 ug/m3",
         label: "Air Quality is Moderate",
         image: Moderate,
       },
       {
-        range: "35.5µg/m³ - 55.4µg/m³",
+        range: "35.5 ug/m3 - 55.4 ug/m3",
         label: "Air Quality is Unhealthy for Sensitive Groups",
         image: UnhealthySG,
       },
       {
-        range: "55.5µg/m³ - 125.4µg/m³",
+        range: "55.5 ug/m3 - 125.4 ug/m3",
         label: "Air Quality is Unhealthy",
         image: Unhealthy,
       },
       {
-        range: "125.5µg/m³ - 225.4µg/m³",
+        range: "125.5 ug/m3 - 225.4 ug/m3",
         label: "Air Quality is Very Unhealthy",
         image: VeryUnhealthy,
       },
       {
-        range: "225.5+ µg/m³",
+        range: "225.5+ ug/m3",
         label: "Air Quality is Hazardous",
         image: Hazardous,
       },
@@ -1615,7 +1911,7 @@ const LeafletMap: React.FC = () => {
   const [forecastState, setForecastState] = useState<ForecastState>({
     isLoading: false,
     error: null,
-    forecasts: null,
+    collection: null,
   })
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
@@ -1635,34 +1931,30 @@ const LeafletMap: React.FC = () => {
   }
 
   useEffect(() => {
-    const siteId = selectedNode?.site_id
-    if (!siteId) {
-      setForecastState({ isLoading: false, error: null, forecasts: null })
-      return
-    }
-
     let isActive = true
-    setForecastState({ isLoading: true, error: null, forecasts: null })
+    setForecastState((current) =>
+      current.collection ? current : { isLoading: true, error: null, collection: null },
+    )
 
-    getDailyForecast(siteId)
-      .then((forecasts) => {
+    getDailyForecastCollection()
+      .then((collection) => {
         if (!isActive) return
-        if (!forecasts?.length) {
-          setForecastState({ isLoading: false, error: "No forecast returned for this site.", forecasts: null })
+        if (!collection?.forecasts?.length) {
+          setForecastState({ isLoading: false, error: "No forecast coverage was returned.", collection: null })
           return
         }
-        setForecastState({ isLoading: false, error: null, forecasts: forecasts as DailyForecastItem[] })
+        setForecastState({ isLoading: false, error: null, collection })
       })
       .catch((error) => {
         if (!isActive) return
         console.error(error)
-        setForecastState({ isLoading: false, error: "Failed to load forecast.", forecasts: null })
+        setForecastState({ isLoading: false, error: "Failed to load forecast coverage.", collection: null })
       })
 
     return () => {
       isActive = false
     }
-  }, [selectedNode?.site_id])
+  }, [])
 
   const isPanelOpen = !!selectedNode
 
@@ -1671,6 +1963,7 @@ const LeafletMap: React.FC = () => {
       <div className="flex h-full w-full">
         <div className="relative flex-1">
           <LoadingIndicator isLoading={loadingState.isLoading} error={loadingState.error} />
+          <ForecastStatusBadge forecastState={forecastState} />
           <MapContainer center={defaultCenter} zoom={defaultZoom} style={{ height: "100%", width: "100%" }}>
             <TileLayer
               url={mapStyles[initialMapStyle as keyof typeof mapStyles]}
@@ -1696,7 +1989,7 @@ const LeafletMap: React.FC = () => {
         <div
           className={[
             "h-full overflow-hidden transition-[width] duration-300 ease-out",
-            isPanelOpen ? "w-[420px]" : "w-0",
+            isPanelOpen ? "w-[448px]" : "w-0",
           ].join(" ")}
           aria-hidden={!isPanelOpen}
         >
@@ -1722,3 +2015,4 @@ const getCustomIcon = (aqiCategory: string) => {
 }
 
 export default LeafletMap
+
