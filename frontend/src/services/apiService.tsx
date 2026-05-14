@@ -7,17 +7,9 @@ const removeTrailingSlash = (url: string): string => {
 
 const apiToken = process.env.NEXT_PUBLIC_API_TOKEN
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || ""
-const BASE_URL_API = process.env.NEXT_PUBLIC_AIRQO_API_URL || ""
 // Axios instance with a base URL and default headers
 const apiService = axios.create({
   baseURL: removeTrailingSlash(BASE_URL),
-  headers: {
-    "Content-Type": "application/json",
-  },
-})
-
-const apiServiceApi = axios.create({
-  baseURL: removeTrailingSlash(BASE_URL_API),
   headers: {
     "Content-Type": "application/json",
   },
@@ -212,7 +204,7 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await apiServiceApi.get("/spatial/heatmaps", {
+      const response = await apiService.get("/spatial/heatmaps", {
         params: {
           token: apiToken,
         },
@@ -260,7 +252,7 @@ const unwrapForecastPayload = (value: any): any => {
 
 export const getDailyForecastCollection = async (): Promise<DailyForecastResponse | null> => {
   try {
-    const response = await apiServiceApi.get("/predict/daily-forecasting", {
+    const response = await apiService.get("/predict/daily-forecasting", {
       params: apiToken ? { token: apiToken } : undefined,
     })
 
