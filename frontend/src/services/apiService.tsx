@@ -7,7 +7,6 @@ const removeTrailingSlash = (url: string): string => {
 
 const apiToken = process.env.NEXT_PUBLIC_API_TOKEN
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || ""
-const BASE_URL_API = process.env.NEXT_PUBLIC_AIRQO_API_URL || ""
 // Axios instance with a base URL and default headers
 const apiService = axios.create({
   baseURL: removeTrailingSlash(BASE_URL),
@@ -16,12 +15,6 @@ const apiService = axios.create({
   },
 })
 
-const apiServiceApi = axios.create({
-  baseURL: removeTrailingSlash(BASE_URL_API),
-  headers: {
-    "Content-Type": "application/json",
-  },
-})
 // Interface for health tip
 interface HealthTip {
   title?: string
@@ -76,12 +69,65 @@ interface HeatmapData {
   message: string
 }
 
-interface DailyForecastItem {
-  time: string
-  pm2_5: number | null
+export interface DailyForecastValues {
+  pm2_5_mean: number | null
+  pm2_5_low: number | null
+  pm2_5_high: number | null
+  pm2_5_min: number | null
+  pm2_5_max: number | null
+  forecast_confidence: number | null
+}
+
+export interface DailyForecastAqi {
+  aqi_value: number | null
   aqi_category?: string
   aqi_color?: string
   aqi_color_name?: string
+}
+
+export interface DailyForecastMet {
+  air_temperature: number | null
+  relative_humidity: number | null
+  air_pressure_at_sea_level: number | null
+  precipitation_amount: number | null
+  cloud_area_fraction: number | null
+  wind_speed: number | null
+  wind_from_direction: number | null
+  wind_direction_compass?: string
+}
+
+export interface DailyForecastEntry {
+  date: string
+  created_at?: string
+  forecast: DailyForecastValues
+  aqi: DailyForecastAqi
+  met: DailyForecastMet
+}
+
+export interface DailyForecastSiteDetails {
+  site_id: string
+  site_name: string
+  site_latitude: number
+  site_longitude: number
+}
+
+export interface DailyForecastSite {
+  site_details: DailyForecastSiteDetails
+  start_date: string
+  end_date: string
+  days: number
+  total: number
+  forecasts: DailyForecastEntry[]
+}
+
+export interface DailyForecastResponse {
+  start_date: string
+  end_date: string
+  days: number
+  total: number
+  units?: Record<string, string>
+  descriptions?: Record<string, string>
+  forecasts: DailyForecastSite[]
 }
 
 interface SiteHistoricalItem {
@@ -158,7 +204,7 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await apiServiceApi.get("/spatial/heatmaps", {
+      const response = await apiService.get("/spatial/heatmaps", {
         params: {
           token: apiToken,
         },
@@ -190,30 +236,47 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
   return null;
 }
 
-export const getDailyForecast = async (siteId: string): Promise<DailyForecastItem[] | null> => {
+const unwrapForecastPayload = (value: any): any => {
+  let current = value
+
+  for (let i = 0; i < 6; i++) {
+    if (Array.isArray(current) && current.length === 1) {
+      current = current[0]
+      continue
+    }
+    break
+  }
+
+  return current
+}
+
+export const getDailyForecastCollection = async (): Promise<DailyForecastResponse | null> => {
   try {
-    const response = await apiService.get("/predict/daily-forecast", {
-      params: {
-        site_id: siteId,
-        token: apiToken,
-      },
+    const response = await apiService.get("/predict/daily-forecasting", {
+      params: apiToken ? { token: apiToken } : undefined,
     })
 
-    const data = response.data
+    const payload = unwrapForecastPayload(response.data)
+    const data = payload?.data ? unwrapForecastPayload(payload.data) : payload
 
-    if (Array.isArray(data)) {
-      const first = data[0]
-      if (first && Array.isArray(first.forecasts)) return first.forecasts
-      if (data.every((x) => x && typeof x === "object" && "time" in x)) return data as DailyForecastItem[]
-    }
-
-    if (data && typeof data === "object" && Array.isArray((data as any).forecasts)) {
-      return (data as any).forecasts as DailyForecastItem[]
+    if (data && typeof data === "object" && Array.isArray((data as DailyForecastResponse).forecasts)) {
+      return data as DailyForecastResponse
     }
 
     return null
   } catch (error) {
-    console.error("Error fetching daily forecast:", error)
+    console.error("Error fetching daily forecast collection:", error)
+    return null
+  }
+}
+
+export const getDailyForecast = async (siteId: string): Promise<DailyForecastSite | null> => {
+  try {
+    const collection = await getDailyForecastCollection()
+    if (!collection?.forecasts?.length) return null
+    return collection.forecasts.find((site) => site.site_details?.site_id === siteId) || null
+  } catch (error) {
+    console.error("Error fetching site daily forecast:", error)
     return null
   }
 }
