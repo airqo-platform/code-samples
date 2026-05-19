@@ -33,7 +33,18 @@ import {
   getSiteHistorical,
   type DailyForecastResponse,
 } from "@/services/apiService"
+import {
+  isBrowserApiCacheFresh,
+  readBrowserApiCache,
+  writeBrowserApiCache,
+  type BrowserApiCacheEntry,
+} from "@/lib/browserApiCache"
 import { MapLayerControl } from "./MapLayerControl"
+
+const MAP_NODES_CACHE_KEY = "map-nodes"
+const MAP_HEATMAPS_CACHE_KEY = "map-heatmaps"
+const MAP_FORECAST_CACHE_KEY = "map-daily-forecast"
+const MAP_API_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 // Create a custom MapboxProvider class since the import might not work directly
 class MapboxProvider {
@@ -1341,41 +1352,71 @@ const MapNodes: React.FC<{
   }
 
   useEffect(() => {
+    let isActive = true
+
     const fetchNodes = async () => {
+      let hasUsableCachedNodes = false
+
       try {
         onLoadingChange({ isLoading: true, error: null })
 
+        const cached = await readBrowserApiCache<BrowserApiCacheEntry<MapNode[]>>(MAP_NODES_CACHE_KEY)
+        if (isActive && isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.length) {
+          const validCachedNodes = cached.data.filter(isValidNode)
+          if (validCachedNodes.length) {
+            hasUsableCachedNodes = true
+            setNodes(validCachedNodes)
+            onLoadingChange({ isLoading: false, error: null })
+          }
+        }
+
         const data = await fetchWithRetry(getMapNodes, 3, 2000, 1.5)
+        if (!isActive) return
 
         if (data) {
           const validNodes = data.filter(isValidNode)
           if (validNodes.length === 0) {
-            onLoadingChange({
-              isLoading: false,
-              error: "No valid data points found",
-            })
+            if (!hasUsableCachedNodes) {
+              onLoadingChange({
+                isLoading: false,
+                error: "No valid data points found",
+              })
+            }
             return
           }
           setNodes(validNodes)
+          writeBrowserApiCache(MAP_NODES_CACHE_KEY, data).catch((error) => {
+            console.warn("Unable to cache map nodes:", error)
+          })
           onLoadingChange({ isLoading: false, error: null })
         } else {
-          onLoadingChange({
-            isLoading: false,
-            error: "Failed to load map data",
-          })
+          onLoadingChange(
+            hasUsableCachedNodes
+              ? { isLoading: false, error: null }
+              : {
+                  isLoading: false,
+                  error: "Failed to load map data",
+                },
+          )
         }
       } catch (error) {
+        if (!isActive) return
         console.error("Error fetching nodes:", error)
-        onLoadingChange({
-          isLoading: false,
-          error: "Error loading map data",
-        })
+        onLoadingChange(
+          hasUsableCachedNodes
+            ? { isLoading: false, error: null }
+            : {
+                isLoading: false,
+                error: "Error loading map data",
+              },
+        )
       }
     }
 
     fetchNodes()
 
     return () => {
+      isActive = false
       markersRef.current.forEach((marker) => marker.remove())
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current)
@@ -1699,31 +1740,59 @@ const HeatmapOverlays: React.FC<{
   const overlaysRef = useRef<L.ImageOverlay[]>([])
 
   useEffect(() => {
+    let isActive = true
+
     const fetchHeatmaps = async () => {
+      let hasUsableCachedHeatmaps = false
+
       try {
         onLoadingChange({ isLoading: true, error: null })
 
+        const cached = await readBrowserApiCache<BrowserApiCacheEntry<HeatmapData[]>>(MAP_HEATMAPS_CACHE_KEY)
+        if (isActive && isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.length) {
+          hasUsableCachedHeatmaps = true
+          setHeatmaps(cached.data)
+          onLoadingChange({ isLoading: false, error: null })
+        }
+
         const data = await fetchWithRetry(getHeatmapData, 3, 2000, 1.5)
+        if (!isActive) return
 
         if (data && Array.isArray(data)) {
           setHeatmaps(data)
+          writeBrowserApiCache(MAP_HEATMAPS_CACHE_KEY, data).catch((error) => {
+            console.warn("Unable to cache heatmap data:", error)
+          })
           onLoadingChange({ isLoading: false, error: null })
         } else {
-          onLoadingChange({
-            isLoading: false,
-            error: "No heatmap data available",
-          })
+          onLoadingChange(
+            hasUsableCachedHeatmaps
+              ? { isLoading: false, error: null }
+              : {
+                  isLoading: false,
+                  error: "No heatmap data available",
+                },
+          )
         }
       } catch (error) {
+        if (!isActive) return
         console.error("Error fetching heatmap data:", error)
-        onLoadingChange({
-          isLoading: false,
-          error: "Error loading heatmap data",
-        })
+        onLoadingChange(
+          hasUsableCachedHeatmaps
+            ? { isLoading: false, error: null }
+            : {
+                isLoading: false,
+                error: "Error loading heatmap data",
+              },
+        )
       }
     }
 
     fetchHeatmaps()
+
+    return () => {
+      isActive = false
+    }
   }, [onLoadingChange])
 
   useEffect(() => {
@@ -1932,24 +2001,43 @@ const LeafletMap: React.FC = () => {
 
   useEffect(() => {
     let isActive = true
-    setForecastState((current) =>
-      current.collection ? current : { isLoading: true, error: null, collection: null },
-    )
+    let hasUsableCachedForecast = false
 
-    getDailyForecastCollection()
-      .then((collection) => {
+    const loadForecast = async () => {
+      setForecastState((current) =>
+        current.collection ? current : { isLoading: true, error: null, collection: null },
+      )
+
+      const cached = await readBrowserApiCache<BrowserApiCacheEntry<DailyForecastResponse>>(MAP_FORECAST_CACHE_KEY)
+      if (isActive && isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.forecasts?.length) {
+        hasUsableCachedForecast = true
+        setForecastState({ isLoading: false, error: null, collection: cached.data })
+      }
+
+      try {
+        const collection = await getDailyForecastCollection()
         if (!isActive) return
         if (!collection?.forecasts?.length) {
-          setForecastState({ isLoading: false, error: "No forecast coverage was returned.", collection: null })
+          if (!hasUsableCachedForecast) {
+            setForecastState({ isLoading: false, error: "No forecast coverage was returned.", collection: null })
+          }
           return
         }
+
         setForecastState({ isLoading: false, error: null, collection })
-      })
-      .catch((error) => {
+        writeBrowserApiCache(MAP_FORECAST_CACHE_KEY, collection).catch((error) => {
+          console.warn("Unable to cache forecast coverage:", error)
+        })
+      } catch (error) {
         if (!isActive) return
         console.error(error)
-        setForecastState({ isLoading: false, error: "Failed to load forecast coverage.", collection: null })
-      })
+        if (!hasUsableCachedForecast) {
+          setForecastState({ isLoading: false, error: "Failed to load forecast coverage.", collection: null })
+        }
+      }
+    }
+
+    loadForecast()
 
     return () => {
       isActive = false
