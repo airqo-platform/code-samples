@@ -876,11 +876,11 @@ const ForecastPanel: React.FC<{
       pm2_5_high: item.forecast.pm2_5_high,
       pm2_5_max: item.forecast.pm2_5_max,
       forecast_confidence: item.forecast.forecast_confidence,
-      air_temperature: item.met.air_temperature,
-      relative_humidity: item.met.relative_humidity,
-      precipitation_amount: item.met.precipitation_amount,
-      wind_speed: item.met.wind_speed,
-      wind_direction_compass: item.met.wind_direction_compass,
+      air_temperature: item.met?.air_temperature ?? null,
+      relative_humidity: item.met?.relative_humidity ?? null,
+      precipitation_amount: item.met?.precipitation_amount ?? null,
+      wind_speed: item.met?.wind_speed ?? null,
+      wind_direction_compass: item.met?.wind_direction_compass,
       aqi_category: item.aqi.aqi_category,
       aqi_color: item.aqi.aqi_color,
       aqi_color_name: item.aqi.aqi_color_name,
@@ -982,6 +982,18 @@ function HourlyForecastPanel({
       .map((item) => {
         const dt = parseForecastTime(item.timestamp)
         if (!dt) return null
+        const met = item.met
+        const hasMetValue =
+          !!met &&
+          [
+            met.air_temperature,
+            met.relative_humidity,
+            met.air_pressure_at_sea_level,
+            met.precipitation_amount,
+            met.cloud_area_fraction,
+            met.wind_speed,
+            met.wind_from_direction,
+          ].some((value) => typeof value === "number" && Number.isFinite(value))
         return {
           time: dt.getTime(),
           label: dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
@@ -998,14 +1010,15 @@ function HourlyForecastPanel({
           confidence: getForecastNumber(item.forecast.forecast_confidence),
           aqiCategory: item.aqi.aqi_category,
           aqiColor: normalizeHexColor(item.aqi.aqi_color),
-          air_temperature: getForecastNumber(item.met.air_temperature),
-          relative_humidity: getForecastNumber(item.met.relative_humidity),
-          precipitation_amount: getForecastNumber(item.met.precipitation_amount),
-          wind_speed: getForecastNumber(item.met.wind_speed),
-          air_pressure_at_sea_level: getForecastNumber(item.met.air_pressure_at_sea_level),
-          cloud_area_fraction: getForecastNumber(item.met.cloud_area_fraction),
-          windDirection: item.met.wind_direction_compass,
-          precipitationBar: getForecastNumber(item.met.precipitation_amount) ?? 0,
+          metAvailable: hasMetValue,
+          air_temperature: getForecastNumber(met?.air_temperature),
+          relative_humidity: getForecastNumber(met?.relative_humidity),
+          precipitation_amount: getForecastNumber(met?.precipitation_amount),
+          wind_speed: getForecastNumber(met?.wind_speed),
+          air_pressure_at_sea_level: getForecastNumber(met?.air_pressure_at_sea_level),
+          cloud_area_fraction: getForecastNumber(met?.cloud_area_fraction),
+          windDirection: met?.wind_direction_compass,
+          precipitationBar: getForecastNumber(met?.precipitation_amount) ?? 0,
         }
       })
       .filter((item): item is NonNullable<typeof item> => !!item)
@@ -1090,9 +1103,10 @@ function HourlyForecastPanel({
     .slice(0, 24)
     .filter((d) => typeof d.wind_speed === "number" || !!d.windDirection)
   const maxRain = Math.max(...dayRows.map((d) => d.precipitationBar), 0)
-  const hasTemperatureOrHumidity = tempValues.length > 0 || humidityValues.length > 0
-  const hasWindData = windRows.length > 0
-  const hasPrecipitationData = precipitationValues.length > 0
+  const hasCompleteMetWindow = dayRows.length > 0 && dayRows.every((d) => d.metAvailable)
+  const hasTemperatureOrHumidity = hasCompleteMetWindow && (tempValues.length > 0 || humidityValues.length > 0)
+  const hasWindData = hasCompleteMetWindow && windRows.length > 0
+  const hasPrecipitationData = hasCompleteMetWindow && precipitationValues.length > 0
 
   const compassDegrees: Record<string, number> = {
     N: 0,

@@ -101,7 +101,7 @@ export interface DailyForecastEntry {
   created_at?: string
   forecast: DailyForecastValues
   aqi: DailyForecastAqi
-  met: DailyForecastMet
+  met: DailyForecastMet | null
 }
 
 export interface DailyForecastSiteDetails {
@@ -142,7 +142,7 @@ export interface HourlyForecastEntry {
   created_at?: string
   forecast: HourlyForecastValues
   aqi: DailyForecastAqi
-  met: DailyForecastMet
+  met: DailyForecastMet | null
 }
 
 export interface HourlyForecastSite {
