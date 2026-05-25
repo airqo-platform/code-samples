@@ -678,6 +678,9 @@ const getDynamicChartAxis = (values: number[]) => {
   }
 }
 
+const getStartOfLocalDayMs = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+
 function Pm25Label() {
   return (
     <>
@@ -1030,8 +1033,22 @@ function HourlyForecastPanel({
       current.push(item)
       grouped.set(item.dateKey, current)
     })
+
+    if (dailyForecasts?.length) {
+      return dailyForecasts
+        .map((forecast) => {
+          const dt = parseForecastTime(forecast.time)
+          if (!dt) return null
+          const dateKey = formatLocalDateKey(dt)
+          const dayStart = getStartOfLocalDayMs(dt)
+          const rows = chartData.filter((item) => item.time >= dayStart).slice(0, 24)
+          return { dateKey, rows: rows.length ? rows : grouped.get(dateKey) || [], dailyForecast: forecast }
+        })
+        .filter((group): group is NonNullable<typeof group> => !!group)
+    }
+
     return Array.from(grouped.entries()).map(([dateKey, rows]) => ({ dateKey, rows }))
-  }, [chartData])
+  }, [chartData, dailyForecasts])
 
   useEffect(() => {
     if (selectedDayIndex > Math.max(dailyGroups.length - 1, 0)) {
@@ -1049,6 +1066,14 @@ function HourlyForecastPanel({
 
   const selectedDay = dailyGroups[selectedDayIndex] || dailyGroups[0]
   const dayRows = selectedDay?.rows || []
+  const selectedDailyForecast =
+    selectedDay && "dailyForecast" in selectedDay
+      ? (selectedDay as { dailyForecast: DailyForecastItem }).dailyForecast
+      : null
+  const selectedDailyForecastDate = selectedDailyForecast ? parseForecastTime(selectedDailyForecast.time) : null
+  const selectedDayLabel = selectedDailyForecastDate
+    ? selectedDailyForecastDate.toLocaleDateString(undefined, { weekday: "long", day: "2-digit", month: "short" })
+    : dayRows[0]?.fullDateLabel || "Hourly breakdown"
   const pm25Values = dayRows.map((d) => d.pm25).filter((v): v is number => typeof v === "number")
   const peak = pm25Values.length ? Math.max(...pm25Values) : null
   const peakPoint = peak === null ? null : dayRows.find((d) => d.pm25 === peak)
@@ -1129,9 +1154,19 @@ function HourlyForecastPanel({
               {dailyGroups.map((group, index) => {
                 const first = group.rows[0]
                 const preview = group.rows.find((item) => item.pm25 !== null) || first
-                const dailyPreview = dailyForecastByDateKey.get(group.dateKey)
+                const dailyPreview =
+                  "dailyForecast" in group
+                    ? (group as { dailyForecast: DailyForecastItem }).dailyForecast
+                    : dailyForecastByDateKey.get(group.dateKey)
+                const dailyPreviewDate = dailyPreview ? parseForecastTime(dailyPreview.time) : null
                 const isSelected = index === selectedDayIndex
                 const previewColor = dailyPreview?.aqi_color || preview?.aqiColor
+                const dayName = dailyPreviewDate
+                  ? dailyPreviewDate.toLocaleDateString(undefined, { weekday: "short" })
+                  : first?.dayName
+                const dayNumber = dailyPreviewDate
+                  ? dailyPreviewDate.toLocaleDateString(undefined, { day: "2-digit" })
+                  : first?.dayNumber
                 return (
                   <button
                     key={group.dateKey}
@@ -1141,10 +1176,14 @@ function HourlyForecastPanel({
                       "flex h-12 min-w-[62px] shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-semibold transition-colors",
                       isSelected ? "border-blue-700 bg-blue-700 text-white" : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
                     ].join(" ")}
-                    title={first?.dayLabel}
+                    title={
+                      dailyPreviewDate
+                        ? dailyPreviewDate.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+                        : first?.dayLabel
+                    }
                   >
-                    <span>{first?.dayName}</span>
-                    <span>{first?.dayNumber}</span>
+                    <span>{dayName}</span>
+                    <span>{dayNumber}</span>
                     <span
                       className="h-2.5 w-2.5 rounded-full"
                       style={{ backgroundColor: normalizeHexColor(previewColor, "#F59E0B") }}
@@ -1157,7 +1196,7 @@ function HourlyForecastPanel({
             <div className="px-3 py-3">
               <div className="mb-2 flex items-end justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-slate-950">{dayRows[0]?.fullDateLabel || "Hourly breakdown"}</div>
+                  <div className="text-sm font-semibold text-slate-950">{selectedDayLabel}</div>
                   <div className="mt-0.5 text-[10px] font-semibold uppercase text-slate-500">
                     PM<sub className="align-sub text-[0.7em]">2.5</sub> hourly concentration
                   </div>
