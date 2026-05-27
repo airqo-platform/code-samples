@@ -9,16 +9,18 @@ import Image from "next/image"
 import L from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
 import "leaflet-geosearch/dist/geosearch.css" 
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import {
   CalendarDays,
   ChevronDown,
   ChevronUp,
+  Clock3,
   CloudRain,
   Droplets,
   LoaderCircle,
   Thermometer,
   Wind,
+  X,
   type LucideIcon,
 } from "lucide-react"
 
@@ -30,8 +32,11 @@ import {
   getMapNodes,
   getHeatmapData,
   getDailyForecastCollection,
+  getHourlyForecastCollection,
   getSiteHistorical,
   type DailyForecastResponse,
+  type HourlyForecastResponse,
+  type HourlyForecastSite,
 } from "@/services/apiService"
 import {
   isBrowserApiCacheFresh,
@@ -39,11 +44,14 @@ import {
   writeBrowserApiCache,
   type BrowserApiCacheEntry,
 } from "@/lib/browserApiCache"
+import { Switch } from "@/ui/switch"
 import { MapLayerControl } from "./MapLayerControl"
 
 const MAP_NODES_CACHE_KEY = "map-nodes"
 const MAP_HEATMAPS_CACHE_KEY = "map-heatmaps"
 const MAP_FORECAST_CACHE_KEY = "map-daily-forecast"
+const MAP_HOURLY_FORECAST_CACHE_KEY = "map-hourly-forecast"
+const MAP_HOURLY_FORECAST_ENABLED_KEY = "map-hourly-forecast-enabled"
 const MAP_API_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 // Create a custom MapboxProvider class since the import might not work directly
@@ -507,6 +515,18 @@ interface ForecastState {
   collection: DailyForecastResponse | null
 }
 
+interface HourlyForecastState {
+  isLoading: boolean
+  error: string | null
+  site: HourlyForecastSite | null
+}
+
+interface HourlyForecastCollectionState {
+  isLoading: boolean
+  error: string | null
+  collection: HourlyForecastResponse | null
+}
+
 type HistoricalPoint = { date: Date; pm25: number }
 
 type HistoricalSeriesPoint = { x: Date; pm25: number }
@@ -609,11 +629,17 @@ const LoadingIndicator: React.FC<LoadingState> = ({ isLoading, error }) => {
 }
 
 const parseForecastTime = (time: string) => {
-  const raw = time || ""
-  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw.includes(" ") ? raw.replace(" ", "T") : raw
+  const raw = (time || "").trim()
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw)
+  const withTimeSeparator = raw.includes(" ") ? raw.replace(" ", "T") : raw
+  const normalized = isDateOnly ? `${raw}T00:00:00` : hasTimezone ? withTimeSeparator : `${withTimeSeparator}Z`
   const dt = new Date(normalized)
   return Number.isNaN(dt.getTime()) ? null : dt
 }
+
+const formatLocalDateKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 
 const formatForecastMetric = (value: number | null | undefined, digits = 1, suffix = "") =>
   typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : "N/A"
@@ -629,6 +655,33 @@ const formatForecastMetricWithUnit = (
 
 const hasForecastMetricValue = (value: number | null | undefined) =>
   typeof value === "number" && Number.isFinite(value)
+
+const getForecastNumber = (value: number | null | undefined) =>
+  typeof value === "number" && Number.isFinite(value) ? value : null
+
+const getDynamicChartAxis = (values: number[]) => {
+  if (!values.length) return { domain: [0, 1] as [number, number], ticks: [0, 1] }
+
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const spread = Math.max(max - min, 1)
+  const padding = spread * 0.15
+  const rawMin = Math.max(0, min - padding)
+  const rawMax = max + padding
+  const magnitude = 10 ** Math.floor(Math.log10(Math.max(rawMax - rawMin, 1)))
+  const step = Math.max(1, Math.ceil((rawMax - rawMin) / 4 / magnitude) * magnitude)
+  const axisMin = Math.max(0, Math.floor(rawMin / step) * step)
+  const axisMax = Math.max(axisMin + step, Math.ceil(rawMax / step) * step)
+  const mid = axisMin + (axisMax - axisMin) / 2
+
+  return {
+    domain: [axisMin, axisMax] as [number, number],
+    ticks: [axisMin, mid, axisMax],
+  }
+}
+
+const getStartOfLocalDayMs = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
 
 function Pm25Label() {
   return (
@@ -780,14 +833,55 @@ const ForecastDayPill: React.FC<{
 const ForecastPanel: React.FC<{
   selectedNode: MapNode | null
   forecastState: ForecastState
+  hourlyForecastState: HourlyForecastCollectionState
+  hourlyForecastEnabled: boolean
+  onHourlyForecastEnabledChange: (enabled: boolean) => void
   onClose: () => void
-}> = ({ selectedNode, forecastState, onClose }) => {
+}> = ({
+  selectedNode,
+  forecastState,
+  hourlyForecastState,
+  hourlyForecastEnabled,
+  onHourlyForecastEnabledChange,
+  onClose,
+}) => {
   const selectedSiteForecast = useMemo(() => {
     const siteId = selectedNode?.site_id
     if (!siteId || !forecastState.collection?.forecasts?.length) return null
 
     return forecastState.collection.forecasts.find((site) => site.site_details?.site_id === siteId) || null
   }, [forecastState.collection, selectedNode?.site_id])
+
+  const hourlyState = useMemo<HourlyForecastState>(() => {
+    const siteId = selectedNode?.site_id
+    if (!siteId || !hourlyForecastEnabled) {
+      return { isLoading: false, error: null, site: null }
+    }
+
+    const site = hourlyForecastState.collection?.forecasts?.find(
+      (forecastSite) => forecastSite.site_details?.site_id === siteId,
+    )
+
+    if (site?.forecasts?.length) {
+      return { isLoading: false, error: null, site }
+    }
+
+    if (hourlyForecastState.isLoading) {
+      return { isLoading: true, error: null, site: null }
+    }
+
+    return {
+      isLoading: false,
+      error: hourlyForecastState.error || "No hourly forecast returned for this site.",
+      site: null,
+    }
+  }, [
+    hourlyForecastEnabled,
+    hourlyForecastState.collection,
+    hourlyForecastState.error,
+    hourlyForecastState.isLoading,
+    selectedNode?.site_id,
+  ])
 
   const selectedForecasts = useMemo<DailyForecastItem[] | null>(() => {
     if (!selectedSiteForecast?.forecasts?.length) return null
@@ -799,11 +893,11 @@ const ForecastPanel: React.FC<{
       pm2_5_high: item.forecast.pm2_5_high,
       pm2_5_max: item.forecast.pm2_5_max,
       forecast_confidence: item.forecast.forecast_confidence,
-      air_temperature: item.met.air_temperature,
-      relative_humidity: item.met.relative_humidity,
-      precipitation_amount: item.met.precipitation_amount,
-      wind_speed: item.met.wind_speed,
-      wind_direction_compass: item.met.wind_direction_compass,
+      air_temperature: item.met?.air_temperature ?? null,
+      relative_humidity: item.met?.relative_humidity ?? null,
+      precipitation_amount: item.met?.precipitation_amount ?? null,
+      wind_speed: item.met?.wind_speed ?? null,
+      wind_direction_compass: item.met?.wind_direction_compass,
       aqi_category: item.aqi.aqi_category,
       aqi_color: item.aqi.aqi_color,
       aqi_color_name: item.aqi.aqi_color_name,
@@ -854,10 +948,23 @@ const ForecastPanel: React.FC<{
             {forecastState.error}
           </div>
         ) : !selectedForecasts?.length ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">No forecast data.</div>
+          <div className="space-y-3">
+            <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">No daily forecast data.</div>
+            <HourlyForecastToggle
+              enabled={hourlyForecastEnabled}
+              onEnabledChange={onHourlyForecastEnabledChange}
+            />
+            {hourlyForecastEnabled ? <HourlyForecastPanel hourlyState={hourlyState} /> : null}
+          </div>
         ) : (
           <div className="space-y-3">
-            <ForecastContent selectedNode={selectedNode} forecasts={selectedForecasts} />
+            <ForecastContent
+              selectedNode={selectedNode}
+              forecasts={selectedForecasts}
+              hourlyState={hourlyState}
+              hourlyForecastEnabled={hourlyForecastEnabled}
+              onHourlyForecastEnabledChange={onHourlyForecastEnabledChange}
+            />
           </div>
         )}
       </div>
@@ -883,9 +990,436 @@ const ForecastPanel: React.FC<{
   )
 }
 
-function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | null; forecasts: DailyForecastItem[] }) {
+function HourlyForecastPanel({
+  hourlyState,
+  dailyForecasts,
+  initialDateKey,
+  onClose,
+}: {
+  hourlyState: HourlyForecastState
+  dailyForecasts?: DailyForecastItem[]
+  initialDateKey?: string
+  onClose?: () => void
+}) {
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0)
+
+  const chartData = useMemo(() => {
+    const rows = hourlyState.site?.forecasts || []
+    return rows
+      .map((item) => {
+        const dt = parseForecastTime(item.timestamp)
+        if (!dt) return null
+        const met = item.met
+        const hasMetValue =
+          !!met &&
+          [
+            met.air_temperature,
+            met.relative_humidity,
+            met.air_pressure_at_sea_level,
+            met.precipitation_amount,
+            met.cloud_area_fraction,
+            met.wind_speed,
+            met.wind_from_direction,
+          ].some((value) => typeof value === "number" && Number.isFinite(value))
+        return {
+          time: dt.getTime(),
+          label: dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+          dayLabel: dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }),
+          dateKey: formatLocalDateKey(dt),
+          hour: dt.getHours(),
+          dayName: dt.toLocaleDateString(undefined, { weekday: "short" }),
+          dayNumber: dt.toLocaleDateString(undefined, { day: "2-digit" }),
+          fullDateLabel: dt.toLocaleDateString(undefined, { weekday: "long", day: "2-digit", month: "short" }),
+          createdAt: item.created_at ? parseForecastTime(item.created_at)?.getTime() ?? null : null,
+          pm25: getForecastNumber(item.forecast.pm2_5_mean),
+          q10: getForecastNumber(item.forecast.pm2_5_q10),
+          q90: getForecastNumber(item.forecast.pm2_5_q90),
+          confidence: getForecastNumber(item.forecast.forecast_confidence),
+          aqiCategory: item.aqi.aqi_category,
+          aqiColor: normalizeHexColor(item.aqi.aqi_color),
+          metAvailable: hasMetValue,
+          air_temperature: getForecastNumber(met?.air_temperature),
+          relative_humidity: getForecastNumber(met?.relative_humidity),
+          precipitation_amount: getForecastNumber(met?.precipitation_amount),
+          wind_speed: getForecastNumber(met?.wind_speed),
+          air_pressure_at_sea_level: getForecastNumber(met?.air_pressure_at_sea_level),
+          cloud_area_fraction: getForecastNumber(met?.cloud_area_fraction),
+          windDirection: met?.wind_direction_compass,
+          precipitationBar: getForecastNumber(met?.precipitation_amount) ?? 0,
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => !!item)
+      .sort((a, b) => a.time - b.time)
+      .slice(0, 168)
+  }, [hourlyState.site])
+
+  const dailyForecastByDateKey = useMemo(() => {
+    const forecastMap = new Map<string, DailyForecastItem>()
+
+    dailyForecasts?.forEach((forecast) => {
+      const dt = parseForecastTime(forecast.time)
+      if (dt) {
+        forecastMap.set(formatLocalDateKey(dt), forecast)
+      }
+    })
+
+    return forecastMap
+  }, [dailyForecasts])
+
+  const dailyGroups = useMemo(() => {
+    const grouped = new Map<string, typeof chartData>()
+    chartData.forEach((item) => {
+      const current = grouped.get(item.dateKey) || []
+      current.push(item)
+      grouped.set(item.dateKey, current)
+    })
+
+    if (dailyForecasts?.length) {
+      return dailyForecasts
+        .map((forecast) => {
+          const dt = parseForecastTime(forecast.time)
+          if (!dt) return null
+          const dateKey = formatLocalDateKey(dt)
+          const dayStart = getStartOfLocalDayMs(dt)
+          const rows = chartData.filter((item) => item.time >= dayStart).slice(0, 24)
+          return { dateKey, rows: rows.length ? rows : grouped.get(dateKey) || [], dailyForecast: forecast }
+        })
+        .filter((group): group is NonNullable<typeof group> => !!group)
+    }
+
+    return Array.from(grouped.entries()).map(([dateKey, rows]) => ({ dateKey, rows }))
+  }, [chartData, dailyForecasts])
+
+  useEffect(() => {
+    if (selectedDayIndex > Math.max(dailyGroups.length - 1, 0)) {
+      setSelectedDayIndex(0)
+    }
+  }, [dailyGroups.length, selectedDayIndex])
+
+  useEffect(() => {
+    if (!initialDateKey || !dailyGroups.length) return
+    const matchingIndex = dailyGroups.findIndex((group) => group.dateKey === initialDateKey)
+    if (matchingIndex >= 0) {
+      setSelectedDayIndex(matchingIndex)
+    }
+  }, [dailyGroups, initialDateKey])
+
+  const selectedDay = dailyGroups[selectedDayIndex] || dailyGroups[0]
+  const dayRows = selectedDay?.rows || []
+  const selectedDailyForecast =
+    selectedDay && "dailyForecast" in selectedDay
+      ? (selectedDay as { dailyForecast: DailyForecastItem }).dailyForecast
+      : null
+  const selectedDailyForecastDate = selectedDailyForecast ? parseForecastTime(selectedDailyForecast.time) : null
+  const selectedDayLabel = selectedDailyForecastDate
+    ? selectedDailyForecastDate.toLocaleDateString(undefined, { weekday: "long", day: "2-digit", month: "short" })
+    : dayRows[0]?.fullDateLabel || "Hourly breakdown"
+  const pm25Values = dayRows.map((d) => d.pm25).filter((v): v is number => typeof v === "number")
+  const peak = pm25Values.length ? Math.max(...pm25Values) : null
+  const peakPoint = peak === null ? null : dayRows.find((d) => d.pm25 === peak)
+  const pm25Axis = getDynamicChartAxis(pm25Values)
+  const tempValues = dayRows.map((d) => d.air_temperature).filter((v): v is number => typeof v === "number")
+  const humidityValues = dayRows.map((d) => d.relative_humidity).filter((v): v is number => typeof v === "number")
+  const precipitationValues = dayRows
+    .map((d) => d.precipitation_amount)
+    .filter((v): v is number => typeof v === "number")
+  const precipitationRows = dayRows
+    .slice(0, 24)
+    .filter((d) => typeof d.precipitation_amount === "number")
+  const windRows = dayRows
+    .slice(0, 24)
+    .filter((d) => typeof d.wind_speed === "number" || !!d.windDirection)
+  const maxRain = Math.max(...dayRows.map((d) => d.precipitationBar), 0)
+  const hasCompleteMetWindow = dayRows.length > 0 && dayRows.every((d) => d.metAvailable)
+  const hasTemperatureOrHumidity = hasCompleteMetWindow && (tempValues.length > 0 || humidityValues.length > 0)
+  const hasWindData = hasCompleteMetWindow && windRows.length > 0
+  const hasPrecipitationData = hasCompleteMetWindow && precipitationValues.length > 0
+
+  const compassDegrees: Record<string, number> = {
+    N: 0,
+    NNE: 22.5,
+    NE: 45,
+    ENE: 67.5,
+    E: 90,
+    ESE: 112.5,
+    SE: 135,
+    SSE: 157.5,
+    S: 180,
+    SSW: 202.5,
+    SW: 225,
+    WSW: 247.5,
+    W: 270,
+    WNW: 292.5,
+    NW: 315,
+    NNW: 337.5,
+  }
+
+  return (
+    <div className="overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] bg-blue-50 text-blue-700">
+              <Clock3 className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-slate-950">Hourly Forecast</div> 
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {hourlyState.isLoading ? <LoaderCircle className="h-4 w-4 animate-spin text-blue-600" /> : null}
+            {onClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[6px] text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Close hourly forecast"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white">
+        {hourlyState.error ? (
+          <div className="m-4 rounded-[8px] border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{hourlyState.error}</div>
+        ) : hourlyState.isLoading ? (
+          <div className="flex h-[220px] items-center justify-center text-sm text-slate-600">Loading hourly forecast...</div>
+        ) : !chartData.length ? (
+          <div className="flex h-[180px] items-center justify-center text-sm text-slate-600">No hourly forecast data.</div>
+        ) : (
+          <div>
+            <div className="forecast-strip flex gap-2 overflow-x-auto border-b border-slate-200 bg-[#F7F8FB] px-3 py-2">
+              {dailyGroups.map((group, index) => {
+                const first = group.rows[0]
+                const preview = group.rows.find((item) => item.pm25 !== null) || first
+                const dailyPreview =
+                  "dailyForecast" in group
+                    ? (group as { dailyForecast: DailyForecastItem }).dailyForecast
+                    : dailyForecastByDateKey.get(group.dateKey)
+                const dailyPreviewDate = dailyPreview ? parseForecastTime(dailyPreview.time) : null
+                const isSelected = index === selectedDayIndex
+                const previewColor = dailyPreview?.aqi_color || preview?.aqiColor
+                const dayName = dailyPreviewDate
+                  ? dailyPreviewDate.toLocaleDateString(undefined, { weekday: "short" })
+                  : first?.dayName
+                const dayNumber = dailyPreviewDate
+                  ? dailyPreviewDate.toLocaleDateString(undefined, { day: "2-digit" })
+                  : first?.dayNumber
+                return (
+                  <button
+                    key={group.dateKey}
+                    type="button"
+                    onClick={() => setSelectedDayIndex(index)}
+                    className={[
+                      "flex h-12 min-w-[62px] shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-semibold transition-colors",
+                      isSelected ? "border-blue-700 bg-blue-700 text-white" : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
+                    ].join(" ")}
+                    title={
+                      dailyPreviewDate
+                        ? dailyPreviewDate.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+                        : first?.dayLabel
+                    }
+                  >
+                    <span>{dayName}</span>
+                    <span>{dayNumber}</span>
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: normalizeHexColor(previewColor, "#F59E0B") }}
+                    />
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="px-3 py-3">
+              <div className="mb-2 flex items-end justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-950">{selectedDayLabel}</div>
+                  <div className="mt-0.5 text-[10px] font-semibold uppercase text-slate-500">
+                    PM<sub className="align-sub text-[0.7em]">2.5</sub> hourly concentration
+                  </div>
+                </div>
+                <div className="text-right text-[10px] font-medium text-slate-500">
+                  <div>Peak: {formatForecastMetricWithUnit(peak, 1, "ug/m3")}</div>
+                  <div>{peakPoint?.label || "N/A"}</div>
+                </div>
+              </div>
+
+              <div className="h-[178px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={dayRows} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="hourlyPm25Fill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.72} />
+                        <stop offset="55%" stopColor="#FDE68A" stopOpacity={0.48} />
+                        <stop offset="100%" stopColor="#86EFAC" stopOpacity={0.18} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="#D7DEE8" strokeDasharray="3 3" vertical />
+                    <XAxis
+                      dataKey="time"
+                      type="number"
+                      scale="time"
+                      domain={["dataMin", "dataMax"]}
+                      tickLine={false}
+                      axisLine={false}
+                      interval="preserveStartEnd"
+                      tick={{ fontSize: 8, fill: "#334155" }}
+                      tickFormatter={(value: any) => new Date(value).toLocaleTimeString(undefined, { hour: "2-digit" })}
+                    />
+                    <YAxis
+                      domain={pm25Axis.domain}
+                      ticks={pm25Axis.ticks}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 8, fill: "#334155" }}
+                    />
+                    <Tooltip
+                      labelFormatter={(value: any) =>
+                        new Date(value).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })
+                      }
+                      formatter={(value: any) =>
+                        typeof value === "number" ? [`${value.toFixed(1)} ug/m3`, "PM2.5"] : [value, "PM2.5"]
+                      }
+                    />
+                    <Area type="monotone" dataKey="pm25" stroke="#F59E0B" fill="url(#hourlyPm25Fill)" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="q10" stroke="#94A3B8" strokeDasharray="3 3" dot={false} strokeWidth={1} />
+                    <Line type="monotone" dataKey="q90" stroke="#94A3B8" strokeDasharray="3 3" dot={false} strokeWidth={1} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              {hasTemperatureOrHumidity ? (
+                <div className="mt-3 h-[94px] border-t border-slate-200 pt-2">
+                  <div className="mb-1 flex items-center justify-between text-[10px] font-semibold text-slate-700">
+                    {tempValues.length ? <span>Temperature (C)</span> : <span />}
+                    {humidityValues.length ? <span>Relative Humidity (%)</span> : null}
+                  </div>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={dayRows} margin={{ top: 2, right: -10, left: -24, bottom: 0 }}>
+                      <XAxis dataKey="time" type="number" scale="time" domain={["dataMin", "dataMax"]} hide />
+                      <YAxis yAxisId="temp" hide domain={tempValues.length ? ["dataMin - 2", "dataMax + 2"] : [0, 40]} />
+                      <YAxis yAxisId="humidity" hide orientation="right" domain={humidityValues.length ? [0, 100] : [0, 100]} />
+                      <Tooltip
+                        labelFormatter={(value: any) =>
+                          new Date(value).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })
+                        }
+                        formatter={(value: any, name: any) => {
+                          if (typeof value !== "number") return [value, name]
+                          return name === "air_temperature" ? [`${value.toFixed(1)} C`, "Temperature"] : [`${value.toFixed(0)}%`, "Humidity"]
+                        }}
+                      />
+                      {humidityValues.length ? (
+                        <Area yAxisId="humidity" type="monotone" dataKey="relative_humidity" stroke="#06B6D4" fill="#BAE6FD" fillOpacity={0.55} dot={false} strokeWidth={1.6} />
+                      ) : null}
+                      {tempValues.length ? (
+                        <Line yAxisId="temp" type="monotone" dataKey="air_temperature" stroke="#EA580C" dot={false} strokeWidth={1.8} />
+                      ) : null}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : null}
+
+              {hasWindData ? (
+                <div className="mt-3 border-t border-slate-200 pt-2">
+                  <div className="mb-1 text-[10px] font-semibold text-slate-700">Wind</div>
+                  <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(windRows.length, 1)}, minmax(10px, 1fr))` }}>
+                    {windRows.map((item) => {
+                      const degrees = compassDegrees[(item.windDirection || "").toUpperCase()] ?? 0
+                      return (
+                        <div key={`wind-${item.time}`} className="flex min-w-0 flex-col items-center gap-0.5 text-[9px] text-slate-600">
+                          <span className="inline-block leading-none text-slate-800" style={{ transform: `rotate(${degrees}deg)` }}>^</span>
+                          {typeof item.wind_speed === "number" ? <span>{item.wind_speed.toFixed(0)}</span> : null}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {hasPrecipitationData ? (
+                <div className="mt-3 border-t border-slate-200 pt-2">
+                  <div className="mb-1 text-[10px] font-semibold text-slate-700">Precipitation</div>
+                  <div className="grid h-8 items-end gap-1 border-b border-slate-200" style={{ gridTemplateColumns: `repeat(${Math.max(precipitationRows.length, 1)}, minmax(10px, 1fr))` }}>
+                    {precipitationRows.map((item) => (
+                      <div
+                        key={`rain-${item.time}`}
+                        className="min-h-[2px] rounded-t bg-blue-500"
+                        style={{ height: `${maxRain > 0 ? Math.max(2, (item.precipitationBar / maxRain) * 28) : 2}px`, opacity: item.precipitationBar > 0 ? 0.8 : 0.25 }}
+                        title={`${item.label}: ${formatForecastMetricWithUnit(item.precipitation_amount, 1, "mm")}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function HourlyForecastToggle({
+  enabled,
+  onEnabledChange,
+}: {
+  enabled: boolean
+  onEnabledChange: (enabled: boolean) => void
+}) {
+  return (
+    <div
+      className={[
+        "rounded-[8px] border px-3 py-2 transition-colors",
+        enabled ? "border-blue-500 bg-blue-600" : "border-slate-200 bg-white",
+      ].join(" ")}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor="hourly-forecast-toggle" className="flex min-w-0 items-center gap-2">
+          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] bg-blue-50 text-blue-700">
+            <Clock3 className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className={["block text-sm font-semibold", enabled ? "text-white" : "text-slate-950"].join(" ")}>
+              Hourly forecast
+            </span>
+            <span className={["block text-xs", enabled ? "text-blue-50" : "text-slate-500"].join(" ")}>
+              {enabled ? "Daily cards open hourly details" : "Daily cards only change the selected day"}
+            </span>
+          </span>
+        </label>
+        <Switch
+          id="hourly-forecast-toggle"
+          checked={enabled}
+          onCheckedChange={onEnabledChange}
+          className="rounded-full border-amber-400 bg-amber-400 focus-visible:ring-emerald-500 data-[state=checked]:border-emerald-500 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:border-amber-400 data-[state=unchecked]:bg-amber-400 [&>span]:rounded-full [&>span]:bg-white [&>span]:shadow-sm"
+          aria-label="Toggle hourly forecast"
+        />
+      </div>
+    </div>
+  )
+}
+
+function ForecastContent({
+  selectedNode,
+  forecasts,
+  hourlyState,
+  hourlyForecastEnabled,
+  onHourlyForecastEnabledChange,
+}: {
+  selectedNode: MapNode | null
+  forecasts: DailyForecastItem[]
+  hourlyState: HourlyForecastState
+  hourlyForecastEnabled: boolean
+  onHourlyForecastEnabledChange: (enabled: boolean) => void
+}) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [insightsOpen, setInsightsOpen] = useState(false)
+  const [hourlyOpen, setHourlyOpen] = useState(false)
+  const [hourlyDateKey, setHourlyDateKey] = useState<string | undefined>(undefined)
   const [historicalState, setHistoricalState] = useState<{
     isLoading: boolean
     error: string | null
@@ -911,6 +1445,8 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
   useEffect(() => {
     setActiveIndex(0)
     setInsightsOpen(false)
+    setHourlyOpen(false)
+    setHourlyDateKey(undefined)
     setHistoricalState({ isLoading: false, error: null, mode: "daily", points: null, stats: null })
   }, [selectedNode?.site_id])
 
@@ -1036,6 +1572,21 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
       : null
   const metricCards: Array<{ label: string; value: string; Icon: LucideIcon; span?: string }> = []
 
+  const openHourlyForecast = (forecast: DailyForecastItem, index: number) => {
+    const forecastDate = parseForecastTime(forecast.time)
+    setActiveIndex(index)
+    setHourlyDateKey(forecastDate ? formatLocalDateKey(forecastDate) : undefined)
+    if (hourlyForecastEnabled) {
+      setHourlyOpen(true)
+    }
+  }
+
+  useEffect(() => {
+    if (!hourlyForecastEnabled) {
+      setHourlyOpen(false)
+    }
+  }, [hourlyForecastEnabled])
+
   if (hasForecastMetricValue(active?.air_temperature)) {
     metricCards.push({
       label: "Temperature",
@@ -1076,17 +1627,36 @@ function ForecastContent({ selectedNode, forecasts }: { selectedNode: MapNode | 
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="text-sm font-semibold text-slate-900">Forecast outlook</div> 
         </div>
+        <div className="mb-3">
+          <HourlyForecastToggle
+            enabled={hourlyForecastEnabled}
+            onEnabledChange={onHourlyForecastEnabledChange}
+          />
+        </div>
         <div className="forecast-strip flex gap-3 overflow-x-auto rounded-[8px] bg-[#F6F7FB] px-2 py-3 pb-4">
           {forecasts.slice(0, 14).map((f, idx) => (
             <ForecastDayPill
               key={`${f.time}-${idx}`}
               item={f}
               isActive={idx === activeIndex}
-              onClick={() => setActiveIndex(idx)}
+              onClick={() => openHourlyForecast(f, idx)}
             />
           ))}
         </div>
       </div>
+
+      {hourlyOpen ? (
+        <div className="fixed inset-0 z-[1300] flex items-end justify-center bg-slate-950/45 p-0 sm:items-center sm:p-4">
+          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-[8px] bg-white shadow-2xl sm:max-w-[430px] sm:rounded-[8px]">
+            <HourlyForecastPanel
+              hourlyState={hourlyState}
+              dailyForecasts={forecasts}
+              initialDateKey={hourlyDateKey}
+              onClose={() => setHourlyOpen(false)}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {active ? (
         <div className="rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm">
@@ -1977,7 +2547,14 @@ const LeafletMap: React.FC = () => {
   const [showEmojis, setShowEmojis] = useState(true)
   const [showHeatmaps, setShowHeatmaps] = useState(false)
   const [selectedNode, setSelectedNode] = useState<MapNode | null>(null)
+  const [hourlyForecastEnabled, setHourlyForecastEnabled] = useState(true)
+  const [hourlyForecastPreferenceLoaded, setHourlyForecastPreferenceLoaded] = useState(false)
   const [forecastState, setForecastState] = useState<ForecastState>({
+    isLoading: false,
+    error: null,
+    collection: null,
+  })
+  const [hourlyForecastState, setHourlyForecastState] = useState<HourlyForecastCollectionState>({
     isLoading: false,
     error: null,
     collection: null,
@@ -2044,6 +2621,71 @@ const LeafletMap: React.FC = () => {
     }
   }, [])
 
+  useEffect(() => {
+    const storedPreference = window.localStorage.getItem(MAP_HOURLY_FORECAST_ENABLED_KEY)
+    if (storedPreference !== null) {
+      setHourlyForecastEnabled(storedPreference !== "false")
+    }
+    setHourlyForecastPreferenceLoaded(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hourlyForecastPreferenceLoaded) return
+    window.localStorage.setItem(MAP_HOURLY_FORECAST_ENABLED_KEY, String(hourlyForecastEnabled))
+  }, [hourlyForecastEnabled, hourlyForecastPreferenceLoaded])
+
+  useEffect(() => {
+    if (!hourlyForecastPreferenceLoaded) return
+
+    if (!hourlyForecastEnabled) {
+      setHourlyForecastState((current) => ({ ...current, isLoading: false, error: null }))
+      return
+    }
+
+    let isActive = true
+    let hasUsableCachedForecast = false
+
+    const loadHourlyForecast = async () => {
+      setHourlyForecastState((current) =>
+        current.collection ? current : { isLoading: true, error: null, collection: null },
+      )
+
+      const cached = await readBrowserApiCache<BrowserApiCacheEntry<HourlyForecastResponse>>(MAP_HOURLY_FORECAST_CACHE_KEY)
+      if (isActive && isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.forecasts?.length) {
+        hasUsableCachedForecast = true
+        setHourlyForecastState({ isLoading: false, error: null, collection: cached.data })
+      }
+
+      try {
+        const collection = await getHourlyForecastCollection()
+        if (!isActive) return
+        if (!collection?.forecasts?.length) {
+          if (!hasUsableCachedForecast) {
+            setHourlyForecastState({ isLoading: false, error: "No hourly forecast coverage was returned.", collection: null })
+          }
+          return
+        }
+
+        setHourlyForecastState({ isLoading: false, error: null, collection })
+        writeBrowserApiCache(MAP_HOURLY_FORECAST_CACHE_KEY, collection).catch((error) => {
+          console.warn("Unable to cache hourly forecast coverage:", error)
+        })
+      } catch (error) {
+        if (!isActive) return
+        console.error(error)
+        if (!hasUsableCachedForecast) {
+          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast coverage.", collection: null })
+        }
+      }
+    }
+
+    loadHourlyForecast()
+
+    return () => {
+      isActive = false
+    }
+  }, [hourlyForecastEnabled, hourlyForecastPreferenceLoaded])
+
   const isPanelOpen = !!selectedNode
 
   return (
@@ -2082,7 +2724,14 @@ const LeafletMap: React.FC = () => {
           aria-hidden={!isPanelOpen}
         >
           {isPanelOpen ? (
-            <ForecastPanel selectedNode={selectedNode} forecastState={forecastState} onClose={() => setSelectedNode(null)} />
+            <ForecastPanel
+              selectedNode={selectedNode}
+              forecastState={forecastState}
+              hourlyForecastState={hourlyForecastState}
+              hourlyForecastEnabled={hourlyForecastEnabled}
+              onHourlyForecastEnabledChange={setHourlyForecastEnabled}
+              onClose={() => setSelectedNode(null)}
+            />
           ) : null}
         </div>
       </div>

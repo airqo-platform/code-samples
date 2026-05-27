@@ -101,7 +101,7 @@ export interface DailyForecastEntry {
   created_at?: string
   forecast: DailyForecastValues
   aqi: DailyForecastAqi
-  met: DailyForecastMet
+  met: DailyForecastMet | null
 }
 
 export interface DailyForecastSiteDetails {
@@ -128,6 +128,43 @@ export interface DailyForecastResponse {
   units?: Record<string, string>
   descriptions?: Record<string, string>
   forecasts: DailyForecastSite[]
+}
+
+export interface HourlyForecastValues {
+  pm2_5_mean: number | null
+  pm2_5_q10: number | null
+  pm2_5_q90: number | null
+  forecast_confidence: number | null
+}
+
+export interface HourlyForecastEntry {
+  timestamp: string
+  created_at?: string
+  forecast: HourlyForecastValues
+  aqi: DailyForecastAqi
+  met: DailyForecastMet | null
+}
+
+export interface HourlyForecastSite {
+  site_details: DailyForecastSiteDetails
+  start_timestamp: string
+  end_timestamp: string
+  hours: number
+  total: number
+  forecasts: HourlyForecastEntry[]
+}
+
+export interface HourlyForecastResponse {
+  start_timestamp: string
+  end_timestamp: string
+  hours: number
+  page?: number
+  limit?: number
+  total_pages?: number
+  total: number
+  units?: Record<string, string>
+  descriptions?: Record<string, string>
+  forecasts: HourlyForecastSite[]
 }
 
 interface SiteHistoricalItem {
@@ -277,6 +314,170 @@ export const getDailyForecast = async (siteId: string): Promise<DailyForecastSit
     return collection.forecasts.find((site) => site.site_details?.site_id === siteId) || null
   } catch (error) {
     console.error("Error fetching site daily forecast:", error)
+    return null
+  }
+}
+
+const getHourlyForecastPage = async (
+  siteId: string | null,
+  page: number,
+  limit: number,
+  hours: number,
+): Promise<HourlyForecastResponse | null> => {
+  const response = await apiService.get("/predict/hourly-forecasting", {
+    params: {
+      ...(apiToken ? { token: apiToken } : {}),
+      ...(siteId ? { site_id: siteId } : {}),
+      page,
+      limit,
+      hours,
+    },
+  })
+
+  const payload = unwrapForecastPayload(response.data)
+  const data = payload?.data ? unwrapForecastPayload(payload.data) : payload
+
+  if (data && typeof data === "object" && Array.isArray((data as HourlyForecastResponse).forecasts)) {
+    return data as HourlyForecastResponse
+  }
+
+  return null
+}
+
+const mergeHourlyForecastCollectionPages = (pages: HourlyForecastResponse[]): HourlyForecastResponse | null => {
+  if (!pages.length) return null
+
+  const firstPage = pages[0]
+  const siteById = new Map<string, HourlyForecastSite>()
+  const forecastMapsBySiteId = new Map<string, Map<string, HourlyForecastEntry>>()
+
+  pages.forEach((page) => {
+    page.forecasts?.forEach((site) => {
+      const siteId = site.site_details?.site_id
+      if (!siteId) return
+
+      if (!siteById.has(siteId)) {
+        siteById.set(siteId, site)
+        forecastMapsBySiteId.set(siteId, new Map<string, HourlyForecastEntry>())
+      }
+
+      const forecastMap = forecastMapsBySiteId.get(siteId)
+      site.forecasts?.forEach((forecast) => {
+        if (forecast?.timestamp) {
+          forecastMap?.set(forecast.timestamp, forecast)
+        }
+      })
+    })
+  })
+
+  const forecasts = Array.from(siteById.entries()).map(([siteId, site]) => {
+    const siteForecasts = Array.from(forecastMapsBySiteId.get(siteId)?.values() || []).sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    )
+
+    return {
+      ...site,
+      start_timestamp: siteForecasts[0]?.timestamp || site.start_timestamp,
+      end_timestamp: siteForecasts[siteForecasts.length - 1]?.timestamp || site.end_timestamp,
+      forecasts: siteForecasts,
+    }
+  })
+
+  return {
+    ...firstPage,
+    forecasts,
+  }
+}
+
+export const getHourlyForecastCollection = async (hours = 168, pageSize = 10): Promise<HourlyForecastResponse | null> => {
+  try {
+    const firstPage = await getHourlyForecastPage(null, 1, pageSize, hours)
+    if (!firstPage) return null
+
+    const totalPages = Math.max(1, firstPage.total_pages || 1)
+    const remainingPages =
+      totalPages > 1
+        ? await Promise.all(
+            Array.from({ length: totalPages - 1 }, (_, index) => getHourlyForecastPage(null, index + 2, pageSize, hours)),
+          )
+        : []
+
+    const pages = [firstPage, ...remainingPages.filter((page): page is HourlyForecastResponse => !!page)]
+    const collection = mergeHourlyForecastCollectionPages(pages)
+
+    if (!collection?.forecasts?.length) return null
+
+    return {
+      ...collection,
+      forecasts: collection.forecasts.map((site) => ({
+        ...site,
+        forecasts: site.forecasts.slice(0, hours),
+      })),
+    }
+  } catch (error) {
+    console.error("Error fetching hourly forecast collection:", error)
+    return null
+  }
+}
+
+const mergeHourlyForecastPages = (siteId: string, pages: HourlyForecastResponse[]): HourlyForecastSite | null => {
+  const sites = pages
+    .flatMap((page) => page.forecasts || [])
+    .filter((site) => site.site_details?.site_id === siteId)
+
+  if (!sites.length) return null
+
+  const firstSite = sites[0]
+  const forecastByTimestamp = new Map<string, HourlyForecastEntry>()
+
+  sites.forEach((site) => {
+    site.forecasts?.forEach((forecast) => {
+      if (forecast?.timestamp) {
+        forecastByTimestamp.set(forecast.timestamp, forecast)
+      }
+    })
+  })
+
+  const forecasts = Array.from(forecastByTimestamp.values()).sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  )
+
+  return {
+    ...firstSite,
+    start_timestamp: forecasts[0]?.timestamp || firstSite.start_timestamp,
+    end_timestamp: forecasts[forecasts.length - 1]?.timestamp || firstSite.end_timestamp,
+    hours: pages[0]?.hours ?? firstSite.hours,
+    total: pages[0]?.total ?? firstSite.total,
+    forecasts,
+  }
+}
+
+export const getHourlyForecast = async (siteId: string, hours = 168, pageSize = 10): Promise<HourlyForecastSite | null> => {
+  try {
+    const firstPage = await getHourlyForecastPage(siteId, 1, pageSize, hours)
+    if (!firstPage) return null
+
+    const totalPages = Math.max(1, firstPage.total_pages || 1)
+    const remainingPages =
+      totalPages > 1
+        ? await Promise.all(
+            Array.from({ length: totalPages - 1 }, (_, index) => getHourlyForecastPage(siteId, index + 2, pageSize, hours)),
+          )
+        : []
+
+    const pages = [firstPage, ...remainingPages.filter((page): page is HourlyForecastResponse => !!page)]
+    const mergedSite = mergeHourlyForecastPages(siteId, pages)
+
+    if (mergedSite?.forecasts?.length) {
+      return {
+        ...mergedSite,
+        forecasts: mergedSite.forecasts.slice(0, hours),
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.error("Error fetching site hourly forecast:", error)
     return null
   }
 }
