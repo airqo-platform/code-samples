@@ -44,12 +44,14 @@ import {
   writeBrowserApiCache,
   type BrowserApiCacheEntry,
 } from "@/lib/browserApiCache"
+import { Switch } from "@/ui/switch"
 import { MapLayerControl } from "./MapLayerControl"
 
 const MAP_NODES_CACHE_KEY = "map-nodes"
 const MAP_HEATMAPS_CACHE_KEY = "map-heatmaps"
 const MAP_FORECAST_CACHE_KEY = "map-daily-forecast"
 const MAP_HOURLY_FORECAST_CACHE_KEY = "map-hourly-forecast"
+const MAP_HOURLY_FORECAST_ENABLED_KEY = "map-hourly-forecast-enabled"
 const MAP_API_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 // Create a custom MapboxProvider class since the import might not work directly
@@ -832,8 +834,17 @@ const ForecastPanel: React.FC<{
   selectedNode: MapNode | null
   forecastState: ForecastState
   hourlyForecastState: HourlyForecastCollectionState
+  hourlyForecastEnabled: boolean
+  onHourlyForecastEnabledChange: (enabled: boolean) => void
   onClose: () => void
-}> = ({ selectedNode, forecastState, hourlyForecastState, onClose }) => {
+}> = ({
+  selectedNode,
+  forecastState,
+  hourlyForecastState,
+  hourlyForecastEnabled,
+  onHourlyForecastEnabledChange,
+  onClose,
+}) => {
   const selectedSiteForecast = useMemo(() => {
     const siteId = selectedNode?.site_id
     if (!siteId || !forecastState.collection?.forecasts?.length) return null
@@ -843,7 +854,7 @@ const ForecastPanel: React.FC<{
 
   const hourlyState = useMemo<HourlyForecastState>(() => {
     const siteId = selectedNode?.site_id
-    if (!siteId) {
+    if (!siteId || !hourlyForecastEnabled) {
       return { isLoading: false, error: null, site: null }
     }
 
@@ -864,7 +875,13 @@ const ForecastPanel: React.FC<{
       error: hourlyForecastState.error || "No hourly forecast returned for this site.",
       site: null,
     }
-  }, [hourlyForecastState.collection, hourlyForecastState.error, hourlyForecastState.isLoading, selectedNode?.site_id])
+  }, [
+    hourlyForecastEnabled,
+    hourlyForecastState.collection,
+    hourlyForecastState.error,
+    hourlyForecastState.isLoading,
+    selectedNode?.site_id,
+  ])
 
   const selectedForecasts = useMemo<DailyForecastItem[] | null>(() => {
     if (!selectedSiteForecast?.forecasts?.length) return null
@@ -933,11 +950,21 @@ const ForecastPanel: React.FC<{
         ) : !selectedForecasts?.length ? (
           <div className="space-y-3">
             <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">No daily forecast data.</div>
-            <HourlyForecastPanel hourlyState={hourlyState} />
+            <HourlyForecastToggle
+              enabled={hourlyForecastEnabled}
+              onEnabledChange={onHourlyForecastEnabledChange}
+            />
+            {hourlyForecastEnabled ? <HourlyForecastPanel hourlyState={hourlyState} /> : null}
           </div>
         ) : (
           <div className="space-y-3">
-            <ForecastContent selectedNode={selectedNode} forecasts={selectedForecasts} hourlyState={hourlyState} />
+            <ForecastContent
+              selectedNode={selectedNode}
+              forecasts={selectedForecasts}
+              hourlyState={hourlyState}
+              hourlyForecastEnabled={hourlyForecastEnabled}
+              onHourlyForecastEnabledChange={onHourlyForecastEnabledChange}
+            />
           </div>
         )}
       </div>
@@ -1336,14 +1363,58 @@ function HourlyForecastPanel({
   )
 }
 
+function HourlyForecastToggle({
+  enabled,
+  onEnabledChange,
+}: {
+  enabled: boolean
+  onEnabledChange: (enabled: boolean) => void
+}) {
+  return (
+    <div
+      className={[
+        "rounded-[8px] border px-3 py-2 transition-colors",
+        enabled ? "border-blue-500 bg-blue-600" : "border-slate-200 bg-white",
+      ].join(" ")}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor="hourly-forecast-toggle" className="flex min-w-0 items-center gap-2">
+          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] bg-blue-50 text-blue-700">
+            <Clock3 className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <span className={["block text-sm font-semibold", enabled ? "text-white" : "text-slate-950"].join(" ")}>
+              Hourly forecast
+            </span>
+            <span className={["block text-xs", enabled ? "text-blue-50" : "text-slate-500"].join(" ")}>
+              {enabled ? "Daily cards open hourly details" : "Daily cards only change the selected day"}
+            </span>
+          </span>
+        </label>
+        <Switch
+          id="hourly-forecast-toggle"
+          checked={enabled}
+          onCheckedChange={onEnabledChange}
+          className="rounded-full border-amber-400 bg-amber-400 focus-visible:ring-emerald-500 data-[state=checked]:border-emerald-500 data-[state=checked]:bg-emerald-500 data-[state=unchecked]:border-amber-400 data-[state=unchecked]:bg-amber-400 [&>span]:rounded-full [&>span]:bg-white [&>span]:shadow-sm"
+          aria-label="Toggle hourly forecast"
+        />
+      </div>
+    </div>
+  )
+}
+
 function ForecastContent({
   selectedNode,
   forecasts,
   hourlyState,
+  hourlyForecastEnabled,
+  onHourlyForecastEnabledChange,
 }: {
   selectedNode: MapNode | null
   forecasts: DailyForecastItem[]
   hourlyState: HourlyForecastState
+  hourlyForecastEnabled: boolean
+  onHourlyForecastEnabledChange: (enabled: boolean) => void
 }) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [insightsOpen, setInsightsOpen] = useState(false)
@@ -1505,8 +1576,16 @@ function ForecastContent({
     const forecastDate = parseForecastTime(forecast.time)
     setActiveIndex(index)
     setHourlyDateKey(forecastDate ? formatLocalDateKey(forecastDate) : undefined)
-    setHourlyOpen(true)
+    if (hourlyForecastEnabled) {
+      setHourlyOpen(true)
+    }
   }
+
+  useEffect(() => {
+    if (!hourlyForecastEnabled) {
+      setHourlyOpen(false)
+    }
+  }, [hourlyForecastEnabled])
 
   if (hasForecastMetricValue(active?.air_temperature)) {
     metricCards.push({
@@ -1547,6 +1626,12 @@ function ForecastContent({
       <div>
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="text-sm font-semibold text-slate-900">Forecast outlook</div> 
+        </div>
+        <div className="mb-3">
+          <HourlyForecastToggle
+            enabled={hourlyForecastEnabled}
+            onEnabledChange={onHourlyForecastEnabledChange}
+          />
         </div>
         <div className="forecast-strip flex gap-3 overflow-x-auto rounded-[8px] bg-[#F6F7FB] px-2 py-3 pb-4">
           {forecasts.slice(0, 14).map((f, idx) => (
@@ -2462,6 +2547,8 @@ const LeafletMap: React.FC = () => {
   const [showEmojis, setShowEmojis] = useState(true)
   const [showHeatmaps, setShowHeatmaps] = useState(false)
   const [selectedNode, setSelectedNode] = useState<MapNode | null>(null)
+  const [hourlyForecastEnabled, setHourlyForecastEnabled] = useState(true)
+  const [hourlyForecastPreferenceLoaded, setHourlyForecastPreferenceLoaded] = useState(false)
   const [forecastState, setForecastState] = useState<ForecastState>({
     isLoading: false,
     error: null,
@@ -2535,6 +2622,26 @@ const LeafletMap: React.FC = () => {
   }, [])
 
   useEffect(() => {
+    const storedPreference = window.localStorage.getItem(MAP_HOURLY_FORECAST_ENABLED_KEY)
+    if (storedPreference !== null) {
+      setHourlyForecastEnabled(storedPreference !== "false")
+    }
+    setHourlyForecastPreferenceLoaded(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hourlyForecastPreferenceLoaded) return
+    window.localStorage.setItem(MAP_HOURLY_FORECAST_ENABLED_KEY, String(hourlyForecastEnabled))
+  }, [hourlyForecastEnabled, hourlyForecastPreferenceLoaded])
+
+  useEffect(() => {
+    if (!hourlyForecastPreferenceLoaded) return
+
+    if (!hourlyForecastEnabled) {
+      setHourlyForecastState((current) => ({ ...current, isLoading: false, error: null }))
+      return
+    }
+
     let isActive = true
     let hasUsableCachedForecast = false
 
@@ -2577,7 +2684,7 @@ const LeafletMap: React.FC = () => {
     return () => {
       isActive = false
     }
-  }, [])
+  }, [hourlyForecastEnabled, hourlyForecastPreferenceLoaded])
 
   const isPanelOpen = !!selectedNode
 
@@ -2621,6 +2728,8 @@ const LeafletMap: React.FC = () => {
               selectedNode={selectedNode}
               forecastState={forecastState}
               hourlyForecastState={hourlyForecastState}
+              hourlyForecastEnabled={hourlyForecastEnabled}
+              onHourlyForecastEnabledChange={setHourlyForecastEnabled}
               onClose={() => setSelectedNode(null)}
             />
           ) : null}
