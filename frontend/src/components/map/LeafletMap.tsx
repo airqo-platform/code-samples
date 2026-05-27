@@ -1052,6 +1052,7 @@ function HourlyForecastPanel({
       .sort((a, b) => a.time - b.time)
       .slice(0, 168)
   }, [hourlyState.site])
+  const [hoveredPm25Point, setHoveredPm25Point] = useState<(typeof chartData)[number] | null>(null)
 
   const dailyForecastByDateKey = useMemo(() => {
     const forecastMap = new Map<string, DailyForecastItem>()
@@ -1115,9 +1116,14 @@ function HourlyForecastPanel({
     ? selectedDailyForecastDate.toLocaleDateString(undefined, { weekday: "long", day: "2-digit", month: "short" })
     : dayRows[0]?.fullDateLabel || "Hourly breakdown"
   const pm25Values = dayRows.map((d) => d.pm25).filter((v): v is number => typeof v === "number")
-  const peak = pm25Values.length ? Math.max(...pm25Values) : null
-  const peakPoint = peak === null ? null : dayRows.find((d) => d.pm25 === peak)
   const pm25Axis = getDynamicChartAxis(pm25Values)
+  const peakPm25Point = dayRows.reduce<(typeof dayRows)[number] | null>((highest, row) => {
+    if (typeof row.pm25 !== "number") return highest
+    if (!highest || typeof highest.pm25 !== "number" || row.pm25 > highest.pm25) return row
+    return highest
+  }, null)
+  const activePm25Point = hoveredPm25Point && dayRows.some((row) => row.time === hoveredPm25Point.time) ? hoveredPm25Point : null
+  const displayedPm25Point = activePm25Point || peakPm25Point
   const tempValues = dayRows.map((d) => d.air_temperature).filter((v): v is number => typeof v === "number")
   const humidityValues = dayRows.map((d) => d.relative_humidity).filter((v): v is number => typeof v === "number")
   const precipitationValues = dayRows
@@ -1134,6 +1140,10 @@ function HourlyForecastPanel({
   const hasTemperatureOrHumidity = hasCompleteMetWindow && (tempValues.length > 0 || humidityValues.length > 0)
   const hasWindData = hasCompleteMetWindow && windRows.length > 0
   const hasPrecipitationData = hasCompleteMetWindow && precipitationValues.length > 0
+
+  useEffect(() => {
+    setHoveredPm25Point(null)
+  }, [selectedDayIndex])
 
   const compassDegrees: Record<string, number> = {
     N: 0,
@@ -1239,18 +1249,34 @@ function HourlyForecastPanel({
                 <div>
                   <div className="text-sm font-semibold text-slate-950">{selectedDayLabel}</div>
                   <div className="mt-0.5 text-[10px] font-semibold uppercase text-slate-500">
-                    PM<sub className="align-sub text-[0.7em]">2.5</sub> hourly concentration
+                    <Pm25Label /> hourly concentration
                   </div>
                 </div>
                 <div className="text-right text-[10px] font-medium text-slate-500">
-                  <div>Peak: {formatForecastMetricWithUnit(peak, 1, "ug/m3")}</div>
-                  <div>{peakPoint?.label || "N/A"}</div>
+                  <div>
+                    {activePm25Point ? <Pm25Label /> : "Mean Peak"}:{" "}
+                    {formatForecastMetricWithUnit(displayedPm25Point?.pm25 ?? null, 1, "ug/m3")}
+                  </div>
+                  <div>{displayedPm25Point?.label || "--"}</div>
                 </div>
               </div>
 
               <div className="h-[178px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={dayRows} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
+                  <AreaChart
+                    data={dayRows}
+                    margin={{ top: 8, right: 4, left: -24, bottom: 0 }}
+                    onMouseMove={(state: any) => {
+                      const pm25Payload = state?.activePayload?.find((item: any) => item?.dataKey === "pm25")
+                      const point = pm25Payload?.payload
+                      if (point && typeof point.pm25 === "number") {
+                        setHoveredPm25Point(point)
+                      } else {
+                        setHoveredPm25Point(null)
+                      }
+                    }}
+                    onMouseLeave={() => setHoveredPm25Point(null)}
+                  >
                     <defs>
                       <linearGradient id="hourlyPm25Fill" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.72} />
@@ -1278,11 +1304,17 @@ function HourlyForecastPanel({
                       tick={{ fontSize: 8, fill: "#334155" }}
                     />
                     <Tooltip
+                      contentStyle={{
+                        backgroundColor: "transparent",
+                        border: "none",
+                        boxShadow: "none",
+                      }}
+                      cursor={{ stroke: "rgba(15, 23, 42, 0.18)", strokeWidth: 1 }}
                       labelFormatter={(value: any) =>
                         new Date(value).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })
                       }
                       formatter={(value: any) =>
-                        typeof value === "number" ? [`${value.toFixed(1)} ug/m3`, "PM2.5"] : [value, "PM2.5"]
+                        typeof value === "number" ? [`${value.toFixed(1)} ug/m3`, <Pm25Label key="pm25" />] : [value, <Pm25Label key="pm25" />]
                       }
                     />
                     <Area type="monotone" dataKey="pm25" stroke="#F59E0B" fill="url(#hourlyPm25Fill)" strokeWidth={2} dot={false} />
