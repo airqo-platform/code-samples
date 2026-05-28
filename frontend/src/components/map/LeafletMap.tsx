@@ -227,7 +227,7 @@ const PopupContent: React.FC<{
       <div className="text-sm font-medium mb-2">{label}</div>
       <div className="text-lg font-semibold mb-1">{level}</div>
       <div className="text-sm text-gray-700">
-        <Pm25Label />: {data.pm2_5_prediction?.toFixed(1) ?? "N/A"} ug/m3
+        <Pm25Label />: {data.pm2_5_prediction?.toFixed(1) ?? "N/A"} <Pm25Unit />
       </div>
       <div className="text-xs text-gray-500 mt-2">Updated {timestamp}</div>
     </div>
@@ -644,6 +644,8 @@ const formatLocalDateKey = (date: Date) =>
 const formatForecastMetric = (value: number | null | undefined, digits = 1, suffix = "") =>
   typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : "N/A"
 
+const PM25_UNIT_TEXT = "µg/m³"
+
 const formatForecastMetricWithUnit = (
   value: number | null | undefined,
   digits = 1,
@@ -687,6 +689,14 @@ function Pm25Label() {
   return (
     <>
       PM<sub className="align-sub text-[0.7em] leading-none">2.5</sub>
+    </>
+  )
+}
+
+function Pm25Unit() {
+  return (
+    <>
+      µg/m<sup className="align-super text-[0.7em] leading-none">3</sup>
     </>
   )
 }
@@ -1255,7 +1265,7 @@ function HourlyForecastPanel({
                 <div className="text-right text-[10px] font-medium text-slate-500">
                   <div>
                     {activePm25Point ? <Pm25Label /> : "Mean Peak"}:{" "}
-                    {formatForecastMetricWithUnit(displayedPm25Point?.pm25 ?? null, 1, "ug/m3")}
+                    {formatForecastMetricWithUnit(displayedPm25Point?.pm25 ?? null, 1, PM25_UNIT_TEXT)}
                   </div>
                   <div>{displayedPm25Point?.label || "--"}</div>
                 </div>
@@ -1314,7 +1324,7 @@ function HourlyForecastPanel({
                         new Date(value).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })
                       }
                       formatter={(value: any) =>
-                        typeof value === "number" ? [`${value.toFixed(1)} ug/m3`, <Pm25Label key="pm25" />] : [value, <Pm25Label key="pm25" />]
+                        typeof value === "number" ? [`${value.toFixed(1)} ${PM25_UNIT_TEXT}`, <Pm25Label key="pm25" />] : [value, <Pm25Label key="pm25" />]
                       }
                     />
                     <Area type="monotone" dataKey="pm25" stroke="#F59E0B" fill="url(#hourlyPm25Fill)" strokeWidth={2} dot={false} />
@@ -1568,8 +1578,32 @@ function ForecastContent({
   const active = forecasts[activeIndex] || forecasts[0]
   const dt = active ? parseForecastTime(active.time) : null
   const activeLabel = dt ? dt.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }) : ""
+  const hourlySpikePoint = useMemo(() => {
+    if (!dt || !hourlyState.site?.forecasts?.length) return null
+
+    const dayStart = getStartOfLocalDayMs(dt)
+    const dayEnd = dayStart + 24 * 60 * 60 * 1000
+
+    return hourlyState.site.forecasts.reduce<{ time: Date; pm25: number } | null>((highest, forecast) => {
+      const forecastTime = parseForecastTime(forecast.timestamp)
+      const pm25 = getForecastNumber(forecast.forecast.pm2_5_mean)
+
+      if (!forecastTime || pm25 === null) return highest
+      const timestamp = forecastTime.getTime()
+      if (timestamp < dayStart || timestamp >= dayEnd) return highest
+      if (!highest || pm25 > highest.pm25) return { time: forecastTime, pm25 }
+
+      return highest
+    }, null)
+  }, [dt, hourlyState.site])
+  const hourlySpikeTimeText = hourlySpikePoint
+    ? hourlySpikePoint.time.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : null
   const activeAccentColor = normalizeHexColor(active?.aqi_color)
   const activeBadgeStyle = getAqiBadgeStyle(active?.aqi_category, activeAccentColor)
+  const activeAqiCategory = active?.aqi_category || "Unknown"
+  const activeDateFontSize = activeLabel.length > 18 ? "11px" : "12px"
+  const activeAqiFontSize = activeAqiCategory.length > 28 ? "9.5px" : activeAqiCategory.length > 20 ? "10.5px" : "12px"
   const createdAt = active?.created_at ? parseForecastTime(active.created_at) : null
   const rangeLow = typeof active?.pm2_5_low === "number" && Number.isFinite(active.pm2_5_low) ? active.pm2_5_low : null
   const rangeHigh = typeof active?.pm2_5_high === "number" && Number.isFinite(active.pm2_5_high) ? active.pm2_5_high : null
@@ -1600,7 +1634,7 @@ function ForecastContent({
       ? `${formatForecastMetric(Math.min(rangeLow, rangeHigh), 1)} - ${formatForecastMetric(
           Math.max(rangeLow, rangeHigh),
           1,
-        )} ug/m3`
+        )} ${PM25_UNIT_TEXT}`
       : null
   const metricCards: Array<{ label: string; value: string; Icon: LucideIcon; span?: string }> = []
 
@@ -1693,47 +1727,51 @@ function ForecastContent({
       {active ? (
         <div className="rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-                <CalendarDays className="h-3.5 w-3.5" />
-                <span>{activeLabel}</span>
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-1.5">
+              <div
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium leading-none text-slate-600"
+                style={{ fontSize: activeDateFontSize }}
+              >
+                <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                <span className="whitespace-nowrap">{activeLabel}</span>
               </div>
               <div
-                className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm"
+                className="inline-flex min-w-0 items-center justify-self-end gap-1.5 rounded-full border px-2.5 py-1.5 font-semibold leading-none shadow-sm"
                 style={{
                   borderColor: activeBadgeStyle.borderColor,
                   backgroundColor: activeBadgeStyle.backgroundColor,
                   color: activeBadgeStyle.color,
+                  fontSize: activeAqiFontSize,
                 }}
               >
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: activeBadgeStyle.dotColor }} />
-                <span>{active.aqi_category || "Unknown"}</span>
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: activeBadgeStyle.dotColor }} />
+                <span className="min-w-0 truncate whitespace-nowrap">{activeAqiCategory}</span>
               </div>
             </div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-[minmax(4.8rem,1.15fr)_minmax(5.45rem,1.2fr)_minmax(4.7rem,0.9fr)_minmax(4.45rem,0.85fr)] gap-x-2 gap-y-2">
               <div className="min-w-0">
-                <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">
-                  <Pm25Label /> mean
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">
+                  Average <Pm25Label />
                 </div>
-                <div className="mt-1 text-sm font-semibold text-slate-950">{pm25MeanText}</div>
-                <div className="text-xs font-medium text-slate-500">ug/m3</div>
+                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">{pm25MeanText}</div>
+                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Forecast range</div>
-                <div className="mt-1 text-sm font-semibold text-slate-950">
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Low / High</div>
+                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">
                   {formatForecastMetric(active.pm2_5_low, 1)} - {formatForecastMetric(active.pm2_5_high, 1)}
                 </div>
-                <div className="text-xs font-medium text-slate-500">ug/m3</div>
+                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Peak</div>
-                <div className="mt-1 text-sm font-semibold text-slate-950">{formatForecastMetric(active.pm2_5_max, 1)}</div>
-                <div className="text-xs font-medium text-slate-500">ug/m3</div>
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Spike</div>
+                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">{formatForecastMetric(active.pm2_5_max, 1)}</div>
+                 
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-medium uppercase tracking-[0.08em] text-slate-500">Change</div>
-                <div className={["mt-1 text-sm font-semibold", percentClass].join(" ")}>{percentText}</div>
-                <div className="text-xs font-medium text-slate-500">vs last week</div>
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Change</div>
+                <div className={["mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold", percentClass].join(" ")}>{percentText}</div>
+                <div className="whitespace-nowrap text-[clamp(0.62rem,2.2vw,0.75rem)] font-medium text-slate-500">vs last week</div>
               </div>
             </div>
             <div className="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
@@ -1817,7 +1855,7 @@ function ForecastContent({
               <div className="mb-4 grid grid-cols-2 gap-3">
                 <div className="rounded-[8px] bg-slate-50 px-3 py-2">
                   <div className="text-xs font-medium text-slate-500">7-day avg</div>
-                  <div className="mt-1 text-sm font-semibold text-slate-950">{historicalState.stats.avg.toFixed(1)} ug/m3</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-950">{historicalState.stats.avg.toFixed(1)} <Pm25Unit /></div>
                 </div>
                 <div className="rounded-[8px] bg-slate-50 px-3 py-2">
                   <div className="text-xs font-medium text-slate-500">Observed range</div>
@@ -1828,7 +1866,7 @@ function ForecastContent({
               </div>
             ) : null}
             <div className="text-xs text-gray-500">
-              <Pm25Label /> (ug/m3)
+              <Pm25Label /> (<Pm25Unit />)
             </div>
             <div className="mt-2 h-[170px]">
               {historicalState.isLoading ? (
@@ -2463,32 +2501,32 @@ const Legend: React.FC = () => {
   const pollutantLevels = useMemo(
     () => [
       {
-        range: "0.0 ug/m3 - 9.0 ug/m3",
+        range: `0.0 ${PM25_UNIT_TEXT} - 9.0 ${PM25_UNIT_TEXT}`,
         label: "Air Quality is Good",
         image: GoodAir,
       },
       {
-        range: "9.1 ug/m3 - 35.4 ug/m3",
+        range: `9.1 ${PM25_UNIT_TEXT} - 35.4 ${PM25_UNIT_TEXT}`,
         label: "Air Quality is Moderate",
         image: Moderate,
       },
       {
-        range: "35.5 ug/m3 - 55.4 ug/m3",
+        range: `35.5 ${PM25_UNIT_TEXT} - 55.4 ${PM25_UNIT_TEXT}`,
         label: "Air Quality is Unhealthy for Sensitive Groups",
         image: UnhealthySG,
       },
       {
-        range: "55.5 ug/m3 - 125.4 ug/m3",
+        range: `55.5 ${PM25_UNIT_TEXT} - 125.4 ${PM25_UNIT_TEXT}`,
         label: "Air Quality is Unhealthy",
         image: Unhealthy,
       },
       {
-        range: "125.5 ug/m3 - 225.4 ug/m3",
+        range: `125.5 ${PM25_UNIT_TEXT} - 225.4 ${PM25_UNIT_TEXT}`,
         label: "Air Quality is Very Unhealthy",
         image: VeryUnhealthy,
       },
       {
-        range: "225.5+ ug/m3",
+        range: `225.5+ ${PM25_UNIT_TEXT}`,
         label: "Air Quality is Hazardous",
         image: Hazardous,
       },
