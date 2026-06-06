@@ -9,8 +9,10 @@ import Image from "next/image"
 import L from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
 import "leaflet-geosearch/dist/geosearch.css" 
-import { Area, AreaChart, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import {
+  Activity,
+  BarChart3,
   CalendarDays,
   ChevronDown,
   ChevronUp,
@@ -494,6 +496,7 @@ interface LoadingState {
 interface DailyForecastItem {
   time: string
   pm2_5: number | null
+  aqi_label?: string
   pm2_5_low?: number | null
   pm2_5_high?: number | null
   pm2_5_max?: number | null
@@ -773,6 +776,12 @@ const getAqiBadgeStyle = (category?: string | null, fallbackColor = "#E4B84A") =
   )
 }
 
+const getAqiColorByPm25 = (
+  _pm25: number | null | undefined,
+  category?: string | null,
+  fallbackColor?: string | null,
+) => getAqiBadgeStyle(category, normalizeHexColor(fallbackColor)).dotColor
+
 const ForecastStatusBadge: React.FC<{ forecastState: ForecastState }> = ({ forecastState }) => {
   if (!forecastState.isLoading && !forecastState.error) return null
 
@@ -908,6 +917,7 @@ const ForecastPanel: React.FC<{
       precipitation_amount: item.met?.precipitation_amount ?? null,
       wind_speed: item.met?.wind_speed ?? null,
       wind_direction_compass: item.met?.wind_direction_compass,
+      aqi_label: item.aqi.label,
       aqi_category: item.aqi.aqi_category,
       aqi_color: item.aqi.aqi_color,
       aqi_color_name: item.aqi.aqi_color_name,
@@ -1012,6 +1022,15 @@ function HourlyForecastPanel({
   onClose?: () => void
 }) {
   const [selectedDayIndex, setSelectedDayIndex] = useState(0)
+  const [visualization, setVisualization] = useState<"line" | "calendar" | "sundial" | "bars">("line")
+  const [currentTime, setCurrentTime] = useState<Date | null>(null)
+
+  useEffect(() => {
+    const updateCurrentTime = () => setCurrentTime(new Date())
+    updateCurrentTime()
+    const intervalId = window.setInterval(updateCurrentTime, 30_000)
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   const chartData = useMemo(() => {
     const rows = hourlyState.site?.forecasts || []
@@ -1045,6 +1064,7 @@ function HourlyForecastPanel({
           q10: getForecastNumber(item.forecast.pm2_5_q10),
           q90: getForecastNumber(item.forecast.pm2_5_q90),
           confidence: getForecastNumber(item.forecast.forecast_confidence),
+          aqiLabel: item.aqi.label,
           aqiCategory: item.aqi.aqi_category,
           aqiColor: normalizeHexColor(item.aqi.aqi_color),
           metAvailable: hasMetValue,
@@ -1091,9 +1111,8 @@ function HourlyForecastPanel({
           const dt = parseForecastTime(forecast.time)
           if (!dt) return null
           const dateKey = formatLocalDateKey(dt)
-          const dayStart = getStartOfLocalDayMs(dt)
-          const rows = chartData.filter((item) => item.time >= dayStart).slice(0, 24)
-          return { dateKey, rows: rows.length ? rows : grouped.get(dateKey) || [], dailyForecast: forecast }
+          const rows = grouped.get(dateKey) || []
+          return { dateKey, rows, dailyForecast: forecast }
         })
         .filter((group): group is NonNullable<typeof group> => !!group)
     }
@@ -1117,6 +1136,14 @@ function HourlyForecastPanel({
 
   const selectedDay = dailyGroups[selectedDayIndex] || dailyGroups[0]
   const dayRows = selectedDay?.rows || []
+  const todayDateKey = currentTime ? formatLocalDateKey(currentTime) : null
+  const isSelectedDayToday = !!todayDateKey && selectedDay?.dateKey === todayDateKey
+  const lineRows =
+    selectedDay?.dateKey === todayDateKey && dayRows.length
+      ? chartData
+          .filter((row) => row.time >= dayRows[0].time)
+          .slice(0, Math.max(dayRows.length, 12))
+      : dayRows
   const selectedDailyForecast =
     selectedDay && "dailyForecast" in selectedDay
       ? (selectedDay as { dailyForecast: DailyForecastItem }).dailyForecast
@@ -1127,29 +1154,101 @@ function HourlyForecastPanel({
     : dayRows[0]?.fullDateLabel || "Hourly breakdown"
   const pm25Values = dayRows.map((d) => d.pm25).filter((v): v is number => typeof v === "number")
   const pm25Axis = getDynamicChartAxis(pm25Values)
+  const linePm25Values = lineRows.map((d) => d.pm25).filter((v): v is number => typeof v === "number")
+  const linePm25Axis = getDynamicChartAxis(linePm25Values)
   const peakPm25Point = dayRows.reduce<(typeof dayRows)[number] | null>((highest, row) => {
     if (typeof row.pm25 !== "number") return highest
     if (!highest || typeof highest.pm25 !== "number" || row.pm25 > highest.pm25) return row
     return highest
   }, null)
-  const activePm25Point = hoveredPm25Point && dayRows.some((row) => row.time === hoveredPm25Point.time) ? hoveredPm25Point : null
-  const displayedPm25Point = activePm25Point || peakPm25Point
-  const tempValues = dayRows.map((d) => d.air_temperature).filter((v): v is number => typeof v === "number")
-  const humidityValues = dayRows.map((d) => d.relative_humidity).filter((v): v is number => typeof v === "number")
-  const precipitationValues = dayRows
+  const currentPm25Point =
+    currentTime && dayRows.length
+      ? (() => {
+          const targetTime = new Date(dayRows[0].time)
+          targetTime.setHours(currentTime.getHours(), currentTime.getMinutes(), 0, 0)
+          return dayRows.reduce<(typeof dayRows)[number] | null>((nearest, row) => {
+            if (typeof row.pm25 !== "number") return nearest
+            if (!nearest) return row
+            return Math.abs(row.time - targetTime.getTime()) < Math.abs(nearest.time - targetTime.getTime())
+              ? row
+              : nearest
+          }, null)
+        })()
+      : null
+  const currentCalendarPoint =
+    currentTime && chartData.length
+      ? chartData.reduce<(typeof chartData)[number] | null>((nearest, row) => {
+          if (typeof row.pm25 !== "number") return nearest
+          if (!nearest) return row
+          return Math.abs(row.time - currentTime.getTime()) < Math.abs(nearest.time - currentTime.getTime())
+            ? row
+            : nearest
+        }, null)
+      : null
+  const activePm25Point =
+    hoveredPm25Point &&
+    (
+      visualization === "calendar"
+        ? chartData
+        : visualization === "line" || visualization === "bars"
+          ? lineRows
+          : dayRows
+    ).some((row) => row.time === hoveredPm25Point.time)
+      ? hoveredPm25Point
+      : null
+  const displayedPm25Point =
+    activePm25Point ||
+    (visualization === "sundial"
+      ? isSelectedDayToday
+        ? currentPm25Point
+        : null
+      : peakPm25Point)
+  const sundialAqiImage = getAqiImageByCategory(displayedPm25Point?.aqiCategory)
+  const sundialAqiColor = getAqiColorByPm25(
+    displayedPm25Point?.pm25,
+    displayedPm25Point?.aqiCategory,
+    displayedPm25Point?.aqiColor,
+  )
+  const metRows = lineRows
+  const tempValues = metRows.map((d) => d.air_temperature).filter((v): v is number => typeof v === "number")
+  const humidityValues = metRows.map((d) => d.relative_humidity).filter((v): v is number => typeof v === "number")
+  const precipitationValues = metRows
     .map((d) => d.precipitation_amount)
     .filter((v): v is number => typeof v === "number")
-  const precipitationRows = dayRows
+  const precipitationRows = metRows
     .slice(0, 24)
     .filter((d) => typeof d.precipitation_amount === "number")
-  const windRows = dayRows
+  const windRows = metRows
     .slice(0, 24)
     .filter((d) => typeof d.wind_speed === "number" || !!d.windDirection)
-  const maxRain = Math.max(...dayRows.map((d) => d.precipitationBar), 0)
-  const hasCompleteMetWindow = dayRows.length > 0 && dayRows.every((d) => d.metAvailable)
+  const maxRain = Math.max(...metRows.map((d) => d.precipitationBar), 0)
+  const hasCompleteMetWindow = metRows.length > 0 && metRows.every((d) => d.metAvailable)
   const hasTemperatureOrHumidity = hasCompleteMetWindow && (tempValues.length > 0 || humidityValues.length > 0)
   const hasWindData = hasCompleteMetWindow && windRows.length > 0
   const hasPrecipitationData = hasCompleteMetWindow && precipitationValues.length > 0
+  const sundialMaxPm25 = Math.max(...pm25Values, 1)
+  const hourlyAqiGradientStops = lineRows.map((row, index) => ({
+    offset: lineRows.length > 1 ? `${(index / (lineRows.length - 1)) * 100}%` : "0%",
+    color: getAqiColorByPm25(row.pm25, row.aqiCategory, row.aqiColor),
+  }))
+  const currentHourAngle = currentTime
+    ? ((currentTime.getHours() * 60 + currentTime.getMinutes()) / (24 * 60)) * Math.PI * 2 - Math.PI / 2
+    : null
+  const currentMinuteAngle = currentTime
+    ? ((currentTime.getMinutes() * 60 + currentTime.getSeconds()) / 3600) * Math.PI * 2 - Math.PI / 2
+    : null
+  const visualizationOptions = [
+    { id: "line", label: "Line", icon: Activity },
+    { id: "calendar", label: "Calendar", icon: CalendarDays },
+    { id: "sundial", label: "Sundial", icon: Clock3 },
+    { id: "bars", label: "Bars", icon: BarChart3 },
+  ] as const
+
+  const updateHoveredPm25Point = (state: any) => {
+    const pm25Payload = state?.activePayload?.find((item: any) => item?.dataKey === "pm25")
+    const point = pm25Payload?.payload
+    setHoveredPm25Point(point && typeof point.pm25 === "number" ? point : null)
+  }
 
   useEffect(() => {
     setHoveredPm25Point(null)
@@ -1255,6 +1354,27 @@ function HourlyForecastPanel({
             </div>
 
             <div className="px-3 py-3">
+              <div className="mb-3 grid grid-cols-4 gap-1 rounded-[8px] bg-slate-100 p-1">
+                {visualizationOptions.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setVisualization(id)}
+                    className={[
+                      "flex min-w-0 items-center justify-center gap-1 rounded-[6px] px-1.5 py-1.5 text-[10px] font-semibold transition-colors",
+                      visualization === id
+                        ? "bg-white text-blue-700 shadow-sm"
+                        : "text-slate-600 hover:bg-white/70 hover:text-slate-900",
+                    ].join(" ")}
+                    aria-pressed={visualization === id}
+                    title={`${label} visualization`}
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{label}</span>
+                  </button>
+                ))}
+              </div>
+
               <div className="mb-2 flex items-end justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-slate-950">{selectedDayLabel}</div>
@@ -1262,77 +1382,273 @@ function HourlyForecastPanel({
                     <Pm25Label /> hourly concentration
                   </div>
                 </div>
-                <div className="text-right text-[10px] font-medium text-slate-500">
-                  <div>
-                    {activePm25Point ? <Pm25Label /> : "Mean Peak"}:{" "}
-                    {formatForecastMetricWithUnit(displayedPm25Point?.pm25 ?? null, 1, PM25_UNIT_TEXT)}
-                  </div>
-                  <div>{displayedPm25Point?.label || "--"}</div>
-                </div>
+                
               </div>
 
-              <div className="h-[178px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={dayRows}
-                    margin={{ top: 8, right: 4, left: -24, bottom: 0 }}
-                    onMouseMove={(state: any) => {
-                      const pm25Payload = state?.activePayload?.find((item: any) => item?.dataKey === "pm25")
-                      const point = pm25Payload?.payload
-                      if (point && typeof point.pm25 === "number") {
-                        setHoveredPm25Point(point)
-                      } else {
-                        setHoveredPm25Point(null)
-                      }
-                    }}
-                    onMouseLeave={() => setHoveredPm25Point(null)}
-                  >
+              {visualization === "calendar" ? (
+                <div className="rounded-[8px] border border-slate-200 bg-slate-50 p-2">
+                  <div className="mb-1 grid grid-cols-[34px_repeat(24,minmax(7px,1fr))] gap-[2px] text-[7px] text-slate-500">
+                    <span />
+                    {Array.from({ length: 24 }, (_, hour) => (
+                      <span key={`calendar-hour-${hour}`} className="text-center">{hour % 6 === 0 ? hour : ""}</span>
+                    ))}
+                  </div>
+                  <div className="space-y-[3px]">
+                    {dailyGroups.map((group, index) => {
+                      const rowsByHour = new Map(group.rows.map((row) => [row.hour, row]))
+                      return (
+                        <button
+                          key={`calendar-${group.dateKey}`}
+                          type="button"
+                          onClick={() => setSelectedDayIndex(index)}
+                          className="grid w-full grid-cols-[34px_repeat(24,minmax(7px,1fr))] gap-[2px]"
+                          aria-label={`Select ${group.rows[0]?.fullDateLabel || group.dateKey}`}
+                        >
+                          <span className={`truncate pr-1 text-left text-[8px] font-semibold ${index === selectedDayIndex ? "text-blue-700" : "text-slate-600"}`}>
+                            {group.rows[0]?.dayName || group.dateKey.slice(5)}
+                          </span>
+                          {Array.from({ length: 24 }, (_, hour) => {
+                            const row = rowsByHour.get(hour)
+                            const isCurrent =
+                              !!row && !!currentCalendarPoint && row.time === currentCalendarPoint.time
+                            return (
+                              <span
+                                key={`${group.dateKey}-${hour}`}
+                                className={[
+                                  "relative h-3 rounded-[2px]",
+                                  index === selectedDayIndex ? "ring-1 ring-blue-600/40" : "",
+                                  isCurrent
+                                    ? "z-10 scale-125 ring-2 ring-slate-950 ring-offset-1 ring-offset-slate-50 shadow-md"
+                                    : "",
+                                ].join(" ")}
+                                style={{ backgroundColor: row ? getAqiColorByPm25(row.pm25, row.aqiCategory, row.aqiColor) : "#E2E8F0" }}
+                                title={row ? `${row.label}: ${formatForecastMetricWithUnit(row.pm25, 1, PM25_UNIT_TEXT)}` : `${hour}:00: no data`}
+                                onMouseEnter={() => setHoveredPm25Point(row && typeof row.pm25 === "number" ? row : null)}
+                                onMouseLeave={() => setHoveredPm25Point(null)}
+                              />
+                            )
+                          })}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-[8px] text-slate-500">
+                    <span>Midnight</span><span>Hour of day</span><span>23:00</span>
+                  </div>
+                </div>
+              ) : visualization === "sundial" ? (
+                <div className="relative mx-auto h-[190px] max-w-[260px]">
+                  <svg viewBox="0 0 220 190" className="h-full w-full" role="img" aria-label={`${selectedDayLabel} PM2.5 sundial`}>
+                    <circle
+                      cx="110"
+                      cy="96"
+                      r="70"
+                      fill={hexToRgba(sundialAqiColor, 0.16)}
+                      stroke={sundialAqiColor}
+                      strokeOpacity="0.48"
+                    />
                     <defs>
-                      <linearGradient id="hourlyPm25Fill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.72} />
-                        <stop offset="55%" stopColor="#FDE68A" stopOpacity={0.48} />
-                        <stop offset="100%" stopColor="#86EFAC" stopOpacity={0.18} />
-                      </linearGradient>
+                      <clipPath id="sundialClockFace">
+                        <circle cx="110" cy="96" r="68" />
+                      </clipPath>
                     </defs>
-                    <CartesianGrid stroke="#D7DEE8" strokeDasharray="3 3" vertical />
-                    <XAxis
-                      dataKey="time"
-                      type="number"
-                      scale="time"
-                      domain={["dataMin", "dataMax"]}
-                      tickLine={false}
-                      axisLine={false}
-                      interval="preserveStartEnd"
-                      tick={{ fontSize: 8, fill: "#334155" }}
-                      tickFormatter={(value: any) => new Date(value).toLocaleTimeString(undefined, { hour: "2-digit" })}
+                    <image
+                      href={sundialAqiImage}
+                      x="55"
+                      y="41"
+                      width="110"
+                      height="110"
+                      opacity="0.2"
+                      preserveAspectRatio="xMidYMid meet"
+                      clipPath="url(#sundialClockFace)"
                     />
-                    <YAxis
-                      domain={pm25Axis.domain}
-                      ticks={pm25Axis.ticks}
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 8, fill: "#334155" }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "transparent",
-                        border: "none",
-                        boxShadow: "none",
-                      }}
-                      cursor={{ stroke: "rgba(15, 23, 42, 0.18)", strokeWidth: 1 }}
-                      labelFormatter={(value: any) =>
-                        new Date(value).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })
-                      }
-                      formatter={(value: any) =>
-                        typeof value === "number" ? [`${value.toFixed(1)} ${PM25_UNIT_TEXT}`, <Pm25Label key="pm25" />] : [value, <Pm25Label key="pm25" />]
-                      }
-                    />
-                    <Area type="monotone" dataKey="pm25" stroke="#F59E0B" fill="url(#hourlyPm25Fill)" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="q10" stroke="#94A3B8" strokeDasharray="3 3" dot={false} strokeWidth={1} />
-                    <Line type="monotone" dataKey="q90" stroke="#94A3B8" strokeDasharray="3 3" dot={false} strokeWidth={1} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+                    <circle cx="110" cy="96" r="47" fill="none" stroke="#E2E8F0" strokeDasharray="3 3" />
+                    {Array.from({ length: 24 }, (_, hour) => {
+                      const angle = (hour / 24) * Math.PI * 2 - Math.PI / 2
+                      return <line key={`dial-tick-${hour}`} x1={110 + Math.cos(angle) * 64} y1={96 + Math.sin(angle) * 64} x2={110 + Math.cos(angle) * (hour % 6 === 0 ? 75 : 70)} y2={96 + Math.sin(angle) * (hour % 6 === 0 ? 75 : 70)} stroke="#94A3B8" strokeWidth={hour % 6 === 0 ? 1.5 : 0.7} />
+                    })}
+                    {isSelectedDayToday && currentHourAngle !== null && currentMinuteAngle !== null ? (
+                      <g>
+                        <line
+                          x1="110"
+                          y1="96"
+                          x2={110 + Math.cos(currentHourAngle) * 42}
+                          y2={96 + Math.sin(currentHourAngle) * 42}
+                          stroke="#0F172A"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                        />
+                        <line
+                          x1="110"
+                          y1="96"
+                          x2={110 + Math.cos(currentMinuteAngle) * 58}
+                          y2={96 + Math.sin(currentMinuteAngle) * 58}
+                          stroke="#2563EB"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
+                        <title>
+                          {`Current time: ${currentTime?.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`}
+                        </title>
+                      </g>
+                    ) : null}
+                    {dayRows.map((row) => {
+                      const angle = (row.hour / 24) * Math.PI * 2 - Math.PI / 2
+                      const radius = 22 + ((row.pm25 ?? 0) / sundialMaxPm25) * 45
+                      return (
+                        <circle
+                          key={`dial-point-${row.time}`}
+                          cx={110 + Math.cos(angle) * radius}
+                          cy={96 + Math.sin(angle) * radius}
+                          r="4"
+                          fill={getAqiColorByPm25(row.pm25, row.aqiCategory, row.aqiColor)}
+                          stroke="white"
+                          strokeWidth="1.5"
+                          onMouseEnter={() => setHoveredPm25Point(row)}
+                          onMouseLeave={() => setHoveredPm25Point(null)}
+                        >
+                          <title>{`${row.label}: ${formatForecastMetricWithUnit(row.pm25, 1, PM25_UNIT_TEXT)}`}</title>
+                        </circle>
+                      )
+                    })}
+                    {[0, 3, 6, 9, 12, 15, 18, 21].map((hour) => {
+                      const angle = (hour / 24) * Math.PI * 2 - Math.PI / 2
+                      return (
+                        <text
+                          key={`dial-label-${hour}`}
+                          x={110 + Math.cos(angle) * 84}
+                          y={99 + Math.sin(angle) * 84}
+                          textAnchor="middle"
+                          fontSize="9"
+                          fontWeight="600"
+                          fill="#475569"
+                        >
+                          {hour}
+                        </text>
+                      )
+                    })}
+                    {isSelectedDayToday && currentTime ? (
+                      <circle cx="110" cy="96" r="3.5" fill="#2563EB" stroke="#FFFFFF" strokeWidth="1.5" />
+                    ) : null}
+                    {displayedPm25Point ? (
+                      <>
+                        <text x="110" y="92" textAnchor="middle" fontSize="10" fontWeight="600" fill="#0F172A">
+                          {formatForecastMetricWithUnit(displayedPm25Point.pm25, 1, PM25_UNIT_TEXT)}
+                        </text>
+                        <text x="110" y="106" textAnchor="middle" fontSize="8" fill="#64748B">
+                          {displayedPm25Point.label}
+                        </text>
+                      </>
+                    ) : null}
+                  </svg>
+                </div>
+              ) : (
+                <div className="h-[178px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    {visualization === "bars" ? (
+                      <BarChart data={lineRows} margin={{ top: 8, right: 4, left: -24, bottom: 0 }} onMouseMove={updateHoveredPm25Point} onMouseLeave={() => setHoveredPm25Point(null)}>
+                        <CartesianGrid stroke="#D7DEE8" strokeDasharray="3 3" vertical={false} />
+                        <XAxis
+                          dataKey="time"
+                          type="number"
+                          scale="time"
+                          domain={["dataMin", "dataMax"]}
+                          tickLine={false}
+                          axisLine={false}
+                          interval="preserveStartEnd"
+                          tick={{ fontSize: 8, fill: "#334155" }}
+                          tickFormatter={(value: any) => {
+                            const date = new Date(value)
+                            return date.getHours() === 0
+                              ? date.toLocaleDateString(undefined, { weekday: "short" })
+                              : date.toLocaleTimeString(undefined, { hour: "2-digit" })
+                          }}
+                        />
+                        <YAxis domain={linePm25Axis.domain} ticks={linePm25Axis.ticks} tickLine={false} axisLine={false} tick={{ fontSize: 8, fill: "#334155" }} />
+                        <Tooltip cursor={{ fill: "rgba(148, 163, 184, 0.12)" }} formatter={(value: any) => [`${Number(value).toFixed(1)} ${PM25_UNIT_TEXT}`, <Pm25Label key="pm25" />]} labelFormatter={(value: any) => new Date(value).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })} />
+                        <Bar dataKey="pm25" radius={[3, 3, 0, 0]}>
+                          {lineRows.map((row) => <Cell key={`bar-${row.time}`} fill={getAqiColorByPm25(row.pm25, row.aqiCategory, row.aqiColor)} />)}
+                        </Bar>
+                      </BarChart>
+                    ) : (
+                      <AreaChart data={lineRows} margin={{ top: 8, right: 4, left: -24, bottom: 0 }} onMouseMove={updateHoveredPm25Point} onMouseLeave={() => setHoveredPm25Point(null)}>
+                        <defs>
+                          <linearGradient id="hourlyPm25Fill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#64748B" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="#CBD5E1" stopOpacity={0.08} />
+                          </linearGradient>
+                          <linearGradient id="hourlyPm25Stroke" x1="0" y1="0" x2="1" y2="0">
+                            {hourlyAqiGradientStops.map((stop, index) => <stop key={`aqi-stop-${index}`} offset={stop.offset} stopColor={stop.color} />)}
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke="#D7DEE8" strokeDasharray="3 3" vertical />
+                        <XAxis
+                          dataKey="time"
+                          type="number"
+                          scale="time"
+                          domain={["dataMin", "dataMax"]}
+                          tickLine={false}
+                          axisLine={false}
+                          interval="preserveStartEnd"
+                          tick={{ fontSize: 8, fill: "#334155" }}
+                          tickFormatter={(value: any) => {
+                            const date = new Date(value)
+                            return date.getHours() === 0
+                              ? date.toLocaleDateString(undefined, { weekday: "short" })
+                              : date.toLocaleTimeString(undefined, { hour: "2-digit" })
+                          }}
+                        />
+                        <YAxis domain={linePm25Axis.domain} ticks={linePm25Axis.ticks} tickLine={false} axisLine={false} tick={{ fontSize: 8, fill: "#334155" }} />
+                        <Tooltip contentStyle={{ backgroundColor: "transparent", border: "none", boxShadow: "none" }} cursor={{ stroke: "rgba(15, 23, 42, 0.18)", strokeWidth: 1 }} labelFormatter={(value: any) => new Date(value).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })} formatter={(value: any) => typeof value === "number" ? [`${value.toFixed(1)} ${PM25_UNIT_TEXT}`, <Pm25Label key="pm25" />] : [value, <Pm25Label key="pm25" />]} />
+                        <Area
+                          type="monotone"
+                          dataKey="pm25"
+                          stroke="url(#hourlyPm25Stroke)"
+                          fill="url(#hourlyPm25Fill)"
+                          strokeWidth={2.5}
+                          dot={(props: any) => {
+                            const row = props.payload
+                            return row && typeof row.pm25 === "number"
+                              ? <circle cx={props.cx} cy={props.cy} r={2.5} fill={getAqiColorByPm25(row.pm25, row.aqiCategory, row.aqiColor)} stroke="#FFFFFF" strokeWidth={1} />
+                              : <g />
+                          }}
+                        />
+                        <Line type="monotone" dataKey="q10" stroke="#94A3B8" strokeDasharray="3 3" dot={false} strokeWidth={1} />
+                        <Line type="monotone" dataKey="q90" stroke="#94A3B8" strokeDasharray="3 3" dot={false} strokeWidth={1} />
+                      </AreaChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {displayedPm25Point?.aqiLabel ? (
+                <div
+                  className="mt-3 rounded-[8px] border px-3 py-2 text-xs leading-relaxed text-slate-700"
+                  style={{
+                    borderColor: hexToRgba(
+                      getAqiColorByPm25(
+                        displayedPm25Point.pm25,
+                        displayedPm25Point.aqiCategory,
+                        displayedPm25Point.aqiColor,
+                      ),
+                      0.3,
+                    ),
+                    backgroundColor: hexToRgba(
+                      getAqiColorByPm25(
+                        displayedPm25Point.pm25,
+                        displayedPm25Point.aqiCategory,
+                        displayedPm25Point.aqiColor,
+                      ),
+                      0.08,
+                    ),
+                  }}
+                >
+                  <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">
+                    Health guidance
+                  </div>
+                  {displayedPm25Point.aqiLabel}
+                </div>
+              ) : null}
 
               {hasTemperatureOrHumidity ? (
                 <div className="mt-3 h-[94px] border-t border-slate-200 pt-2">
@@ -1341,7 +1657,7 @@ function HourlyForecastPanel({
                     {humidityValues.length ? <span>Relative Humidity (%)</span> : null}
                   </div>
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={dayRows} margin={{ top: 2, right: -10, left: -24, bottom: 0 }}>
+                    <ComposedChart data={metRows} margin={{ top: 2, right: -10, left: -24, bottom: 0 }}>
                       <XAxis dataKey="time" type="number" scale="time" domain={["dataMin", "dataMax"]} hide />
                       <YAxis yAxisId="temp" hide domain={tempValues.length ? ["dataMin - 2", "dataMax + 2"] : [0, 40]} />
                       <YAxis yAxisId="humidity" hide orientation="right" domain={humidityValues.length ? [0, 100] : [0, 100]} />
@@ -1774,6 +2090,20 @@ function ForecastContent({
                 <div className="whitespace-nowrap text-[clamp(0.62rem,2.2vw,0.75rem)] font-medium text-slate-500">vs last week</div>
               </div>
             </div>
+            {active.aqi_label ? (
+              <div
+                className="rounded-[8px] border px-3 py-2 text-xs leading-relaxed text-slate-700"
+                style={{
+                  borderColor: hexToRgba(activeBadgeStyle.dotColor, 0.3),
+                  backgroundColor: hexToRgba(activeBadgeStyle.dotColor, 0.08),
+                }}
+              >
+                <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-slate-500">
+                  Health guidance
+                </div>
+                {active.aqi_label}
+              </div>
+            ) : null}
             <div className="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">

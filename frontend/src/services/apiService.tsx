@@ -80,6 +80,7 @@ export interface DailyForecastValues {
 
 export interface DailyForecastAqi {
   aqi_value: number | null
+  label?: string
   aqi_category?: string
   aqi_color?: string
   aqi_color_name?: string
