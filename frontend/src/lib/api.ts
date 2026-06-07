@@ -8,17 +8,6 @@ import type {
   Grid,
 } from "./types"
 
-function getApiConfig() {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL
-  const token = process.env.NEXT_PUBLIC_API_TOKEN
-
-  if (!baseUrl || !token) {
-    throw new Error("API configuration is missing. Ensure NEXT_PUBLIC_API_URL and NEXT_PUBLIC_API_TOKEN are set.")
-  }
-
-  return { baseUrl, token }
-}
-
 async function baseFetch<T>(
   endpoint: string,
   options: {
@@ -27,8 +16,8 @@ async function baseFetch<T>(
     json?: unknown
   } = {},
 ): Promise<T> {
-  const { baseUrl, token } = getApiConfig()
-  const url = new URL(endpoint, baseUrl)
+  const normalizedEndpoint = endpoint.replace(/^\/+/, "")
+  const url = new URL(`/api/airqo/${normalizedEndpoint}`, window.location.origin)
 
   // Add query parameters
   if (options.queryParams) {
@@ -36,9 +25,6 @@ async function baseFetch<T>(
       url.searchParams.append(key, String(value))
     })
   }
-
-  // Add API token
-  url.searchParams.append("token", token)
 
   // Configure headers
   const headers: HeadersInit = {

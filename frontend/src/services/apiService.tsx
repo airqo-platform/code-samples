@@ -5,8 +5,7 @@ const removeTrailingSlash = (url: string): string => {
   return url.endsWith("/") ? url.slice(0, -1) : url
 }
 
-const apiToken = process.env.NEXT_PUBLIC_API_TOKEN
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || ""
+const BASE_URL = "/api/airqo"
 // Axios instance with a base URL and default headers
 const apiService = axios.create({
   baseURL: removeTrailingSlash(BASE_URL),
@@ -180,11 +179,7 @@ interface SiteHistoricalItem {
 // Satellite API service to fetch data with POST request
 export const getSatelliteData = async (body = {}) => {
   try {
-    const response = await apiService.post("/spatial/satellite_prediction", body, {
-      params: {
-        token: apiToken,
-      },
-    })
+    const response = await apiService.post("/spatial/satellite_prediction", body)
     return response.data
   } catch (error: any) {
     console.error(error)
@@ -194,11 +189,7 @@ export const getSatelliteData = async (body = {}) => {
 // Get map nodes with air quality readings
 export const getMapNodes = async (): Promise<MapNode[] | null> => {
   try {
-    const response = await apiService.get("/devices/readings/map", {
-      params: {
-        token: apiToken,
-      },
-    })
+    const response = await apiService.get("/devices/readings/map")
 
     // Only check if measurements array exists and has data
     if (!response.data?.measurements?.length) {
@@ -216,11 +207,7 @@ export const getMapNodes = async (): Promise<MapNode[] | null> => {
 // Add this function to fetch report data
 export const getReportData = async (): Promise<MapNode[] | null> => {
   try {
-    const response = await apiService.get("/devices/readings/map", {
-      params: {
-        token: apiToken,
-      },
-    })
+    const response = await apiService.get("/devices/readings/map")
 
     // Only check if measurements array exists and has data
     if (!response.data?.measurements?.length) {
@@ -242,11 +229,7 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await apiService.get("/spatial/heatmaps", {
-        params: {
-          token: apiToken,
-        },
-      });
+      const response = await apiService.get("/spatial/heatmaps");
 
       // Check if response has valid data
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
@@ -290,9 +273,7 @@ const unwrapForecastPayload = (value: any): any => {
 
 export const getDailyForecastCollection = async (): Promise<DailyForecastResponse | null> => {
   try {
-    const response = await apiService.get("/predict/daily-forecasting", {
-      params: apiToken ? { token: apiToken } : undefined,
-    })
+    const response = await apiService.get("/predict/daily-forecasting")
 
     const payload = unwrapForecastPayload(response.data)
     const data = payload?.data ? unwrapForecastPayload(payload.data) : payload
@@ -327,7 +308,6 @@ const getHourlyForecastPage = async (
 ): Promise<HourlyForecastResponse | null> => {
   const response = await apiService.get("/predict/hourly-forecasting", {
     params: {
-      ...(apiToken ? { token: apiToken } : {}),
       ...(siteId ? { site_id: siteId } : {}),
       page,
       limit,
@@ -547,7 +527,6 @@ export const getSiteHistorical = async (
     const fetchHistorical = async (s: string, e: string) => {
       const response = await apiService.get(`/devices/measurements/sites/${siteId}/historical`, {
         params: {
-          token: apiToken,
           startTime: s,
           endTime: e,
         },
