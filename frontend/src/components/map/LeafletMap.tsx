@@ -45,6 +45,7 @@ import {
   writeBrowserApiCache,
   type BrowserApiCacheEntry,
 } from "@/lib/browserApiCache"
+import { useSiteSettings } from "@/hooks/use-site-settings"
 import { Switch } from "@/ui/switch"
 import { MapLayerControl } from "./MapLayerControl"
 
@@ -2578,7 +2579,16 @@ const MapControls: React.FC<{
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
   setShowEmojis: (value: boolean) => void
-}> = ({ showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis }) => {
+  heatmapEnabled: boolean
+  captureViewEnabled: boolean
+}> = ({
+  showHeatmaps,
+  setShowHeatmaps,
+  showEmojis,
+  setShowEmojis,
+  heatmapEnabled,
+  captureViewEnabled,
+}) => {
   const map = useMap()
 
   const captureMapView = async () => {
@@ -2626,24 +2636,25 @@ const MapControls: React.FC<{
         container.style.gap = "8px"
         container.style.minWidth = "160px"
 
-        // Heatmap toggle button
-        const heatmapButton = L.DomUtil.create("button", "", container)
-        heatmapButton.innerHTML = showHeatmaps ? "Heatmap ON" : "Heatmap OFF"
-        heatmapButton.style.border = "none"
-        heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"
-        heatmapButton.style.fontSize = "13px"
-        heatmapButton.style.fontWeight = showHeatmaps ? "600" : "500"
-        heatmapButton.style.color = showHeatmaps ? "#1d4ed8" : "#374151"
-        heatmapButton.style.textAlign = "left"
-        heatmapButton.style.padding = "8px 12px"
-        heatmapButton.style.borderRadius = "6px"
-        heatmapButton.style.transition = "all 0.2s"
-        heatmapButton.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
+        if (heatmapEnabled) {
+          const heatmapButton = L.DomUtil.create("button", "", container)
+          heatmapButton.innerHTML = showHeatmaps ? "Heatmap ON" : "Heatmap OFF"
+          heatmapButton.style.border = "none"
+          heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"
+          heatmapButton.style.fontSize = "13px"
+          heatmapButton.style.fontWeight = showHeatmaps ? "600" : "500"
+          heatmapButton.style.color = showHeatmaps ? "#1d4ed8" : "#374151"
+          heatmapButton.style.textAlign = "left"
+          heatmapButton.style.padding = "8px 12px"
+          heatmapButton.style.borderRadius = "6px"
+          heatmapButton.style.transition = "all 0.2s"
+          heatmapButton.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
 
-        L.DomEvent.on(heatmapButton, "click", (e) => {
-          L.DomEvent.stopPropagation(e)
-          setShowHeatmaps(!showHeatmaps)
-        })
+          L.DomEvent.on(heatmapButton, "click", (e) => {
+            L.DomEvent.stopPropagation(e)
+            setShowHeatmaps(!showHeatmaps)
+          })
+        }
 
         // Emoji toggle button
         const emojiButton = L.DomUtil.create("button", "", container)
@@ -2664,24 +2675,25 @@ const MapControls: React.FC<{
           setShowEmojis(!showEmojis)
         })
 
-        // Download map view button
-        const downloadMapButton = L.DomUtil.create("button", "", container)
-        downloadMapButton.innerHTML = "Capture View"
-        downloadMapButton.style.border = "none"
-        downloadMapButton.style.background = "#f3e8ff"
-        downloadMapButton.style.fontSize = "13px"
-        downloadMapButton.style.fontWeight = "500"
-        downloadMapButton.style.color = "#7c3aed"
-        downloadMapButton.style.textAlign = "left"
-        downloadMapButton.style.padding = "8px 12px"
-        downloadMapButton.style.borderRadius = "6px"
-        downloadMapButton.style.transition = "all 0.2s"
-        downloadMapButton.title = "Capture current map view as image"
+        if (captureViewEnabled) {
+          const downloadMapButton = L.DomUtil.create("button", "", container)
+          downloadMapButton.innerHTML = "Capture View"
+          downloadMapButton.style.border = "none"
+          downloadMapButton.style.background = "#f3e8ff"
+          downloadMapButton.style.fontSize = "13px"
+          downloadMapButton.style.fontWeight = "500"
+          downloadMapButton.style.color = "#7c3aed"
+          downloadMapButton.style.textAlign = "left"
+          downloadMapButton.style.padding = "8px 12px"
+          downloadMapButton.style.borderRadius = "6px"
+          downloadMapButton.style.transition = "all 0.2s"
+          downloadMapButton.title = "Capture current map view as image"
 
-        L.DomEvent.on(downloadMapButton, "click", (e) => {
-          L.DomEvent.stopPropagation(e)
-          captureMapView()
-        })
+          L.DomEvent.on(downloadMapButton, "click", (e) => {
+            L.DomEvent.stopPropagation(e)
+            captureMapView()
+          })
+        }
 
         return container
       },
@@ -2693,7 +2705,7 @@ const MapControls: React.FC<{
     return () => {
       map.removeControl(mapControls)
     }
-  }, [map, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis])
+  }, [map, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis, heatmapEnabled, captureViewEnabled])
 
   return null
 }
@@ -2704,7 +2716,17 @@ const HeatmapOverlays: React.FC<{
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
   setShowEmojis: (value: boolean) => void
-}> = ({ onLoadingChange, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis }) => {
+  heatmapEnabled: boolean
+  captureViewEnabled: boolean
+}> = ({
+  onLoadingChange,
+  showHeatmaps,
+  setShowHeatmaps,
+  showEmojis,
+  setShowEmojis,
+  heatmapEnabled,
+  captureViewEnabled,
+}) => {
   const map = useMap()
   const [heatmaps, setHeatmaps] = useState<HeatmapData[]>([])
   const overlaysRef = useRef<L.ImageOverlay[]>([])
@@ -2828,6 +2850,8 @@ const HeatmapOverlays: React.FC<{
       setShowHeatmaps={setShowHeatmaps}
       showEmojis={showEmojis}
       setShowEmojis={setShowEmojis}
+      heatmapEnabled={heatmapEnabled}
+      captureViewEnabled={captureViewEnabled}
     />
   )
 }
@@ -2944,6 +2968,10 @@ const MapLayerButton: React.FC = () => {
 
 // Update the LeafletMap component
 const LeafletMap: React.FC = () => {
+  const siteSettings = useSiteSettings()
+  const heatmapEnabled = siteSettings.features.find((feature) => feature.id === "heatmap")?.enabled ?? true
+  const captureViewEnabled =
+    siteSettings.features.find((feature) => feature.id === "capture-view")?.enabled ?? true
   const defaultCenter: [number, number] = [1.5, 17.5]
   const defaultZoom = 4
   const [loadingState, setLoadingState] = useState<LoadingState>({
@@ -2965,6 +2993,10 @@ const LeafletMap: React.FC = () => {
     error: null,
     site: null,
   })
+
+  useEffect(() => {
+    if (!heatmapEnabled) setShowHeatmaps(false)
+  }, [heatmapEnabled])
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   if (!mapboxToken) {
@@ -3116,10 +3148,12 @@ const LeafletMap: React.FC = () => {
             <MapNodes onLoadingChange={setLoadingState} showEmojis={showEmojis} onNodeSelect={setSelectedNode} />
             <HeatmapOverlays
               onLoadingChange={setLoadingState}
-              showHeatmaps={showHeatmaps}
+              showHeatmaps={heatmapEnabled && showHeatmaps}
               setShowHeatmaps={setShowHeatmaps}
               showEmojis={showEmojis}
               setShowEmojis={setShowEmojis}
+              heatmapEnabled={heatmapEnabled}
+              captureViewEnabled={captureViewEnabled}
             />
             <Legend />
             <MapLayerButton />

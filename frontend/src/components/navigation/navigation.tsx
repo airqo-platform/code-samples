@@ -6,19 +6,15 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Menu, X } from "lucide-react"
 import Image from "next/image"
-
-const navItems = [
-  { name: "Home", href: "/" },
-  { name: "Map", href: "/map" },
-  { name: "Locate", href: "/locate" },
-  { name: "Categorize", href: "/categorize" },
-  { name: "Reports", href: "/reports" },
-  { name: "About", href: "/about" },
-]
+import { useSiteSettings } from "@/hooks/use-site-settings"
 
 export default function Navigation({ ...props }) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
+  const settings = useSiteSettings()
+  const navItems = settings.pages
+    .filter((page) => page.enabled)
+    .map((page) => ({ name: page.name, href: page.path }))
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b shadow-sm">
