@@ -222,39 +222,48 @@ export const getReportData = async (): Promise<MapNode[] | null> => {
   }
 }
 
-// Get heatmap data from the spatial heatmaps endpoint with retry logic
-export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
-  const maxRetries = 5;
-  const retryDelay = 1000; // 1 second delay between retries
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await apiService.get("/spatial/heatmaps");
+let heatmapDataRequest: Promise<HeatmapData[] | null> | null = null
+let heatmapRetryBlockedUntil = 0
 
-      // Check if response has valid data
-      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        return response.data;
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// Get heatmap data from the spatial heatmaps endpoint with a hard retry cap.
+export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
+  if (Date.now() < heatmapRetryBlockedUntil) return null
+  if (heatmapDataRequest) return heatmapDataRequest
+
+  heatmapDataRequest = (async () => {
+    const maxAttempts = 3
+    const retryDelayMs = 1000
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await apiService.get("/spatial/heatmaps")
+
+        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+          return response.data
+        }
+
+        console.warn(`Heatmap attempt ${attempt}/${maxAttempts}: no heatmap data returned.`)
+      } catch (error) {
+        console.error(`Heatmap attempt ${attempt}/${maxAttempts} failed:`, error)
       }
-      
-      console.warn(`Attempt ${attempt}: No heatmap data found in response, retrying...`);
-      
-      // If this is not the last attempt, wait before retrying
-      if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt)); // Exponential backoff
-      }
-      
-    } catch (error) {
-      console.error(`Attempt ${attempt}: Error fetching heatmap data:`, error);
-      
-      // If this is not the last attempt, wait before retrying
-      if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+
+      if (attempt < maxAttempts) {
+        await delay(retryDelayMs * attempt)
       }
     }
+
+    heatmapRetryBlockedUntil = Date.now() + 5 * 60 * 1000
+    console.error("Heatmap fetch failed after 3 attempts. Skipping retries for 5 minutes.")
+    return null
+  })()
+
+  try {
+    return await heatmapDataRequest
+  } finally {
+    heatmapDataRequest = null
   }
-  
-  console.error("All 5 attempts failed to fetch heatmap data");
-  return null;
 }
 
 const unwrapForecastPayload = (value: any): any => {
@@ -433,34 +442,47 @@ const mergeHourlyForecastPages = (siteId: string, pages: HourlyForecastResponse[
   }
 }
 
-export const getHourlyForecast = async (siteId: string, hours = 168, pageSize = 10): Promise<HourlyForecastSite | null> => {
-  try {
-    const firstPage = await getHourlyForecastPage(siteId, 1, pageSize, hours)
-    if (!firstPage) return null
+const hourlyForecastSiteRequests = new Map<string, Promise<HourlyForecastSite | null>>()
 
-    const totalPages = Math.max(1, firstPage.total_pages || 1)
-    const remainingPages =
-      totalPages > 1
-        ? await Promise.all(
-            Array.from({ length: totalPages - 1 }, (_, index) => getHourlyForecastPage(siteId, index + 2, pageSize, hours)),
-          )
-        : []
+export const getHourlyForecast = async (siteId: string, hours = 168, pageSize = 100): Promise<HourlyForecastSite | null> => {
+  const requestKey = `${siteId}:${hours}:${pageSize}`
+  const existingRequest = hourlyForecastSiteRequests.get(requestKey)
+  if (existingRequest) return existingRequest
 
-    const pages = [firstPage, ...remainingPages.filter((page): page is HourlyForecastResponse => !!page)]
-    const mergedSite = mergeHourlyForecastPages(siteId, pages)
+  const request = (async () => {
+    try {
+      const firstPage = await getHourlyForecastPage(siteId, 1, pageSize, hours)
+      if (!firstPage) return null
 
-    if (mergedSite?.forecasts?.length) {
-      return {
-        ...mergedSite,
-        forecasts: mergedSite.forecasts.slice(0, hours),
+      const pages = [firstPage]
+      const totalPages = Math.max(1, firstPage.total_pages || 1)
+
+      // Avoid sending a burst of parallel requests if one site still spans multiple pages.
+      for (let page = 2; page <= totalPages; page += 1) {
+        const nextPage = await getHourlyForecastPage(siteId, page, pageSize, hours)
+        if (nextPage) pages.push(nextPage)
       }
-    }
 
-    return null
-  } catch (error) {
-    console.error("Error fetching site hourly forecast:", error)
-    return null
-  }
+      const mergedSite = mergeHourlyForecastPages(siteId, pages)
+
+      if (mergedSite?.forecasts?.length) {
+        return {
+          ...mergedSite,
+          forecasts: mergedSite.forecasts.slice(0, hours),
+        }
+      }
+
+      return null
+    } catch (error) {
+      console.error("Error fetching site hourly forecast:", error)
+      return null
+    } finally {
+      hourlyForecastSiteRequests.delete(requestKey)
+    }
+  })()
+
+  hourlyForecastSiteRequests.set(requestKey, request)
+  return request
 }
 
 export const getSiteHistorical = async (

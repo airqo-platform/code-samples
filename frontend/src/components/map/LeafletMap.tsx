@@ -34,10 +34,9 @@ import {
   getMapNodes,
   getHeatmapData,
   getDailyForecastCollection,
-  getHourlyForecastCollection,
+  getHourlyForecast,
   getSiteHistorical,
   type DailyForecastResponse,
-  type HourlyForecastResponse,
   type HourlyForecastSite,
 } from "@/services/apiService"
 import {
@@ -527,7 +526,7 @@ interface HourlyForecastState {
 interface HourlyForecastCollectionState {
   isLoading: boolean
   error: string | null
-  collection: HourlyForecastResponse | null
+  site: HourlyForecastSite | null
 }
 
 type HistoricalPoint = { date: Date; pm25: number }
@@ -877,9 +876,10 @@ const ForecastPanel: React.FC<{
       return { isLoading: false, error: null, site: null }
     }
 
-    const site = hourlyForecastState.collection?.forecasts?.find(
-      (forecastSite) => forecastSite.site_details?.site_id === siteId,
-    )
+    const site =
+      hourlyForecastState.site?.site_details?.site_id === siteId
+        ? hourlyForecastState.site
+        : null
 
     if (site?.forecasts?.length) {
       return { isLoading: false, error: null, site }
@@ -896,7 +896,7 @@ const ForecastPanel: React.FC<{
     }
   }, [
     hourlyForecastEnabled,
-    hourlyForecastState.collection,
+    hourlyForecastState.site,
     hourlyForecastState.error,
     hourlyForecastState.isLoading,
     selectedNode?.site_id,
@@ -2710,6 +2710,11 @@ const HeatmapOverlays: React.FC<{
   const overlaysRef = useRef<L.ImageOverlay[]>([])
 
   useEffect(() => {
+    if (!showHeatmaps) {
+      onLoadingChange({ isLoading: false, error: null })
+      return
+    }
+
     let isActive = true
 
     const fetchHeatmaps = async () => {
@@ -2723,9 +2728,10 @@ const HeatmapOverlays: React.FC<{
           hasUsableCachedHeatmaps = true
           setHeatmaps(cached.data)
           onLoadingChange({ isLoading: false, error: null })
+          return
         }
 
-        const data = await fetchWithRetry(getHeatmapData, 3, 2000, 1.5)
+        const data = await getHeatmapData()
         if (!isActive) return
 
         if (data && Array.isArray(data)) {
@@ -2763,7 +2769,7 @@ const HeatmapOverlays: React.FC<{
     return () => {
       isActive = false
     }
-  }, [onLoadingChange])
+  }, [onLoadingChange, showHeatmaps])
 
   useEffect(() => {
     if (!heatmaps.length) return
@@ -2947,7 +2953,7 @@ const LeafletMap: React.FC = () => {
   const [showEmojis, setShowEmojis] = useState(true)
   const [showHeatmaps, setShowHeatmaps] = useState(false)
   const [selectedNode, setSelectedNode] = useState<MapNode | null>(null)
-  const [hourlyForecastEnabled, setHourlyForecastEnabled] = useState(true)
+  const [hourlyForecastEnabled, setHourlyForecastEnabled] = useState(false)
   const [hourlyForecastPreferenceLoaded, setHourlyForecastPreferenceLoaded] = useState(false)
   const [forecastState, setForecastState] = useState<ForecastState>({
     isLoading: false,
@@ -2957,7 +2963,7 @@ const LeafletMap: React.FC = () => {
   const [hourlyForecastState, setHourlyForecastState] = useState<HourlyForecastCollectionState>({
     isLoading: false,
     error: null,
-    collection: null,
+    site: null,
   })
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
@@ -3037,44 +3043,48 @@ const LeafletMap: React.FC = () => {
   useEffect(() => {
     if (!hourlyForecastPreferenceLoaded) return
 
-    if (!hourlyForecastEnabled) {
+    const siteId = selectedNode?.site_id
+
+    if (!hourlyForecastEnabled || !siteId) {
       setHourlyForecastState((current) => ({ ...current, isLoading: false, error: null }))
       return
     }
 
     let isActive = true
     let hasUsableCachedForecast = false
+    const cacheKey = `${MAP_HOURLY_FORECAST_CACHE_KEY}:${siteId}`
 
     const loadHourlyForecast = async () => {
       setHourlyForecastState((current) =>
-        current.collection ? current : { isLoading: true, error: null, collection: null },
+        current.site?.site_details?.site_id === siteId ? current : { isLoading: true, error: null, site: null },
       )
 
-      const cached = await readBrowserApiCache<BrowserApiCacheEntry<HourlyForecastResponse>>(MAP_HOURLY_FORECAST_CACHE_KEY)
+      const cached = await readBrowserApiCache<BrowserApiCacheEntry<HourlyForecastSite>>(cacheKey)
       if (isActive && isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.forecasts?.length) {
         hasUsableCachedForecast = true
-        setHourlyForecastState({ isLoading: false, error: null, collection: cached.data })
+        setHourlyForecastState({ isLoading: false, error: null, site: cached.data })
+        return
       }
 
       try {
-        const collection = await getHourlyForecastCollection()
+        const site = await getHourlyForecast(siteId)
         if (!isActive) return
-        if (!collection?.forecasts?.length) {
+        if (!site?.forecasts?.length) {
           if (!hasUsableCachedForecast) {
-            setHourlyForecastState({ isLoading: false, error: "No hourly forecast coverage was returned.", collection: null })
+            setHourlyForecastState({ isLoading: false, error: "No hourly forecast returned for this site.", site: null })
           }
           return
         }
 
-        setHourlyForecastState({ isLoading: false, error: null, collection })
-        writeBrowserApiCache(MAP_HOURLY_FORECAST_CACHE_KEY, collection).catch((error) => {
-          console.warn("Unable to cache hourly forecast coverage:", error)
+        setHourlyForecastState({ isLoading: false, error: null, site })
+        writeBrowserApiCache(cacheKey, site).catch((error) => {
+          console.warn("Unable to cache hourly forecast:", error)
         })
       } catch (error) {
         if (!isActive) return
         console.error(error)
         if (!hasUsableCachedForecast) {
-          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast coverage.", collection: null })
+          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast.", site: null })
         }
       }
     }
@@ -3084,7 +3094,7 @@ const LeafletMap: React.FC = () => {
     return () => {
       isActive = false
     }
-  }, [hourlyForecastEnabled, hourlyForecastPreferenceLoaded])
+  }, [hourlyForecastEnabled, hourlyForecastPreferenceLoaded, selectedNode?.site_id])
 
   const isPanelOpen = !!selectedNode
 
