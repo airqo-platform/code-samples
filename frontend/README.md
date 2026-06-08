@@ -37,10 +37,15 @@ AirQo AI Platform [https://ai.airqo.net/](https://ai.airqo.net/).
    ```
 
 3. Set up environment variables:
-   Create a `.env.local` file in the root directory and add the following variables:
-    ```
-    API_TOKEN=your_api_token_here
-    ```
+   Copy `.env.example` to `.env.local` and provide the values needed by your environment:
+   ```env
+   API_TOKEN=your_api_token_here
+   NEXT_PUBLIC_MAPBOX_TOKEN=your_mapbox_token_here
+   NEXT_PUBLIC_AQI_API_URL=your_aqi_heatmap_endpoint_here
+   NEXT_PUBLIC_GOOGLE_ANALYTICS_ID=your_google_analytics_id_here
+   ```
+
+   `API_TOKEN` is server-only. Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser.
 
 4. Run the development server:
    ```
