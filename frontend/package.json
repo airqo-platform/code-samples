@@ -46,6 +46,7 @@
     "@types/papaparse": "^5.3.15",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "baseline-browser-mapping": "^2.10.29",
     "eslint": "^9.39.1",
     "eslint-config-next": "^16.0.10",
     "postcss": "^8",

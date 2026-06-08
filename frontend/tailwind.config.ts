@@ -4,6 +4,7 @@ const config: Config = {
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/ui/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
     "*.{js,ts,jsx,tsx,mdx}",
   ],
@@ -51,11 +52,17 @@ const config: Config = {
       },
       animation: {
         "pulse-subtle": "pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        "switch-thumb-bounce": "switch-thumb-bounce 260ms cubic-bezier(0.34, 1.56, 0.64, 1)",
       },
       keyframes: {
         "pulse-subtle": {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.85" },
+        },
+        "switch-thumb-bounce": {
+          "0%": { transform: "translateX(var(--switch-thumb-x)) scale(0.92)" },
+          "55%": { transform: "translateX(var(--switch-thumb-x)) scale(1.16)" },
+          "100%": { transform: "translateX(var(--switch-thumb-x)) scale(1)" },
         },
       },
     },
