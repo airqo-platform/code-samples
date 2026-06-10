@@ -28,6 +28,12 @@ import {
   type DailyForecastResponse,
   type MapNode,
 } from "@/services/apiService"
+import {
+  isBrowserApiCacheFresh,
+  readBrowserApiCache,
+  writeBrowserApiCache,
+  type BrowserApiCacheEntry,
+} from "@/lib/browserApiCache"
 
 type ForecastTickerItem = {
   id: string
@@ -42,6 +48,9 @@ const FORECAST_TICKER_COUNTRY_KEY = "daily-forecast-country"
 const FORECAST_TICKER_LOCATION_STATE_KEY = "daily-forecast-location-state"
 const FORECAST_TICKER_ACTIVE_KEY = "daily-forecast-active"
 const FORECAST_TICKER_VISIBLE_KEY = "daily-forecast-visible"
+const FORECAST_TICKER_COORDINATES_KEY = "daily-forecast-coordinates"
+const DAILY_FORECAST_CACHE_KEY = "map-daily-forecast"
+const DAILY_FORECAST_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 type MapboxCountryResponse = {
   features?: Array<{
@@ -151,6 +160,25 @@ function getDistanceInKm(latitude: number, longitude: number, node: MapNode) {
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value))
 }
 
+function getCoordinatesForCountry(country: string, mapNodes: MapNode[]) {
+  const matchingNodes = mapNodes.filter(
+    (node) =>
+      node.siteDetails?.country?.trim().toLowerCase() === country.trim().toLowerCase() &&
+      typeof node.siteDetails.approximate_latitude === "number" &&
+      typeof node.siteDetails.approximate_longitude === "number",
+  )
+  if (!matchingNodes.length) return null
+
+  return {
+    latitude:
+      matchingNodes.reduce((sum, node) => sum + node.siteDetails.approximate_latitude!, 0) /
+      matchingNodes.length,
+    longitude:
+      matchingNodes.reduce((sum, node) => sum + node.siteDetails.approximate_longitude!, 0) /
+      matchingNodes.length,
+  }
+}
+
 async function resolveCountry(latitude: number, longitude: number, mapNodes: MapNode[]) {
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   if (mapboxToken) {
@@ -190,6 +218,7 @@ function DailyForecastTicker() {
   const [loading, setLoading] = useState(true)
   const [locationState, setLocationState] = useState<LocationState>("idle")
   const [visitorCountry, setVisitorCountry] = useState("")
+  const [visitorCoordinates, setVisitorCoordinates] = useState<{ latitude: number; longitude: number } | null>(null)
   const [isTickerActive, setIsTickerActive] = useState(true)
   const [isTickerVisible, setIsTickerVisible] = useState(true)
   const [preferencesLoaded, setPreferencesLoaded] = useState(false)
@@ -199,6 +228,7 @@ function DailyForecastTicker() {
     const savedLocationState = window.localStorage.getItem(FORECAST_TICKER_LOCATION_STATE_KEY)
     const savedActive = window.localStorage.getItem(FORECAST_TICKER_ACTIVE_KEY)
     const savedVisible = window.localStorage.getItem(FORECAST_TICKER_VISIBLE_KEY)
+    const savedCoordinates = window.localStorage.getItem(FORECAST_TICKER_COORDINATES_KEY)
 
     if (savedCountry) {
       setVisitorCountry(savedCountry)
@@ -209,6 +239,16 @@ function DailyForecastTicker() {
 
     if (savedActive !== null) setIsTickerActive(savedActive === "true")
     if (savedVisible !== null) setIsTickerVisible(savedVisible === "true")
+    if (savedCoordinates) {
+      try {
+        const coordinates = JSON.parse(savedCoordinates) as { latitude?: number; longitude?: number }
+        if (typeof coordinates.latitude === "number" && typeof coordinates.longitude === "number") {
+          setVisitorCoordinates({ latitude: coordinates.latitude, longitude: coordinates.longitude })
+        }
+      } catch {
+        window.localStorage.removeItem(FORECAST_TICKER_COORDINATES_KEY)
+      }
+    }
     setPreferencesLoaded(true)
   }, [])
 
@@ -224,7 +264,26 @@ function DailyForecastTicker() {
 
   useEffect(() => {
     let active = true
-    Promise.all([getDailyForecastCollection(), getMapNodes()])
+
+    const loadDailyForecast = async () => {
+      const cached = await readBrowserApiCache<BrowserApiCacheEntry<DailyForecastResponse>>(DAILY_FORECAST_CACHE_KEY)
+      if (
+        isBrowserApiCacheFresh(cached, DAILY_FORECAST_CACHE_MAX_AGE_MS) &&
+        cached.data.forecasts?.length
+      ) {
+        return cached.data
+      }
+
+      const forecastData = await getDailyForecastCollection()
+      if (forecastData?.forecasts?.length) {
+        writeBrowserApiCache(DAILY_FORECAST_CACHE_KEY, forecastData).catch((error) => {
+          console.warn("Unable to cache daily forecast ticker data:", error)
+        })
+      }
+      return forecastData
+    }
+
+    Promise.all([loadDailyForecast(), getMapNodes()])
       .then(([forecastData, nodes]) => {
         if (!active) return
         setCollection(forecastData)
@@ -243,6 +302,7 @@ function DailyForecastTicker() {
     if (!navigator.geolocation) {
       setLocationState("unavailable")
       window.localStorage.removeItem(FORECAST_TICKER_COUNTRY_KEY)
+      window.localStorage.removeItem(FORECAST_TICKER_COORDINATES_KEY)
       window.localStorage.setItem(FORECAST_TICKER_LOCATION_STATE_KEY, "unavailable")
       return
     }
@@ -252,19 +312,24 @@ function DailyForecastTicker() {
       async ({ coords }) => {
         const country = await resolveCountry(coords.latitude, coords.longitude, mapNodes)
         if (country) {
+          const coordinates = { latitude: coords.latitude, longitude: coords.longitude }
           setVisitorCountry(country)
+          setVisitorCoordinates(coordinates)
           setLocationState("ready")
           window.localStorage.setItem(FORECAST_TICKER_COUNTRY_KEY, country)
+          window.localStorage.setItem(FORECAST_TICKER_COORDINATES_KEY, JSON.stringify(coordinates))
           window.localStorage.setItem(FORECAST_TICKER_LOCATION_STATE_KEY, "ready")
         } else {
           setLocationState("unavailable")
           window.localStorage.removeItem(FORECAST_TICKER_COUNTRY_KEY)
+          window.localStorage.removeItem(FORECAST_TICKER_COORDINATES_KEY)
           window.localStorage.setItem(FORECAST_TICKER_LOCATION_STATE_KEY, "unavailable")
         }
       },
       () => {
         setLocationState("denied")
         window.localStorage.removeItem(FORECAST_TICKER_COUNTRY_KEY)
+        window.localStorage.removeItem(FORECAST_TICKER_COORDINATES_KEY)
         window.localStorage.setItem(FORECAST_TICKER_LOCATION_STATE_KEY, "denied")
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 30 * 60 * 1000 },
@@ -274,27 +339,58 @@ function DailyForecastTicker() {
   const tickerItems = useMemo<ForecastTickerItem[]>(() => {
     if (!collection?.forecasts?.length || !visitorCountry) return []
 
-    const countryBySiteId = new Map(
+    const nodeBySiteId = new Map(
       mapNodes
-        .filter((node) => node.site_id && node.siteDetails?.country)
-        .map((node) => [node.site_id, node.siteDetails.country!.trim().toLowerCase()]),
+        .filter((node) => node.site_id)
+        .map((node) => [node.site_id, node]),
+    )
+    const visitorCountryKey = visitorCountry.trim().toLowerCase()
+    const sitesInVisitorCountry = collection.forecasts.filter(
+      (site) =>
+        nodeBySiteId.get(site.site_details.site_id)?.siteDetails?.country?.trim().toLowerCase() ===
+        visitorCountryKey,
     )
 
-    return collection.forecasts
-      .filter((site) => countryBySiteId.get(site.site_details.site_id) === visitorCountry.toLowerCase())
+    let selectedSites = sitesInVisitorCountry
+    let selectedCountry = visitorCountry
+
+    if (!selectedSites.length) {
+      const origin = visitorCoordinates || getCoordinatesForCountry(visitorCountry, mapNodes)
+      const nearestForecastNode = origin
+        ? collection.forecasts.reduce<{ node: MapNode; distance: number } | null>((nearest, site) => {
+            const node = nodeBySiteId.get(site.site_details.site_id)
+            if (!node?.siteDetails?.country) return nearest
+            const distance = getDistanceInKm(origin.latitude, origin.longitude, node)
+            if (!Number.isFinite(distance)) return nearest
+            return !nearest || distance < nearest.distance ? { node, distance } : nearest
+          }, null)
+        : null
+      const nearestCountry = nearestForecastNode?.node.siteDetails.country?.trim()
+
+      if (nearestCountry) {
+        selectedCountry = nearestCountry
+        selectedSites = collection.forecasts.filter(
+          (site) =>
+            nodeBySiteId.get(site.site_details.site_id)?.siteDetails?.country?.trim().toLowerCase() ===
+            nearestCountry.toLowerCase(),
+        )
+      }
+    }
+
+    return selectedSites
       .map((site) => {
         const forecast = site.forecasts?.[0]
         if (!forecast) return null
         return {
           id: `${site.site_details.site_id}-${forecast.date}`,
           siteName: site.site_details.site_name || "AirQo site",
-          country: visitorCountry,
+          country: selectedCountry,
           forecast,
         }
       })
       .filter((item): item is ForecastTickerItem => Boolean(item))
       .slice(0, 24)
-  }, [collection, mapNodes, visitorCountry])
+  }, [collection, mapNodes, visitorCoordinates, visitorCountry])
 
   const renderedItems = tickerItems.length > 0 ? [...tickerItems, ...tickerItems] : []
 
@@ -380,6 +476,7 @@ function DailyForecastTicker() {
                       aria-hidden="true"
                     />
                     <span className="font-semibold text-slate-950">{item.siteName}</span>
+                    <span className="text-xs font-medium text-blue-700">{item.country}</span>
                     <span className="text-xs uppercase tracking-wide text-slate-500">
                       {formatForecastDate(item.forecast.date)}
                     </span>
