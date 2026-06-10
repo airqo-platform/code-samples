@@ -10,6 +10,13 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   if (!(await getAdminSession())) return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-  const settings = sanitizeSiteSettings(await request.json())
-  return NextResponse.json(await updateSiteSettings(settings))
+  try {
+    const settings = sanitizeSiteSettings(await request.json())
+    return NextResponse.json(await updateSiteSettings(settings))
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      return NextResponse.json({ message: "Invalid JSON format." }, { status: 400 })
+    }
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Unable to update site settings." }, { status: 400 })
+  }
 }

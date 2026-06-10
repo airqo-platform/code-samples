@@ -8,6 +8,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const { id } = await context.params
   const changes = (await request.json()) as { role?: AdminRole; active?: boolean }
+
+  const validRoles = ["admin", "super_admin"]
+  if (changes.role && !validRoles.includes(changes.role)) {
+    return NextResponse.json({ message: "Invalid role specified." }, { status: 400 })
+  }
+  
   if (id === session.id && changes.active === false) {
     return NextResponse.json({ message: "You cannot disable your own account." }, { status: 400 })
   }

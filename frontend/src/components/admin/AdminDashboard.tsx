@@ -3,6 +3,10 @@
 import { FormEvent, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
+  AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  CheckCircle2,
   Eye,
   EyeOff,
   LayoutDashboard,
@@ -29,27 +33,45 @@ type PublicAdmin = {
   createdAt: string
 }
 
+type Message = {
+  type: "success" | "error"
+  text: string
+}
+
 export default function AdminDashboard({ session }: { session: AdminSession }) {
   const router = useRouter()
   const [settings, setSettings] = useState<SiteSettings | null>(null)
+  const [publishedSettings, setPublishedSettings] = useState("")
   const [admins, setAdmins] = useState<PublicAdmin[]>([])
   const [pageName, setPageName] = useState("")
   const [pagePath, setPagePath] = useState("")
   const [newAdmin, setNewAdmin] = useState({ email: "", role: "admin" as AdminRole })
-  const [message, setMessage] = useState("")
+  const [message, setMessage] = useState<Message | null>(null)
   const [saving, setSaving] = useState(false)
+  const [addingAdmin, setAddingAdmin] = useState(false)
+  const [updatingAdminId, setUpdatingAdminId] = useState<string | null>(null)
 
   async function loadData() {
-    const settingsResponse = await fetch("/api/admin/settings", { cache: "no-store" })
-    if (settingsResponse.status === 401) {
-      router.push("/admin/login")
-      return
-    }
-    setSettings(await settingsResponse.json())
+    try {
+      const settingsResponse = await fetch("/api/admin/settings", { cache: "no-store" })
+      if (settingsResponse.status === 401) {
+        router.push("/admin/login")
+        return
+      }
+      if (!settingsResponse.ok) throw new Error("Unable to load site settings.")
 
-    if (session.role === "super_admin") {
-      const adminsResponse = await fetch("/api/admin/users", { cache: "no-store" })
-      if (adminsResponse.ok) setAdmins(await adminsResponse.json())
+      const loadedSettings = (await settingsResponse.json()) as SiteSettings
+      setSettings(loadedSettings)
+      setPublishedSettings(JSON.stringify(loadedSettings))
+
+      if (session.role === "super_admin") {
+        const adminsResponse = await fetch("/api/admin/users", { cache: "no-store" })
+        if (!adminsResponse.ok) throw new Error("Unable to load administrators.")
+        setAdmins(await adminsResponse.json())
+      }
+    } catch (error) {
+      console.error("Failed to load admin data:", error)
+      setMessage({ type: "error", text: "Unable to load admin data. Please try again." })
     }
   }
 
@@ -57,16 +79,36 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
     loadData()
   }, [])
 
+  const hasUnsavedChanges = settings ? JSON.stringify(settings) !== publishedSettings : false
+  const visiblePages = settings?.pages.filter((page) => page.enabled).length ?? 0
+  const enabledFeatures = settings?.features.filter((feature) => feature.enabled).length ?? 0
+  const activeAdmins = admins.filter((admin) => admin.active).length
+
   function updatePage(id: string, changes: Partial<ManagedPage>) {
     setSettings((current) =>
       current ? { ...current, pages: current.pages.map((page) => (page.id === id ? { ...page, ...changes } : page)) } : current,
     )
   }
 
+  function movePage(index: number, direction: -1 | 1) {
+    if (!settings) return
+    const destination = index + direction
+    if (destination < 0 || destination >= settings.pages.length) return
+
+    const pages = [...settings.pages]
+    ;[pages[index], pages[destination]] = [pages[destination], pages[index]]
+    setSettings({ ...settings, pages })
+  }
+
   function addPage(event: FormEvent) {
     event.preventDefault()
     if (!settings || !pageName.trim() || !pagePath.trim()) return
-    const normalizedPath = pagePath.startsWith("/") ? pagePath : `/${pagePath}`
+    const normalizedPath = `/${pagePath.trim().replace(/^\/+|\/+$/g, "")}`
+    if (settings.pages.some((page) => page.path.toLowerCase() === normalizedPath.toLowerCase())) {
+      setMessage({ type: "error", text: `A page with the path ${normalizedPath} already exists.` })
+      return
+    }
+
     setSettings({
       ...settings,
       pages: [
@@ -81,50 +123,100 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
     })
     setPageName("")
     setPagePath("")
+    setMessage(null)
+  }
+
+  function validateSettings() {
+    if (!settings) return "Site settings have not loaded."
+
+    const paths = new Set<string>()
+    for (const page of settings.pages) {
+      const name = page.name.trim()
+      const path = page.path.trim()
+      if (!name || !path) return "Every page must have a name and path."
+      if (!path.startsWith("/") || path.includes("?") || path.includes("#")) {
+        return `${name} must use a path such as /reports without a query string or hash.`
+      }
+
+      const normalizedPath = path.toLowerCase().replace(/\/+$/, "") || "/"
+      if (paths.has(normalizedPath)) return `The path ${path} is used more than once.`
+      paths.add(normalizedPath)
+    }
+
+    return null
   }
 
   async function saveSettings() {
     if (!settings) return
+    const validationError = validateSettings()
+    if (validationError) {
+      setMessage({ type: "error", text: validationError })
+      return
+    }
+
     setSaving(true)
-    setMessage("")
-    const response = await fetch("/api/admin/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
-    })
-    setMessage(response.ok ? "Changes published successfully." : "Unable to publish changes.")
-    setSaving(false)
+    setMessage(null)
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(data?.message || "Unable to publish changes.")
+
+      setSettings(data)
+      setPublishedSettings(JSON.stringify(data))
+      setMessage({ type: "success", text: "Changes published successfully." })
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Unable to publish changes." })
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function addAdministrator(event: FormEvent) {
     event.preventDefault()
-    const response = await fetch("/api/admin/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newAdmin),
-    })
-    const data = await response.json()
-    if (!response.ok) {
-      setMessage(data.message || "Unable to add administrator.")
-      return
+    setAddingAdmin(true)
+    setMessage(null)
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newAdmin),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || "Unable to add administrator.")
+
+      setAdmins((current) => [...current, data])
+      setNewAdmin({ email: "", role: "admin" })
+      setMessage({ type: "success", text: "Administrator added." })
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Unable to add administrator." })
+    } finally {
+      setAddingAdmin(false)
     }
-    setAdmins((current) => [...current, data])
-    setNewAdmin({ email: "", role: "admin" })
-    setMessage("Administrator added.")
   }
 
   async function patchAdministrator(id: string, changes: Partial<Pick<PublicAdmin, "active" | "role">>) {
-    const response = await fetch(`/api/admin/users/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(changes),
-    })
-    const data = await response.json()
-    if (!response.ok) {
-      setMessage(data.message || "Unable to update administrator.")
-      return
+    setUpdatingAdminId(id)
+    setMessage(null)
+    try {
+      const response = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(changes),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || "Unable to update administrator.")
+
+      setAdmins((current) => current.map((admin) => (admin.id === id ? data : admin)))
+      setMessage({ type: "success", text: "Administrator updated." })
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Unable to update administrator." })
+    } finally {
+      setUpdatingAdminId(null)
     }
-    setAdmins((current) => current.map((admin) => (admin.id === id ? data : admin)))
   }
 
   async function logout() {
@@ -160,12 +252,51 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
             <p className="text-sm font-medium text-blue-100">Website controls</p>
             <h2 className="mt-1 text-2xl font-semibold">Choose what visitors can see and use</h2>
           </div>
-          <Button onClick={saveSettings} disabled={saving} className="rounded-xl bg-white text-blue-800 hover:bg-blue-50">
-            <Save /> {saving ? "Publishing..." : "Publish changes"}
+          <Button
+            onClick={saveSettings}
+            disabled={saving || !hasUnsavedChanges}
+            className="rounded-xl bg-white text-blue-800 hover:bg-blue-50"
+          >
+            <Save /> {saving ? "Publishing..." : hasUnsavedChanges ? "Publish changes" : "All changes published"}
           </Button>
         </section>
 
-        {message && <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">{message}</p>}
+        {message && (
+          <div
+            role={message.type === "error" ? "alert" : "status"}
+            className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${
+              message.type === "error"
+                ? "border-red-200 bg-red-50 text-red-800"
+                : "border-emerald-200 bg-emerald-50 text-emerald-800"
+            }`}
+          >
+            {message.type === "error" ? <AlertCircle className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+            {message.text}
+          </div>
+        )}
+
+        <section className={`grid gap-4 ${session.role === "super_admin" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Visible pages</p>
+            <p className="mt-2 text-3xl font-semibold">
+              {visiblePages}<span className="text-base font-normal text-slate-400"> / {settings.pages.length}</span>
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Enabled map features</p>
+            <p className="mt-2 text-3xl font-semibold">
+              {enabledFeatures}<span className="text-base font-normal text-slate-400"> / {settings.features.length}</span>
+            </p>
+          </div>
+          {session.role === "super_admin" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm text-slate-500">Active administrators</p>
+              <p className="mt-2 text-3xl font-semibold">
+                {activeAdmins}<span className="text-base font-normal text-slate-400"> / {admins.length}</span>
+              </p>
+            </div>
+          )}
+        </section>
 
         <div className="grid gap-8 lg:grid-cols-[1.35fr_0.65fr]">
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -178,30 +309,55 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
             </div>
 
             <div className="space-y-3">
-              {settings.pages.map((page) => (
-                <div key={page.id} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-center">
-                  <Input value={page.name} onChange={(event) => updatePage(page.id, { name: event.target.value })} aria-label="Page name" className="h-11 rounded-xl border-slate-300 bg-white" />
-                  <Input value={page.path} onChange={(event) => updatePage(page.id, { path: event.target.value })} aria-label="Page path" className="h-11 rounded-xl border-slate-300 bg-white" />
-                  <button
-                    type="button"
-                    onClick={() => updatePage(page.id, { enabled: !page.enabled })}
-                    className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium ${
-                      page.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {page.enabled ? <Eye /> : <EyeOff />} {page.enabled ? "Visible" : "Hidden"}
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setSettings({ ...settings, pages: settings.pages.filter((item) => item.id !== page.id) })}
-                    aria-label={`Remove ${page.name}`}
-                    className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
-              ))}
+              {settings.pages.map((page, index) => {
+                const isHome = page.id === "home" || page.path === "/"
+                return (
+                  <div key={page.id} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-[auto_1fr_1fr_auto_auto] sm:items-center">
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => movePage(index, -1)}
+                        disabled={index === 0}
+                        aria-label={`Move ${page.name} up`}
+                      >
+                        <ArrowUp />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => movePage(index, 1)}
+                        disabled={index === settings.pages.length - 1}
+                        aria-label={`Move ${page.name} down`}
+                      >
+                        <ArrowDown />
+                      </Button>
+                    </div>
+                    <Input value={page.name} onChange={(event) => updatePage(page.id, { name: event.target.value })} aria-label="Page name" className="h-11 rounded-xl border-slate-300 bg-white" />
+                    <Input value={page.path} onChange={(event) => updatePage(page.id, { path: event.target.value })} aria-label="Page path" disabled={isHome} className="h-11 rounded-xl border-slate-300 bg-white" />
+                    <button
+                      type="button"
+                      onClick={() => updatePage(page.id, { enabled: !page.enabled })}
+                      disabled={isHome}
+                      className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium ${
+                        page.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                    >
+                      {page.enabled ? <Eye /> : <EyeOff />} {page.enabled ? "Visible" : "Hidden"}
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSettings({ ...settings, pages: settings.pages.filter((item) => item.id !== page.id) })}
+                      aria-label={`Remove ${page.name}`}
+                      disabled={isHome}
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                )
+              })}
             </div>
 
             <form onSubmit={addPage} className="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1fr_1fr_auto]">
@@ -265,7 +421,7 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
                         value={admin.role}
                         onChange={(event) => patchAdministrator(admin.id, { role: event.target.value as AdminRole })}
                         className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm"
-                        disabled={admin.id === session.id}
+                        disabled={admin.id === session.id || updatingAdminId === admin.id}
                       >
                         <option value="admin">Admin</option>
                         <option value="super_admin">Super admin</option>
@@ -273,7 +429,7 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
                       <Switch
                         checked={admin.active}
                         onCheckedChange={(active) => patchAdministrator(admin.id, { active })}
-                        disabled={admin.id === session.id}
+                        disabled={admin.id === session.id || updatingAdminId === admin.id}
                         aria-label={`Toggle ${admin.email}`}
                       />
                     </div>
@@ -299,7 +455,9 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
                   <option value="admin">Admin: manage site controls</option>
                   <option value="super_admin">Super admin: also manage admins</option>
                 </select>
-                <Button type="submit" className="w-full rounded-xl bg-violet-700 text-white hover:bg-violet-800"><Plus /> Grant access</Button>
+                <Button type="submit" disabled={addingAdmin} className="w-full rounded-xl bg-violet-700 text-white hover:bg-violet-800">
+                  <Plus /> {addingAdmin ? "Granting access..." : "Grant access"}
+                </Button>
               </form>
             </div>
           </section>

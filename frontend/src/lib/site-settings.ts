@@ -53,8 +53,11 @@ export function sanitizeSiteSettings(value: unknown): SiteSettings {
             Boolean(
               page &&
                 typeof page.id === "string" &&
+                page.id.trim() &&
                 typeof page.name === "string" &&
+                page.name.trim() &&
                 typeof page.path === "string" &&
+                page.path.trim() &&
                 typeof page.enabled === "boolean",
             ),
         )

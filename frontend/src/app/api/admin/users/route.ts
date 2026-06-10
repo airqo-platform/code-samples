@@ -29,6 +29,9 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(await addAdmin({ email: normalizedEmail, role: role! }), { status: 201 })
   } catch (error) {
-    return NextResponse.json({ message: error instanceof Error ? error.message : "Unable to add administrator." }, { status: 400 })
+    if (error instanceof SyntaxError) {
+      return NextResponse.json({ message: "Invalid JSON format." }, { status: 400 })
+    }
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Unable to add administrator." }, { status: 400 })    
   }
 }

@@ -57,7 +57,7 @@ async function ensureBootstrapAdmin(store: AdminStore) {
   if (store.admins.length > 0) return store
 
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase()
-  if (!email) return store
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return store
 
   const nextStore = {
     ...store,

@@ -4,7 +4,13 @@ import { defaultSiteSettings } from "@/lib/site-settings"
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-  const settings = await getSiteSettings()
+  let settings
+  try {
+    settings = await getSiteSettings()
+  } catch (error) {
+    console.error("Failed to load site settings in proxy:", error)
+    return NextResponse.next() // Allow access if settings can't be fetched, but log the error  
+  }
   const managedPage = settings.pages.find(
     (page) => page.path !== "/" && (pathname === page.path || pathname.startsWith(`${page.path}/`)),
   )
