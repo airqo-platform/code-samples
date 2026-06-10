@@ -134,7 +134,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Sites:</span>
             <Select onValueChange={handleSiteLimitChange} defaultValue="7">
-              <SelectTrigger className="w-full md:w-[140px] h-9 border-gray-300 focus:border-blue-500">
+              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[140px]">
                 <SelectValue placeholder="Sites to display" />
               </SelectTrigger>
               <SelectContent>
@@ -150,7 +150,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Type:</span>
             <Select onValueChange={(v: string) => setChartType(v as "bar" | "line")} defaultValue="bar">
-              <SelectTrigger className="w-full md:w-[120px] h-9 border-gray-300 focus:border-blue-500">
+              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[120px]">
                 <SelectValue placeholder="Chart type" />
               </SelectTrigger>
               <SelectContent>
@@ -173,7 +173,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Sort:</span>
             <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
-              <SelectTrigger className="w-full md:w-[140px] h-9 border-gray-300 focus:border-blue-500">
+              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[140px]">
                 <SelectValue placeholder="Sort order" />
               </SelectTrigger>
               <SelectContent>
@@ -202,7 +202,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Export:</span>
             <Select value={downloadValue} onValueChange={handleDownloadChange}>
-              <SelectTrigger className="w-full md:w-[120px] h-9 border-gray-300 focus:border-blue-500">
+              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[120px]">
                 <SelectValue placeholder="Download" />
               </SelectTrigger>
               <SelectContent>
@@ -364,7 +364,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Type:</span>
             <Select onValueChange={(v: string) => setChartType(v as "pie" | "bar")} defaultValue="pie">
-              <SelectTrigger className="w-full md:w-[120px] h-9 border-gray-300 focus:border-green-500">
+              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-green-500 md:w-[120px]">
                 <SelectValue placeholder="Chart type" />
               </SelectTrigger>
               <SelectContent>
@@ -387,7 +387,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Export:</span>
             <Select value={downloadValue} onValueChange={handleDownloadChange}>
-              <SelectTrigger className="w-full md:w-[120px] h-9 border-gray-300 focus:border-green-500">
+              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-green-500 md:w-[120px]">
                 <SelectValue placeholder="Download" />
               </SelectTrigger>
               <SelectContent>
@@ -556,7 +556,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
         </CardTitle>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">
-            <SelectTrigger className="w-full md:w-[160px]">
+            <SelectTrigger className="w-full rounded-xl md:w-[160px]">
               <SelectValue placeholder="Sites to display" />
             </SelectTrigger>
             <SelectContent>
@@ -568,7 +568,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
             </SelectContent>
           </Select>
           <Select onValueChange={(v: string) => setChartType(v as "line" | "bar")} defaultValue="line">
-            <SelectTrigger className="w-full md:w-[160px]">
+            <SelectTrigger className="w-full rounded-xl md:w-[160px]">
               <SelectValue placeholder="Chart type" />
             </SelectTrigger>
             <SelectContent>
@@ -587,7 +587,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
             </SelectContent>
           </Select>
           <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
-            <SelectTrigger className="w-full md:w-[160px]">
+            <SelectTrigger className="w-full rounded-xl md:w-[160px]">
               <SelectValue placeholder="Sort order" />
             </SelectTrigger>
             <SelectContent>
@@ -612,7 +612,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
             </SelectContent>
           </Select>
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
-            <SelectTrigger className="w-full md:w-[160px]">
+            <SelectTrigger className="w-full rounded-xl md:w-[160px]">
               <SelectValue placeholder="Download" />
             </SelectTrigger>
             <SelectContent>
@@ -751,7 +751,7 @@ export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string
         <CardTitle className="text-lg md:text-xl">Air Quality Index</CardTitle>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
-            <SelectTrigger className="w-full md:w-[160px]">
+            <SelectTrigger className="w-full rounded-xl md:w-[160px]">
               <SelectValue placeholder="Download" />
             </SelectTrigger>
             <SelectContent>

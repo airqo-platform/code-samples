@@ -164,7 +164,7 @@ export function ControlPanel({
             aria-label="Longitude"
             className="h-11 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white"
           />
-          <Button onClick={handleAddLocation} aria-label="Add Location" className="col-span-2 gap-2 bg-slate-900 hover:bg-slate-800">
+          <Button onClick={handleAddLocation} aria-label="Add Location" className="col-span-2 gap-2 rounded-xl bg-blue-700 text-white hover:bg-blue-600">
             <Plus className="h-4 w-4" />
             Add priority point
           </Button>

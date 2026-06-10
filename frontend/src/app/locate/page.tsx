@@ -8,6 +8,8 @@ import { Button } from "@/ui/button"
 import {
   Camera,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Download,
   Info,
   MapPin,
@@ -32,6 +34,8 @@ export default function Index() {
   const { toast } = useToast()
   const [isDrawing, setIsDrawing] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
+  const [showResultsNotice, setShowResultsNotice] = useState(false)
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
 
   const handleSubmit = async (payload: SiteLocatorPayload) => {
     try {
@@ -47,6 +51,7 @@ export default function Index() {
       }))
       console.log("Processed locations to plot:", locations)
       setSuggestedLocations(locations)
+      setShowResultsNotice(locations.length > 0)
       toast({
         title: "Success",
         description: `Found ${locations.length} suggested locations`,
@@ -131,6 +136,7 @@ export default function Index() {
     setMustHaveLocations([])
     setSuggestedLocations([])
     setIsDrawing(false)
+    setShowResultsNotice(false)
     toast({
       title: "Workspace cleared",
       description: "The boundary, priority locations, and recommendations were removed.",
@@ -147,39 +153,59 @@ export default function Index() {
       <main className="grid flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[390px_minmax(0,1fr)]">
         <aside className="z-10 flex flex-col border-r border-slate-200 bg-white shadow-xl lg:min-h-0">
           <div className="border-b border-slate-200 px-5 py-5">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                <Sparkles className="h-3.5 w-3.5" />
-                Network planning workspace
+            <div className={`flex items-center justify-between gap-3 ${isHeaderCollapsed ? "" : "mb-2"}`}>
+              {isHeaderCollapsed ? (
+                <h1 className="text-base font-bold text-slate-950">Locate monitoring sites</h1>
+              ) : (
+                <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Network planning workspace
+                </div>
+              )}
+              <div className="flex items-center gap-1">
+                {!isHeaderCollapsed ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowInfo(true)}
+                    className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                    aria-label="Open site locator guide"
+                  >
+                    <Info className="h-4 w-4" />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setIsHeaderCollapsed((current) => !current)}
+                  className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                  aria-label={isHeaderCollapsed ? "Expand site locator summary" : "Collapse site locator summary"}
+                >
+                  {isHeaderCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowInfo(true)}
-                className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                aria-label="Open site locator guide"
-              >
-                <Info className="h-4 w-4" />
-              </button>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-950">Locate monitoring sites</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Define a service area, protect priority locations, and generate a field-ready sensor deployment plan.
-            </p>
+            {!isHeaderCollapsed ? (
+              <>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-950">Locate monitoring sites</h1>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Define a service area, protect priority locations, and generate a field-ready sensor deployment plan.
+                </p>
 
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Boundary</p>
-                <p className="mt-1 text-sm font-bold text-slate-900">{boundaryReady ? "Ready" : "Required"}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Priority</p>
-                <p className="mt-1 text-sm font-bold text-slate-900">{mustHaveLocations.length}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Suggested</p>
-                <p className="mt-1 text-sm font-bold text-blue-700">{suggestedLocations.length}</p>
-              </div>
-            </div>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Boundary</p>
+                    <p className="mt-1 text-sm font-bold text-slate-900">{boundaryReady ? "Ready" : "Required"}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Priority</p>
+                    <p className="mt-1 text-sm font-bold text-slate-900">{mustHaveLocations.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Suggested</p>
+                    <p className="mt-1 text-sm font-bold text-blue-700">{suggestedLocations.length}</p>
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
@@ -199,7 +225,7 @@ export default function Index() {
                 disabled={!hasResults && mustHaveLocations.length === 0}
                 aria-label="Export locations to CSV"
                 variant="outline"
-                className="gap-2 bg-white"
+                className="gap-2 rounded-xl bg-white"
               >
                 <Download className="h-4 w-4" />
                 Export CSV
@@ -208,7 +234,7 @@ export default function Index() {
                 onClick={handleSaveMap}
                 aria-label="Save map as image"
                 variant="outline"
-                className="gap-2 bg-white"
+                className="gap-2 rounded-xl bg-white"
               >
                 <Camera className="h-4 w-4" />
                 Save map
@@ -286,18 +312,26 @@ export default function Index() {
             </div>
           </div>
 
-          {hasResults ? (
+          {hasResults && showResultsNotice ? (
             <div className="absolute bottom-5 right-5 z-[1000] max-w-xs rounded-2xl border border-blue-200 bg-blue-950 p-4 text-white shadow-xl">
               <div className="flex items-start gap-3">
                 <div className="rounded-xl bg-blue-500/20 p-2">
                   <Sparkles className="h-5 w-5 text-blue-200" />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="font-semibold">Deployment plan ready</p>
                   <p className="mt-1 text-xs leading-5 text-blue-100">
                     {suggestedLocations.length} recommended sites are available for review and export.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowResultsNotice(false)}
+                  className="rounded-full p-1 text-blue-200 transition hover:bg-white/10 hover:text-white"
+                  aria-label="Dismiss deployment plan notification"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             </div>
           ) : null}
