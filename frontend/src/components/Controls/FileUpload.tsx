@@ -105,7 +105,7 @@ export function FileUpload({ onUpload }: FileUploadProps) {
       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".csv" className="hidden" />
       <Button
         variant="outline"
-        className="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white"
+        className="flex w-full items-center justify-center rounded-xl border-slate-300 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
         onClick={() => fileInputRef.current?.click()}
         disabled={isLoading}
         aria-label="Upload CSV file"

@@ -45,6 +45,7 @@ import {
   writeBrowserApiCache,
   type BrowserApiCacheEntry,
 } from "@/lib/browserApiCache"
+import { useSiteSettings } from "@/hooks/use-site-settings"
 import { Switch } from "@/ui/switch"
 import { MapLayerControl } from "./MapLayerControl"
 
@@ -54,6 +55,28 @@ const MAP_FORECAST_CACHE_KEY = "map-daily-forecast"
 const MAP_HOURLY_FORECAST_CACHE_KEY = "map-hourly-forecast"
 const MAP_HOURLY_FORECAST_ENABLED_KEY = "map-hourly-forecast-enabled"
 const MAP_API_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
+const DAILY_FORECAST_REFRESH_HOUR_UTC = 3
+
+const isDailyForecastCacheCurrent = (
+  cached: BrowserApiCacheEntry<DailyForecastResponse> | null | undefined,
+): cached is BrowserApiCacheEntry<DailyForecastResponse> => {
+  if (!cached?.cachedAt) return false
+
+  const cachedAtMs = new Date(cached.cachedAt).getTime()
+  if (!Number.isFinite(cachedAtMs)) return false
+
+  const now = new Date()
+  const refreshBoundary = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    DAILY_FORECAST_REFRESH_HOUR_UTC,
+  )
+  const currentCycleStartedAt =
+    now.getTime() >= refreshBoundary ? refreshBoundary : refreshBoundary - MAP_API_CACHE_MAX_AGE_MS
+
+  return cachedAtMs >= currentCycleStartedAt
+}
 
 // Create a custom MapboxProvider class since the import might not work directly
 class MapboxProvider {
@@ -529,6 +552,10 @@ interface HourlyForecastCollectionState {
   site: HourlyForecastSite | null
 }
 
+interface HourlyForecastRequest {
+  siteId: string
+}
+
 type HistoricalPoint = { date: Date; pm25: number }
 
 type HistoricalSeriesPoint = { x: Date; pm25: number }
@@ -854,6 +881,7 @@ const ForecastPanel: React.FC<{
   hourlyForecastState: HourlyForecastCollectionState
   hourlyForecastEnabled: boolean
   onHourlyForecastEnabledChange: (enabled: boolean) => void
+  onHourlyForecastRequest: (request: HourlyForecastRequest) => void
   onClose: () => void
 }> = ({
   selectedNode,
@@ -861,6 +889,7 @@ const ForecastPanel: React.FC<{
   hourlyForecastState,
   hourlyForecastEnabled,
   onHourlyForecastEnabledChange,
+  onHourlyForecastRequest,
   onClose,
 }) => {
   const selectedSiteForecast = useMemo(() => {
@@ -974,7 +1003,6 @@ const ForecastPanel: React.FC<{
               enabled={hourlyForecastEnabled}
               onEnabledChange={onHourlyForecastEnabledChange}
             />
-            {hourlyForecastEnabled ? <HourlyForecastPanel hourlyState={hourlyState} /> : null}
           </div>
         ) : (
           <div className="space-y-3">
@@ -984,6 +1012,7 @@ const ForecastPanel: React.FC<{
               hourlyState={hourlyState}
               hourlyForecastEnabled={hourlyForecastEnabled}
               onHourlyForecastEnabledChange={onHourlyForecastEnabledChange}
+              onHourlyForecastRequest={onHourlyForecastRequest}
             />
           </div>
         )}
@@ -1767,12 +1796,14 @@ function ForecastContent({
   hourlyState,
   hourlyForecastEnabled,
   onHourlyForecastEnabledChange,
+  onHourlyForecastRequest,
 }: {
   selectedNode: MapNode | null
   forecasts: DailyForecastItem[]
   hourlyState: HourlyForecastState
   hourlyForecastEnabled: boolean
   onHourlyForecastEnabledChange: (enabled: boolean) => void
+  onHourlyForecastRequest: (request: HourlyForecastRequest) => void
 }) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [insightsOpen, setInsightsOpen] = useState(false)
@@ -1956,9 +1987,11 @@ function ForecastContent({
 
   const openHourlyForecast = (forecast: DailyForecastItem, index: number) => {
     const forecastDate = parseForecastTime(forecast.time)
+    const dateKey = forecastDate ? formatLocalDateKey(forecastDate) : undefined
     setActiveIndex(index)
-    setHourlyDateKey(forecastDate ? formatLocalDateKey(forecastDate) : undefined)
-    if (hourlyForecastEnabled) {
+    setHourlyDateKey(dateKey)
+    if (hourlyForecastEnabled && selectedNode?.site_id && dateKey) {
+      onHourlyForecastRequest({ siteId: selectedNode.site_id })
       setHourlyOpen(true)
     }
   }
@@ -2578,7 +2611,16 @@ const MapControls: React.FC<{
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
   setShowEmojis: (value: boolean) => void
-}> = ({ showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis }) => {
+  heatmapEnabled: boolean
+  captureViewEnabled: boolean
+}> = ({
+  showHeatmaps,
+  setShowHeatmaps,
+  showEmojis,
+  setShowEmojis,
+  heatmapEnabled,
+  captureViewEnabled,
+}) => {
   const map = useMap()
 
   const captureMapView = async () => {
@@ -2626,24 +2668,25 @@ const MapControls: React.FC<{
         container.style.gap = "8px"
         container.style.minWidth = "160px"
 
-        // Heatmap toggle button
-        const heatmapButton = L.DomUtil.create("button", "", container)
-        heatmapButton.innerHTML = showHeatmaps ? "Heatmap ON" : "Heatmap OFF"
-        heatmapButton.style.border = "none"
-        heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"
-        heatmapButton.style.fontSize = "13px"
-        heatmapButton.style.fontWeight = showHeatmaps ? "600" : "500"
-        heatmapButton.style.color = showHeatmaps ? "#1d4ed8" : "#374151"
-        heatmapButton.style.textAlign = "left"
-        heatmapButton.style.padding = "8px 12px"
-        heatmapButton.style.borderRadius = "6px"
-        heatmapButton.style.transition = "all 0.2s"
-        heatmapButton.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
+        if (heatmapEnabled) {
+          const heatmapButton = L.DomUtil.create("button", "", container)
+          heatmapButton.innerHTML = showHeatmaps ? "Heatmap ON" : "Heatmap OFF"
+          heatmapButton.style.border = "none"
+          heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"
+          heatmapButton.style.fontSize = "13px"
+          heatmapButton.style.fontWeight = showHeatmaps ? "600" : "500"
+          heatmapButton.style.color = showHeatmaps ? "#1d4ed8" : "#374151"
+          heatmapButton.style.textAlign = "left"
+          heatmapButton.style.padding = "8px 12px"
+          heatmapButton.style.borderRadius = "6px"
+          heatmapButton.style.transition = "all 0.2s"
+          heatmapButton.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
 
-        L.DomEvent.on(heatmapButton, "click", (e) => {
-          L.DomEvent.stopPropagation(e)
-          setShowHeatmaps(!showHeatmaps)
-        })
+          L.DomEvent.on(heatmapButton, "click", (e) => {
+            L.DomEvent.stopPropagation(e)
+            setShowHeatmaps(!showHeatmaps)
+          })
+        }
 
         // Emoji toggle button
         const emojiButton = L.DomUtil.create("button", "", container)
@@ -2664,24 +2707,25 @@ const MapControls: React.FC<{
           setShowEmojis(!showEmojis)
         })
 
-        // Download map view button
-        const downloadMapButton = L.DomUtil.create("button", "", container)
-        downloadMapButton.innerHTML = "Capture View"
-        downloadMapButton.style.border = "none"
-        downloadMapButton.style.background = "#f3e8ff"
-        downloadMapButton.style.fontSize = "13px"
-        downloadMapButton.style.fontWeight = "500"
-        downloadMapButton.style.color = "#7c3aed"
-        downloadMapButton.style.textAlign = "left"
-        downloadMapButton.style.padding = "8px 12px"
-        downloadMapButton.style.borderRadius = "6px"
-        downloadMapButton.style.transition = "all 0.2s"
-        downloadMapButton.title = "Capture current map view as image"
+        if (captureViewEnabled) {
+          const downloadMapButton = L.DomUtil.create("button", "", container)
+          downloadMapButton.innerHTML = "Capture View"
+          downloadMapButton.style.border = "none"
+          downloadMapButton.style.background = "#f3e8ff"
+          downloadMapButton.style.fontSize = "13px"
+          downloadMapButton.style.fontWeight = "500"
+          downloadMapButton.style.color = "#7c3aed"
+          downloadMapButton.style.textAlign = "left"
+          downloadMapButton.style.padding = "8px 12px"
+          downloadMapButton.style.borderRadius = "6px"
+          downloadMapButton.style.transition = "all 0.2s"
+          downloadMapButton.title = "Capture current map view as image"
 
-        L.DomEvent.on(downloadMapButton, "click", (e) => {
-          L.DomEvent.stopPropagation(e)
-          captureMapView()
-        })
+          L.DomEvent.on(downloadMapButton, "click", (e) => {
+            L.DomEvent.stopPropagation(e)
+            captureMapView()
+          })
+        }
 
         return container
       },
@@ -2693,7 +2737,7 @@ const MapControls: React.FC<{
     return () => {
       map.removeControl(mapControls)
     }
-  }, [map, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis])
+  }, [map, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis, heatmapEnabled, captureViewEnabled])
 
   return null
 }
@@ -2704,7 +2748,17 @@ const HeatmapOverlays: React.FC<{
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
   setShowEmojis: (value: boolean) => void
-}> = ({ onLoadingChange, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis }) => {
+  heatmapEnabled: boolean
+  captureViewEnabled: boolean
+}> = ({
+  onLoadingChange,
+  showHeatmaps,
+  setShowHeatmaps,
+  showEmojis,
+  setShowEmojis,
+  heatmapEnabled,
+  captureViewEnabled,
+}) => {
   const map = useMap()
   const [heatmaps, setHeatmaps] = useState<HeatmapData[]>([])
   const overlaysRef = useRef<L.ImageOverlay[]>([])
@@ -2828,6 +2882,8 @@ const HeatmapOverlays: React.FC<{
       setShowHeatmaps={setShowHeatmaps}
       showEmojis={showEmojis}
       setShowEmojis={setShowEmojis}
+      heatmapEnabled={heatmapEnabled}
+      captureViewEnabled={captureViewEnabled}
     />
   )
 }
@@ -2944,6 +3000,10 @@ const MapLayerButton: React.FC = () => {
 
 // Update the LeafletMap component
 const LeafletMap: React.FC = () => {
+  const siteSettings = useSiteSettings()
+  const heatmapEnabled = siteSettings.features.find((feature) => feature.id === "heatmap")?.enabled ?? true
+  const captureViewEnabled =
+    siteSettings.features.find((feature) => feature.id === "capture-view")?.enabled ?? true
   const defaultCenter: [number, number] = [1.5, 17.5]
   const defaultZoom = 4
   const [loadingState, setLoadingState] = useState<LoadingState>({
@@ -2965,6 +3025,11 @@ const LeafletMap: React.FC = () => {
     error: null,
     site: null,
   })
+  const [hourlyForecastRequest, setHourlyForecastRequest] = useState<HourlyForecastRequest | null>(null)
+
+  useEffect(() => {
+    if (!heatmapEnabled) setShowHeatmaps(false)
+  }, [heatmapEnabled])
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
   if (!mapboxToken) {
@@ -2992,9 +3057,10 @@ const LeafletMap: React.FC = () => {
       )
 
       const cached = await readBrowserApiCache<BrowserApiCacheEntry<DailyForecastResponse>>(MAP_FORECAST_CACHE_KEY)
-      if (isActive && isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.forecasts?.length) {
+      if (isActive && isDailyForecastCacheCurrent(cached) && cached.data.forecasts?.length) {
         hasUsableCachedForecast = true
         setForecastState({ isLoading: false, error: null, collection: cached.data })
+        return
       }
 
       try {
@@ -3028,10 +3094,8 @@ const LeafletMap: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    const storedPreference = window.localStorage.getItem(MAP_HOURLY_FORECAST_ENABLED_KEY)
-    if (storedPreference !== null) {
-      setHourlyForecastEnabled(storedPreference !== "false")
-    }
+    // Default hourly forecast to off, regardless of any previously stored preference.
+    setHourlyForecastEnabled(false)
     setHourlyForecastPreferenceLoaded(true)
   }, [])
 
@@ -3040,27 +3104,55 @@ const LeafletMap: React.FC = () => {
     window.localStorage.setItem(MAP_HOURLY_FORECAST_ENABLED_KEY, String(hourlyForecastEnabled))
   }, [hourlyForecastEnabled, hourlyForecastPreferenceLoaded])
 
+  const handleHourlyForecastEnabledChange = (enabled: boolean) => {
+    setHourlyForecastEnabled(enabled)
+    if (!enabled) {
+      setHourlyForecastRequest(null)
+      setHourlyForecastState({ isLoading: false, error: null, site: null })
+    }
+  }
+
+  const handleHourlyForecastRequest = (request: HourlyForecastRequest) => {
+    setHourlyForecastRequest((current) => (current?.siteId === request.siteId ? current : request))
+  }
+
+  useEffect(() => {
+    setHourlyForecastRequest(null)
+    setHourlyForecastState({ isLoading: false, error: null, site: null })
+  }, [selectedNode?.site_id])
+
   useEffect(() => {
     if (!hourlyForecastPreferenceLoaded) return
 
-    const siteId = selectedNode?.site_id
+    const selectedSiteId = selectedNode?.site_id
+    const request = hourlyForecastRequest
 
-    if (!hourlyForecastEnabled || !siteId) {
-      setHourlyForecastState((current) => ({ ...current, isLoading: false, error: null }))
+    if (!hourlyForecastEnabled || !request || request.siteId !== selectedSiteId) {
+      setHourlyForecastState({ isLoading: false, error: null, site: null })
       return
     }
 
+    const { siteId } = request
     let isActive = true
     let hasUsableCachedForecast = false
     const cacheKey = `${MAP_HOURLY_FORECAST_CACHE_KEY}:${siteId}`
 
     const loadHourlyForecast = async () => {
-      setHourlyForecastState((current) =>
-        current.site?.site_details?.site_id === siteId ? current : { isLoading: true, error: null, site: null },
-      )
+      setHourlyForecastState({ isLoading: true, error: null, site: null })
 
       const cached = await readBrowserApiCache<BrowserApiCacheEntry<HourlyForecastSite>>(cacheKey)
-      if (isActive && isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.forecasts?.length) {
+      const cachedAt = cached?.cachedAt ? new Date(cached.cachedAt) : null
+      const cachedToday =
+        cachedAt &&
+        !Number.isNaN(cachedAt.getTime()) &&
+        formatLocalDateKey(cachedAt) === formatLocalDateKey(new Date())
+
+      if (
+        isActive &&
+        cachedToday &&
+        isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) &&
+        cached.data.forecasts?.length
+      ) {
         hasUsableCachedForecast = true
         setHourlyForecastState({ isLoading: false, error: null, site: cached.data })
         return
@@ -3094,7 +3186,7 @@ const LeafletMap: React.FC = () => {
     return () => {
       isActive = false
     }
-  }, [hourlyForecastEnabled, hourlyForecastPreferenceLoaded, selectedNode?.site_id])
+  }, [hourlyForecastEnabled, hourlyForecastPreferenceLoaded, hourlyForecastRequest, selectedNode?.site_id])
 
   const isPanelOpen = !!selectedNode
 
@@ -3116,10 +3208,12 @@ const LeafletMap: React.FC = () => {
             <MapNodes onLoadingChange={setLoadingState} showEmojis={showEmojis} onNodeSelect={setSelectedNode} />
             <HeatmapOverlays
               onLoadingChange={setLoadingState}
-              showHeatmaps={showHeatmaps}
+              showHeatmaps={heatmapEnabled && showHeatmaps}
               setShowHeatmaps={setShowHeatmaps}
               showEmojis={showEmojis}
               setShowEmojis={setShowEmojis}
+              heatmapEnabled={heatmapEnabled}
+              captureViewEnabled={captureViewEnabled}
             />
             <Legend />
             <MapLayerButton />
@@ -3139,7 +3233,8 @@ const LeafletMap: React.FC = () => {
               forecastState={forecastState}
               hourlyForecastState={hourlyForecastState}
               hourlyForecastEnabled={hourlyForecastEnabled}
-              onHourlyForecastEnabledChange={setHourlyForecastEnabled}
+              onHourlyForecastEnabledChange={handleHourlyForecastEnabledChange}
+              onHourlyForecastRequest={handleHourlyForecastRequest}
               onClose={() => setSelectedNode(null)}
             />
           ) : null}

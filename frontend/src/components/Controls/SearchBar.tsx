@@ -127,7 +127,7 @@ export function SearchBar({ onSearch, onBoundaryFound }: SearchBarProps) {
           placeholder="Search location (e.g., Kampala)..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="flex-1"
+          className="h-11 flex-1 rounded-xl border-slate-300 bg-white"
           disabled={isLoading}
         />
         {query && (
@@ -139,7 +139,8 @@ export function SearchBar({ onSearch, onBoundaryFound }: SearchBarProps) {
           type="submit"
           size="icon"
           disabled={isLoading || !query.trim()}
-          className="bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center"
+          className="h-11 w-11 rounded-xl bg-blue-700 text-white hover:bg-blue-600"
+          aria-label="Search for boundary"
         >
           <Search className="h-4 w-4" />
         </Button>
@@ -147,11 +148,11 @@ export function SearchBar({ onSearch, onBoundaryFound }: SearchBarProps) {
 
       {/* Dropdown Suggestions */}
       {suggestions.length > 0 && (
-        <ul className="absolute w-full bg-white border border-gray-200 rounded-md mt-1 shadow-lg z-50">
+        <ul className="absolute z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
           {suggestions.map((suggestion, index) => (
             <li
               key={index}
-              className="p-2 cursor-pointer hover:bg-gray-100"
+              className="cursor-pointer rounded-lg p-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-800"
               onClick={() => {
                 setQuery(suggestion.name)
                 setSuggestions([]) // Hide suggestions

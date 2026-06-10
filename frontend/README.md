@@ -43,9 +43,11 @@ AirQo AI Platform [https://ai.airqo.net/](https://ai.airqo.net/).
    NEXT_PUBLIC_MAPBOX_TOKEN=your_mapbox_token_here
    NEXT_PUBLIC_AQI_API_URL=your_aqi_heatmap_endpoint_here
    NEXT_PUBLIC_GOOGLE_ANALYTICS_ID=your_google_analytics_id_here
+   ADMIN_EMAIL=admin@airqo.net
+   ADMIN_SESSION_SECRET=replace_with_a_long_random_secret
    ```
 
-   `API_TOKEN` is server-only. Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser.
+   `API_TOKEN`, `ADMIN_EMAIL`, and `ADMIN_SESSION_SECRET` are server-only. Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser. Configure both admin variables in the production deployment environment before using `/admin`.
 
 4. Run the development server:
    ```

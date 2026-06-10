@@ -81,7 +81,7 @@ function MapStyleButton() {
   }
 
   return (
-    <div className="absolute top-4 right-4 z-[1000]">
+    <div className="absolute right-4 top-20 z-[1000]">
       <MapLayerControl onStyleChange={handleStyleChange} currentStyle={currentStyle} />
     </div>
   )
@@ -92,6 +92,36 @@ function MapController() {
   useEffect(() => {
     window.map = map
   }, [map])
+  return null
+}
+
+function FitMapToData({
+  polygon,
+  mustHaveLocations,
+  suggestedLocations,
+}: Pick<MapComponentProps, "polygon" | "mustHaveLocations" | "suggestedLocations">) {
+  const map = useMap()
+
+  useEffect(() => {
+    const locations = [...polygon, ...mustHaveLocations, ...suggestedLocations]
+    if (!locations.length) return
+
+    const bounds = L.latLngBounds(locations.map((location) => [location.lat, location.lng]))
+    if (!bounds.isValid()) return
+
+    if (locations.length === 1) {
+      map.flyTo(bounds.getCenter(), 13, { duration: 0.8 })
+      return
+    }
+
+    map.fitBounds(bounds, {
+      paddingTopLeft: [48, 110],
+      paddingBottomRight: [48, 48],
+      maxZoom: 14,
+      animate: true,
+    })
+  }, [map, mustHaveLocations, polygon, suggestedLocations])
+
   return null
 }
 
@@ -144,13 +174,18 @@ export default function MapComponent({
   }
 
   return (
-    <div className="relative pr-[420px]">
+    <div className="relative h-full w-full">
       <MapContainer
         center={[1.3733, 32.2903]} // Uganda center
         zoom={7}
-        className="h-screen w-full"
+        className="h-full w-full"
       >
         <MapController />
+        <FitMapToData
+          polygon={polygon}
+          mustHaveLocations={mustHaveLocations}
+          suggestedLocations={suggestedLocations}
+        />
         <MapStyleButton />
         <TileLayer
           attribution='&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -162,7 +197,10 @@ export default function MapComponent({
         {isDrawing && <DrawControl onPolygonChange={onPolygonChange} />}
 
         {polygon.length > 2 && (
-          <Polygon positions={polygon.map((loc) => [loc.lat, loc.lng])} pathOptions={{ color: "blue" }} />
+          <Polygon
+            positions={polygon.map((loc) => [loc.lat, loc.lng])}
+            pathOptions={{ color: "#2563eb", fillColor: "#3b82f6", fillOpacity: 0.12, weight: 3 }}
+          />
         )}
 
         {mustHaveLocations.map((location, index) => (
