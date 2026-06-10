@@ -1,6 +1,6 @@
 import "server-only"
 
-import { randomBytes } from "crypto"
+import { createHash, randomBytes } from "crypto"
 import { mkdir, readFile, writeFile } from "fs/promises"
 import path from "path"
 import { defaultSiteSettings, sanitizeSiteSettings, type SiteSettings } from "@/lib/site-settings"
@@ -59,19 +59,25 @@ async function ensureBootstrapAdmin(store: AdminStore) {
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase()
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return store
 
-  const nextStore = {
+  const nextStore: AdminStore = {
     ...store,
     admins: [
       {
-        id: randomBytes(12).toString("hex"),
+        id: createHash("sha256").update(`bootstrap:${email}`).digest("hex").slice(0, 24),
         email,
-        role: "super_admin" as const,
+        role: "super_admin",
         active: true,
         createdAt: new Date().toISOString(),
       },
     ],
   }
-  await writeStoreFile(nextStore)
+  try {
+    await writeStoreFile(nextStore)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (!["EACCES", "EPERM", "EROFS"].includes(code ?? "")) throw error
+    console.warn("Admin store is read-only; using the configured bootstrap administrator without persistence.")
+  }
   return nextStore
 }
 
