@@ -1112,6 +1112,14 @@ function HourlyForecastPanel({
       .slice(0, 168)
   }, [hourlyState.site])
   const [hoveredPm25Point, setHoveredPm25Point] = useState<(typeof chartData)[number] | null>(null)
+  const visibleChartData = useMemo(() => {
+    if (!currentTime) return chartData
+
+    const forecastWindowStart = new Date(currentTime)
+    forecastWindowStart.setMinutes(0, 0, 0)
+
+    return chartData.filter((row) => row.time >= forecastWindowStart.getTime())
+  }, [chartData, currentTime])
 
   const dailyForecastByDateKey = useMemo(() => {
     const forecastMap = new Map<string, DailyForecastItem>()
@@ -1127,8 +1135,8 @@ function HourlyForecastPanel({
   }, [dailyForecasts])
 
   const dailyGroups = useMemo(() => {
-    const grouped = new Map<string, typeof chartData>()
-    chartData.forEach((item) => {
+    const grouped = new Map<string, typeof visibleChartData>()
+    visibleChartData.forEach((item) => {
       const current = grouped.get(item.dateKey) || []
       current.push(item)
       grouped.set(item.dateKey, current)
@@ -1143,11 +1151,11 @@ function HourlyForecastPanel({
           const rows = grouped.get(dateKey) || []
           return { dateKey, rows, dailyForecast: forecast }
         })
-        .filter((group): group is NonNullable<typeof group> => !!group)
+        .filter((group): group is NonNullable<typeof group> => !!group && group.rows.length > 0)
     }
 
     return Array.from(grouped.entries()).map(([dateKey, rows]) => ({ dateKey, rows }))
-  }, [chartData, dailyForecasts])
+  }, [dailyForecasts, visibleChartData])
 
   useEffect(() => {
     if (selectedDayIndex > Math.max(dailyGroups.length - 1, 0)) {
@@ -1168,10 +1176,8 @@ function HourlyForecastPanel({
   const todayDateKey = currentTime ? formatLocalDateKey(currentTime) : null
   const isSelectedDayToday = !!todayDateKey && selectedDay?.dateKey === todayDateKey
   const lineRows =
-    selectedDay?.dateKey === todayDateKey && dayRows.length
-      ? chartData
-          .filter((row) => row.time >= dayRows[0].time)
-          .slice(0, Math.max(dayRows.length, 12))
+    (visualization === "line" || visualization === "bars") && isSelectedDayToday
+      ? visibleChartData.slice(0, 24)
       : dayRows
   const selectedDailyForecast =
     selectedDay && "dailyForecast" in selectedDay
@@ -1205,8 +1211,8 @@ function HourlyForecastPanel({
         })()
       : null
   const currentCalendarPoint =
-    currentTime && chartData.length
-      ? chartData.reduce<(typeof chartData)[number] | null>((nearest, row) => {
+    currentTime && visibleChartData.length
+      ? visibleChartData.reduce<(typeof visibleChartData)[number] | null>((nearest, row) => {
           if (typeof row.pm25 !== "number") return nearest
           if (!nearest) return row
           return Math.abs(row.time - currentTime.getTime()) < Math.abs(nearest.time - currentTime.getTime())
@@ -1218,7 +1224,7 @@ function HourlyForecastPanel({
     hoveredPm25Point &&
     (
       visualization === "calendar"
-        ? chartData
+        ? visibleChartData
         : visualization === "line" || visualization === "bars"
           ? lineRows
           : dayRows
@@ -1335,7 +1341,7 @@ function HourlyForecastPanel({
           <div className="m-4 rounded-[8px] border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{hourlyState.error}</div>
         ) : hourlyState.isLoading ? (
           <div className="flex h-[220px] items-center justify-center text-sm text-slate-600">Loading hourly forecast...</div>
-        ) : !chartData.length ? (
+        ) : !visibleChartData.length ? (
           <div className="flex h-[180px] items-center justify-center text-sm text-slate-600">No hourly forecast data.</div>
         ) : (
           <div>

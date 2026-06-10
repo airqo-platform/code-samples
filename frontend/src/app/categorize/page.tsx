@@ -456,8 +456,8 @@ function SiteCategoryContent() {
     <div className="min-h-screen bg-slate-50">
       <Suspense fallback={<div>Loading navigation...</div>}><Navigation /></Suspense>
       <div>
-        <div className="flex h-[calc(100vh-4rem)]">
-          <div className="relative flex-1">
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col lg:h-[calc(100vh-4rem)] lg:flex-row">
+          <div className="relative min-h-[50vh] flex-1 lg:min-h-0">
             <MapContainer center={mapCenter} zoom={7} className="h-full w-full">
               <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <SearchControl />
@@ -484,11 +484,11 @@ function SiteCategoryContent() {
               <Info className="h-5 w-5" />
             </Button>
           </div>
-          <div ref={sidebarRef} className="w-[28rem] shrink-0 space-y-4 overflow-y-auto border-l border-slate-200 bg-white p-4">
+          <div ref={sidebarRef} className="w-full space-y-4 border-t border-slate-200 bg-white p-4 lg:w-[28rem] lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
             <Card className={cn("rounded-2xl border", requestTheme.detailPanel)}>
               <CardHeader className="pb-1"><CardTitle className="text-lg">Request Settings</CardTitle></CardHeader>
               <CardContent className="space-y-4 pt-1">
-                <div className={cn("flex items-center justify-between gap-4 rounded-xl border p-3", requestTheme.detailCard)}>
+                <div className={cn("flex flex-col items-stretch gap-4 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between", requestTheme.detailCard)}>
                   <div>
                     <div className="flex items-center gap-2">
                       <span className={cn("h-2.5 w-2.5 rounded-full", requestTheme.dot)} />
@@ -573,7 +573,7 @@ function SiteCategoryContent() {
                     </div>
                   )}
                   {contextFields.length > 0 && (
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                       {contextFields.map((field) => (
                         <div key={field.label} className="rounded-xl border p-3">
                           <p className="text-slate-500">{field.label}</p>
@@ -594,7 +594,7 @@ function SiteCategoryContent() {
                   {selectedSite.satellite_enabled && (
                     <div>
                       <h3 className="mb-2 text-sm font-semibold text-slate-900">Satellite Pollutants Mean</h3>
-                      {pollutantEntries.length ? <div className="grid grid-cols-2 gap-3">{pollutantEntries.map(([key, value]) => <div key={key} className="rounded-xl border border-emerald-200 bg-white/80 p-3"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{key}</p><p className="text-sm font-medium text-slate-900">{value == null ? "N/A" : value.toFixed(6)}</p></div></div>)}</div> : <p className="text-sm text-slate-500">No pollutant averages were returned.</p>}
+                      {pollutantEntries.length ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{pollutantEntries.map(([key, value]) => <div key={key} className="rounded-xl border border-emerald-200 bg-white/80 p-3"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{key}</p><p className="text-sm font-medium text-slate-900">{value == null ? "N/A" : value.toFixed(6)}</p></div></div>)}</div> : <p className="text-sm text-slate-500">No pollutant averages were returned.</p>}
                     </div>
                   )}
                   <div className={cn("rounded-xl border p-4 text-sm text-slate-600", selectedTheme.detailCard)}>
@@ -612,7 +612,7 @@ function SiteCategoryContent() {
       </div>
       {showInfo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <Card className="relative w-full max-w-lg rounded-2xl bg-white">
+          <Card className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white">
             <CardHeader className="pr-12"><CardTitle className="text-xl">How Categorize Works</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm text-slate-600">
               <Button variant="ghost" className="absolute right-2 top-2 text-slate-500 hover:text-slate-700" onClick={() => setShowInfo(false)}><X className="h-5 w-5" /></Button>
@@ -623,7 +623,7 @@ function SiteCategoryContent() {
           </Card>
         </div>
       )}
-      {loading && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="flex items-center space-x-2 rounded-2xl bg-white p-4 shadow-xl"><Loader2 className="h-4 w-4 animate-spin" /><span className="font-bold text-slate-700">{includeSatellite ? "Processing satellite-enriched source metadata..." : "Processing OSM site categorization..."}</span></div></div>}
+      {loading && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="flex max-w-sm items-center space-x-2 rounded-2xl bg-white p-4 shadow-xl"><Loader2 className="h-4 w-4 shrink-0 animate-spin" /><span className="text-sm font-bold text-slate-700 sm:text-base">{includeSatellite ? "Processing satellite-enriched source metadata..." : "Processing OSM site categorization..."}</span></div></div>}
     </div>
   )
 }
