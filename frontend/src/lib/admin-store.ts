@@ -86,7 +86,7 @@ export async function getStore() {
 }
 
 export async function getSiteSettings() {
-  return (await getStore()).settings
+  return (await readStoreFile()).settings
 }
 
 export async function updateSiteSettings(settings: SiteSettings) {
