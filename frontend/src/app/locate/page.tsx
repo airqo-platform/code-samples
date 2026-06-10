@@ -5,7 +5,18 @@ import type { Location, SiteLocatorPayload } from "@/lib/types"
 import { submitLocations } from "@/lib/api"
 import { useToast } from "@/ui/use-toast"
 import { Button } from "@/ui/button"
-import { Download, Camera, Info, X } from "lucide-react"
+import {
+  Camera,
+  CheckCircle2,
+  Download,
+  Info,
+  MapPin,
+  MousePointer2,
+  RotateCcw,
+  Route,
+  Sparkles,
+  X,
+} from "lucide-react"
 import html2canvas from "html2canvas"
 import Navigation from "@/components/navigation/navigation"
 import dynamic from "next/dynamic"
@@ -115,99 +126,224 @@ export default function Index() {
     setIsDrawing(!isDrawing)
   }
 
+  const handleReset = () => {
+    setPolygon([])
+    setMustHaveLocations([])
+    setSuggestedLocations([])
+    setIsDrawing(false)
+    toast({
+      title: "Workspace cleared",
+      description: "The boundary, priority locations, and recommendations were removed.",
+    })
+  }
+
+  const boundaryReady = polygon.length >= 3
+  const hasResults = suggestedLocations.length > 0
+
   return (
-    <div className="flex flex-col h-screen">
-      {/* Navigation */}
+    <div className="flex min-h-screen flex-col bg-slate-100 lg:h-screen lg:overflow-hidden">
       <Navigation />
 
-      <div className="relative flex-1">
-        <MapComponent
-          polygon={polygon}
-          mustHaveLocations={mustHaveLocations}
-          suggestedLocations={suggestedLocations}
-          onPolygonChange={setPolygon}
-          onLocationClick={handleLocationClick}
-          isDrawing={isDrawing}
-        />
+      <main className="grid flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[390px_minmax(0,1fr)]">
+        <aside className="z-10 flex flex-col border-r border-slate-200 bg-white shadow-xl lg:min-h-0">
+          <div className="border-b border-slate-200 px-5 py-5">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                <Sparkles className="h-3.5 w-3.5" />
+                Network planning workspace
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfo(true)}
+                className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                aria-label="Open site locator guide"
+              >
+                <Info className="h-4 w-4" />
+              </button>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950">Locate monitoring sites</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Define a service area, protect priority locations, and generate a field-ready sensor deployment plan.
+            </p>
 
-        {/* Control Panel Top Right */}
-        <div className="absolute right-4 top-4 z-[1000]">
-          <ControlPanel
-            onSubmit={handleSubmit}
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Boundary</p>
+                <p className="mt-1 text-sm font-bold text-slate-900">{boundaryReady ? "Ready" : "Required"}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Priority</p>
+                <p className="mt-1 text-sm font-bold text-slate-900">{mustHaveLocations.length}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Suggested</p>
+                <p className="mt-1 text-sm font-bold text-blue-700">{suggestedLocations.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+            <ControlPanel
+              onSubmit={handleSubmit}
+              polygon={polygon}
+              mustHaveLocations={mustHaveLocations}
+              onMustHaveLocationsChange={setMustHaveLocations}
+              onBoundaryFound={setPolygon}
+            />
+          </div>
+
+          <div className="border-t border-slate-200 bg-slate-50 p-4">
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                onClick={handleExportCSV}
+                disabled={!hasResults && mustHaveLocations.length === 0}
+                aria-label="Export locations to CSV"
+                variant="outline"
+                className="gap-2 bg-white"
+              >
+                <Download className="h-4 w-4" />
+                Export CSV
+              </Button>
+              <Button
+                onClick={handleSaveMap}
+                aria-label="Save map as image"
+                variant="outline"
+                className="gap-2 bg-white"
+              >
+                <Camera className="h-4 w-4" />
+                Save map
+              </Button>
+            </div>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Clear workspace
+            </button>
+          </div>
+        </aside>
+
+        <section className="relative min-h-[560px] overflow-hidden bg-slate-200">
+          <MapComponent
             polygon={polygon}
             mustHaveLocations={mustHaveLocations}
-            onMustHaveLocationsChange={setMustHaveLocations}
-            onBoundaryFound={setPolygon}
+            suggestedLocations={suggestedLocations}
+            onPolygonChange={setPolygon}
+            onLocationClick={handleLocationClick}
+            isDrawing={isDrawing}
           />
 
-          {/* Action Buttons */}
-          <div className="mt-8 flex justify-center gap-4">
-            <Button
-              onClick={handleExportCSV}
-              aria-label="Export locations to CSV"
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-            >
-              <Download className="h-4 w-4" />
-              Save CSV
-            </Button>
-            <Button
-              onClick={handleSaveMap}
-              aria-label="Save map as image"
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-            >
-              <Camera className="h-4 w-4" />
-              Save Map
-            </Button>
+          <div className="pointer-events-none absolute left-16 right-4 top-4 z-[1000] flex items-start justify-between gap-3 sm:left-20">
+            <div className="pointer-events-auto max-w-lg rounded-2xl border border-white/70 bg-white/95 p-3 shadow-lg backdrop-blur">
+              <div className="flex items-center gap-3">
+                <div className={`rounded-xl p-2 ${isDrawing ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                  {isDrawing ? <MousePointer2 className="h-5 w-5" /> : <Route className="h-5 w-5" />}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {isDrawing ? "Click the map to trace your boundary" : boundaryReady ? "Boundary ready for analysis" : "Choose or draw a boundary"}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {isDrawing
+                      ? `${polygon.length} points added. Use at least three points.`
+                      : boundaryReady
+                        ? `${polygon.length} boundary points selected`
+                        : "Search for an area in the panel or start drawing."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <Button
               onClick={toggleDrawing}
               aria-label={isDrawing ? "Finish drawing polygon" : "Start drawing polygon"}
-              className={`${
-                isDrawing ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
-              } flex items-center gap-2 text-white px-4 py-2 rounded-lg`}
+              className={`pointer-events-auto gap-2 rounded-xl px-4 shadow-lg ${
+                isDrawing ? "bg-amber-500 text-slate-950 hover:bg-amber-400" : "bg-slate-950 text-white hover:bg-slate-800"
+              }`}
             >
-              {isDrawing ? "Finish Drawing" : "Draw Polygon"}
+              {isDrawing ? <CheckCircle2 className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
+              {isDrawing ? "Finish boundary" : "Draw boundary"}
             </Button>
           </div>
-        </div>
 
-        {/* Info Button and Popup */}
-        <div className="absolute left-2 top-[180px] z-[1000] flex flex-col items-center space-y-2">
-          
-          <Button
-            onClick={() => setShowInfo(!showInfo)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-full"
-            aria-label="Show Locate tool info"
-          >
-            <Info className="h-4 w-4" />
-          </Button>
-
-          {showInfo && (
-            <div className="mt-2 max-w-sm p-4 bg-white border border-gray-300 shadow-lg rounded-lg text-sm text-gray-800">
-              <div className="flex justify-between items-center">
-                <h3 className="font-semibold mb-2">Locate Tool</h3>
-                <Button
-                  onClick={() => setShowInfo(false)}
-                  aria-label="Close info popup"
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
+          <div className="absolute bottom-5 left-5 z-[1000] rounded-2xl border border-white/70 bg-white/95 p-3 shadow-lg backdrop-blur">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Map legend</p>
+            <div className="space-y-2 text-xs font-medium text-slate-700">
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white shadow" />
+                Priority location
               </div>
-              <p className="mb-2">
-                The Locate tool is used to propose the best possible locations for placing air quality monitors,
-                based on the number of sensors and the target geographical area.
-              </p>
-              <ul className="list-disc list-inside">
-                <li>You can search by name or draw a polygon.</li>
-                <li>Must-have locations are optional and can be uploaded by lat/lng.</li>
-                <li>Minimum distance is optional; default is 0.5 km.</li>
-                <li>Number of sensors is required.</li>
-                <li>You can submit multiple times until satisfied with the results.</li>
-              </ul>
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-full bg-blue-600 ring-2 ring-white shadow" />
+                Recommended site
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-3 rounded-sm border-2 border-blue-600 bg-blue-100/70" />
+                Analysis boundary
+              </div>
             </div>
-          )}
+          </div>
+
+          {hasResults ? (
+            <div className="absolute bottom-5 right-5 z-[1000] max-w-xs rounded-2xl border border-blue-200 bg-blue-950 p-4 text-white shadow-xl">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-blue-500/20 p-2">
+                  <Sparkles className="h-5 w-5 text-blue-200" />
+                </div>
+                <div>
+                  <p className="font-semibold">Deployment plan ready</p>
+                  <p className="mt-1 text-xs leading-5 text-blue-100">
+                    {suggestedLocations.length} recommended sites are available for review and export.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      </main>
+
+      {showInfo ? (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-3 inline-flex rounded-xl bg-blue-100 p-2 text-blue-700">
+                  <Info className="h-5 w-5" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-950">How to build a deployment plan</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfo(false)}
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Close site locator guide"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mt-5 grid gap-3">
+              {[
+                ["1", "Set the boundary", "Search for an administrative area or draw a custom polygon on the map."],
+                ["2", "Add priorities", "Enter or upload locations that must be included in the final network."],
+                ["3", "Define spacing", "Choose the number of sensors and minimum distance between recommended sites."],
+                ["4", "Generate and export", "Review the suggested sites, then save the map or download the coordinates."],
+              ].map(([step, title, description]) => (
+                <div key={step} className="flex gap-3 rounded-2xl border border-slate-200 p-4">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-700 text-sm font-bold text-white">
+                    {step}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-900">{title}</p>
+                    <p className="mt-1 text-sm leading-5 text-slate-600">{description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }

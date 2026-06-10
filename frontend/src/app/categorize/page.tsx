@@ -350,7 +350,7 @@ function SiteCategoryContent() {
 
         const searchBar = document.querySelector(".leaflet-control-geosearch form")
         if (searchBar) {
-          searchBar.classList.add("bg-white", "text-black", "border", "border-gray-300", "rounded-md", "relative")
+          searchBar.classList.add("bg-white", "text-black", "border", "border-gray-300", "rounded-xl", "relative")
 
           const searchContainer = document.querySelector(".leaflet-control-geosearch")
           if (searchContainer) {
@@ -485,7 +485,7 @@ function SiteCategoryContent() {
             </Button>
           </div>
           <div ref={sidebarRef} className="w-[28rem] shrink-0 space-y-4 overflow-y-auto border-l border-slate-200 bg-white p-4">
-            <Card className={cn("border", requestTheme.detailPanel)}>
+            <Card className={cn("rounded-2xl border", requestTheme.detailPanel)}>
               <CardHeader className="pb-1"><CardTitle className="text-lg">Request Settings</CardTitle></CardHeader>
               <CardContent className="space-y-4 pt-1">
                 <div className={cn("flex items-center justify-between gap-4 rounded-xl border p-3", requestTheme.detailCard)}>
@@ -509,15 +509,15 @@ function SiteCategoryContent() {
                     className={requestTheme.switch}
                   />
                 </div>
-                <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-600">
+                <div className="flex items-center justify-between rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-600">
                   <span>Current mode</span>
                   <span className={cn("rounded-full px-2.5 py-1 font-semibold", requestTheme.badge)}>{requestTheme.tone}</span>
                 </div>
-                <Button onClick={downloadCSV} disabled={sites.length === 0} className={cn("w-full text-white", includeSatellite ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-600 hover:bg-slate-700")}><Download className="mr-2 h-4 w-4" />Download CSV</Button>
+                <Button onClick={downloadCSV} disabled={sites.length === 0} className={cn("w-full rounded-xl text-white", includeSatellite ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-600 hover:bg-slate-700")}><Download className="mr-2 h-4 w-4" />Download CSV</Button>
                 {sites.length === 0 && <FileUpload onUpload={processLocations} />}
               </CardContent>
             </Card>
-            <Card>
+            <Card className="rounded-2xl">
               <CardHeader className="pb-3">
                 <button
                   type="button"
@@ -536,12 +536,12 @@ function SiteCategoryContent() {
               {isManualSectionOpen && (
                 <CardContent className="space-y-3">
                   <p className="text-sm text-slate-500">Enter one `latitude,longitude` pair per line.</p>
-                  <Textarea value={manualInput} onChange={(e) => setManualInput(e.target.value)} placeholder="0.3178311,32.5899529&#10;0.318058,32.590206" className="min-h-28" />
-                  <Button onClick={handleManualSubmit} disabled={!manualInput.trim() || loading} className="w-full bg-blue-500 text-white hover:bg-blue-600">Process Coordinates</Button>
+                  <Textarea value={manualInput} onChange={(e) => setManualInput(e.target.value)} placeholder="0.3178311,32.5899529&#10;0.318058,32.590206" className="min-h-28 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white" />
+                  <Button onClick={handleManualSubmit} disabled={!manualInput.trim() || loading} className="w-full rounded-xl bg-blue-500 text-white hover:bg-blue-600">Process Coordinates</Button>
                 </CardContent>
               )}
             </Card>
-            <Card>
+            <Card className="rounded-2xl">
               <CardHeader className="pb-3"><CardTitle className="text-lg">Results</CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {sites.length === 0 ? <p className="text-sm text-slate-500">Click the map, upload a CSV, or paste coordinates to fetch source metadata.</p> : visibleSites.map((site) => renderResultCard(site))}
@@ -553,7 +553,7 @@ function SiteCategoryContent() {
                   <p className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Result</p>
                   {renderResultCard(selectedSite, true)}
                 </div>
-                <Card ref={metadataRef} className={cn("border", selectedTheme.detailPanel)}>
+                <Card ref={metadataRef} className={cn("rounded-2xl border", selectedTheme.detailPanel)}>
                 <CardHeader className="pb-1"><CardTitle className="text-lg">{selectedSite.satellite_enabled ? "Source Metadata" : "Site Context"}</CardTitle></CardHeader>
                 <CardContent className="space-y-4 pt-1">
                   {selectedSite.satellite_enabled && (
@@ -612,7 +612,7 @@ function SiteCategoryContent() {
       </div>
       {showInfo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <Card className="relative w-full max-w-lg bg-white">
+          <Card className="relative w-full max-w-lg rounded-2xl bg-white">
             <CardHeader className="pr-12"><CardTitle className="text-xl">How Categorize Works</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm text-slate-600">
               <Button variant="ghost" className="absolute right-2 top-2 text-slate-500 hover:text-slate-700" onClick={() => setShowInfo(false)}><X className="h-5 w-5" /></Button>
@@ -623,7 +623,7 @@ function SiteCategoryContent() {
           </Card>
         </div>
       )}
-      {loading && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="flex items-center space-x-2 rounded-lg bg-white p-4"><Loader2 className="h-4 w-4 animate-spin" /><span className="font-bold text-slate-700">{includeSatellite ? "Processing satellite-enriched source metadata..." : "Processing OSM site categorization..."}</span></div></div>}
+      {loading && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="flex items-center space-x-2 rounded-2xl bg-white p-4 shadow-xl"><Loader2 className="h-4 w-4 animate-spin" /><span className="font-bold text-slate-700">{includeSatellite ? "Processing satellite-enriched source metadata..." : "Processing OSM site categorization..."}</span></div></div>}
     </div>
   )
 }

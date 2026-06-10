@@ -911,15 +911,20 @@ function ReportContent() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-md p-4 mb-8">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold mb-2 md:mb-0">Filter Reports</h2>
-          <Button variant="outline" onClick={resetFilters} className="w-full md:w-auto">
+      <div className="mb-8 rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 p-5 shadow-sm">
+        <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-950">Filter report visuals</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Refine every chart, map, summary, and recommendation using the same geographic selection.
+            </p>
+          </div>
+          <Button variant="outline" onClick={resetFilters} className="w-full rounded-xl border-slate-300 bg-white md:w-auto">
             Reset Filters
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <FilterMultiSelect
             label="Country"
             placeholder="Select countries"
@@ -961,9 +966,10 @@ function ReportContent() {
       </div>
 
       {/* Filter summary */}
-      <div className="bg-blue-50 rounded-lg p-4 mb-8 border border-blue-100">
-        <div className="flex flex-wrap gap-2 items-center">
-          <span className="font-medium text-blue-800">Active Filters:</span>
+      <div className="mb-8 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-bold uppercase tracking-[0.14em] text-blue-700">Active filters</span>
           {hasActiveFilters ? (
             <>
               {(["country", "city", "district", "category"] as (keyof Filters)[]).map((key) =>
@@ -972,29 +978,30 @@ function ReportContent() {
                     type="button"
                     key={`${key}-${value}`}
                     onClick={() => removeFilterValue(key, value)}
-                    className="group flex items-center gap-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm hover:bg-blue-200 transition"
+                    className="group flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
                   >
                     <span className="capitalize">{key}:</span> {value}
                     <X className="h-3 w-3 opacity-70 group-hover:opacity-100" />
                   </button>
                 )),
               )}
-              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+              <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
                 Most Common AQI Category: {mostCommonCategory || "N/A"}
               </span>
             </>
           ) : (
-            <span className="text-blue-800 text-sm">None - showing all data</span>
+            <span className="text-sm text-slate-500">None selected, showing the complete network.</span>
           )}
-        </div>
-        <div className="mt-2 text-sm text-blue-700">
-          Showing {filteredData.length} of {siteData.length} sites
+          </div>
+          <div className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white">
+            Showing {filteredData.length} of {siteData.length} sites
+          </div>
         </div>
       </div>
 
       {/* Selected Devices Counter */}
       {selectedDevices.length > 0 && (
-        <div className="bg-blue-600 text-white rounded-lg p-4 mb-8 shadow-lg transform transition-all duration-300 hover:scale-105">
+        <div className="mb-8 transform rounded-2xl bg-blue-600 p-4 text-white shadow-lg transition-all duration-300 hover:scale-105">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
               <div className="bg-white text-blue-600 rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mr-4">
@@ -1013,7 +1020,7 @@ function ReportContent() {
               <Button
                 variant="outline"
                 onClick={clearDeviceSelection}
-                className="bg-transparent border-white text-white hover:bg-blue-700"
+                className="rounded-xl border-white bg-transparent text-white hover:bg-blue-700"
               >
                 Clear All
               </Button>
@@ -1028,7 +1035,7 @@ function ReportContent() {
                 if (selectedCount === 0) return null
 
                 return (
-                  <div key={`selected-${category}`} className="bg-blue-700 rounded-lg p-2 text-center">
+                  <div key={`selected-${category}`} className="rounded-xl bg-blue-700 p-2 text-center">
                     <div className="text-sm text-blue-200">{category}</div>
                     <div className="text-lg font-bold">{selectedCount} selected</div>
                   </div>
@@ -1069,7 +1076,7 @@ function ReportContent() {
                   }, 800)
                 }}
                 disabled={reportGenerating}
-                className="bg-white text-blue-600 hover:bg-blue-50"
+                className="rounded-xl bg-white text-blue-600 hover:bg-blue-50"
               >
                 {reportGenerating ? (
                   <>
@@ -1086,15 +1093,15 @@ function ReportContent() {
       )}
 
       {/* Device Search and Selection */}
-      <div className="bg-white rounded-lg shadow-md p-4 mb-8">
+      <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col md:flex-row justify-between items-center mb-4">
           <h2 className="text-lg font-semibold mb-2 md:mb-0">Device Selection</h2>
           <div className="flex gap-2">
             <Button variant="outline" onClick={selectAllDevices} size="sm" 
-            className="bg-blue-500 text-white border-blue-700 hover:bg-blue-600">
+            className="rounded-xl border-blue-700 bg-blue-500 text-white hover:bg-blue-600">
               Select All
             </Button>
-            <Button variant="outline" onClick={clearDeviceSelection} size="sm">
+            <Button variant="outline" onClick={clearDeviceSelection} size="sm" className="rounded-xl">
               Clear All
             </Button>
           </div>
@@ -1106,7 +1113,7 @@ function ReportContent() {
               placeholder="Search devices by name, city, or country"
               value={deviceSearch}
               onChange={(e) => handleDeviceSearch(e.target.value)}
-              className="flex-1"
+              className="h-11 flex-1 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white"
             />
             <Button
               onClick={() => {
@@ -1133,7 +1140,7 @@ function ReportContent() {
                 }
               }}
               disabled={selectedDevices.length === 0 || reportGenerating}
-              className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+              className="rounded-xl bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap"
             >
               {reportGenerating ? (
                 <>
@@ -1150,7 +1157,7 @@ function ReportContent() {
             {getFilteredDevices()
               .slice(0, 9)
               .map((site) => (
-                <div key={site._id} className="flex items-center space-x-2 p-2 border rounded-md">
+                <div key={site._id} className="flex items-center space-x-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
                   <Checkbox
                     id={`main-device-${site._id}`}
                     checked={selectedDevices.includes(site._id)}
@@ -1801,41 +1808,58 @@ function FilterMultiSelect({
   }
 
   return (
-    <div>
-      <label className="text-sm font-medium mb-1 block text-gray-800">{label}</label>
+    <div
+      className={`rounded-2xl border p-3 transition ${
+        values.length
+          ? "border-blue-200 bg-blue-50/60 shadow-[0_0_0_1px_rgba(37,99,235,0.04)]"
+          : "border-slate-200 bg-white"
+      }`}
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <label className="block text-xs font-bold uppercase tracking-[0.12em] text-slate-600">{label}</label>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+          values.length ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-500"
+        }`}>
+          {values.length || "All"}
+        </span>
+      </div>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between"
+            className={`min-h-12 h-auto w-full justify-between rounded-xl px-3 py-2 text-left ${
+              values.length
+                ? "border-blue-200 bg-white hover:bg-white"
+                : "border-slate-300 bg-slate-50 hover:bg-slate-100"
+            }`}
             disabled={disabled}
           >
-            <span className={`flex flex-wrap items-center gap-1 ${values.length ? "text-gray-900" : "text-gray-500"}`}>
+            <span className={`min-w-0 flex-1 ${values.length ? "text-slate-900" : "text-slate-500"}`}>
               {values.length ? (
-                <>
-                  {values.slice(0, 3).map((value) => (
-                    <span key={value} className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-xs">
-                      {value}
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-sm font-semibold">{values.slice(0, 2).join(", ")}</span>
+                  {values.length > 2 && (
+                    <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                      +{values.length - 2}
                     </span>
-                  ))}
-                  {values.length > 3 && <span className="text-xs text-gray-500">+{values.length - 3} more</span>}
-                </>
+                  )}
+                </span>
               ) : (
                 placeholder
               )}
             </span>
-            <ChevronDown className="h-4 w-4 opacity-60" />
+            <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-72 p-3">
-          <div className="flex items-center gap-2 mb-3">
+        <PopoverContent align="start" className="w-72 rounded-2xl border-slate-200 p-3 shadow-xl">
+          <div className="mb-3 flex items-center gap-2">
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={`Search ${label.toLowerCase()}`}
-              className="h-9"
+              className="h-10 rounded-xl border-slate-300 bg-slate-50"
             />
             {values.length > 0 && (
               <Button variant="ghost" size="sm" onClick={clearAll} className="text-blue-700 hover:text-blue-900">
@@ -1848,7 +1872,11 @@ function FilterMultiSelect({
               filteredOptions.map((option) => (
                 <label
                   key={option}
-                  className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 cursor-pointer"
+                  className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 transition ${
+                    values.includes(option)
+                      ? "border-blue-200 bg-blue-50 text-blue-900"
+                      : "border-transparent hover:bg-slate-50"
+                  }`}
                 >
                   <Checkbox checked={values.includes(option)} onCheckedChange={() => toggleValue(option)} />
                   <span className="text-sm text-gray-800">{option}</span>
@@ -1866,7 +1894,7 @@ function FilterMultiSelect({
           </div>
         </PopoverContent>
       </Popover>
-      {helperText && <p className="text-xs text-gray-500 mt-1">{helperText}</p>}
+      {helperText && <p className="mt-2 min-h-8 text-xs leading-4 text-slate-500">{helperText}</p>}
     </div>
   )
 }

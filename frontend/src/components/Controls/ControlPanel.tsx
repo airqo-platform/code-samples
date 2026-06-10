@@ -7,7 +7,7 @@ import { SearchBar } from "./SearchBar"
 import { FileUpload } from "./FileUpload"
 import type { Location, ControlPanelProps } from "@/lib/types"
 import { useToast } from "@/ui/use-toast"
-import { Loader2 } from "lucide-react"
+import { Crosshair, Loader2, MapPinned, Plus, Ruler, Sparkles, Trash2, Upload } from "lucide-react"
 
 // Extend ControlPanelProps to include onBoundaryFound
 interface ExtendedControlPanelProps extends ControlPanelProps {
@@ -112,16 +112,40 @@ export function ControlPanel({
   }
 
   return (
-    <div className="control-panel space-y-4 mt-9" style={{ width: "400px" }}>
-      <h2 className="text-lg font-semibold mb-4">Air Quality Site Locator</h2>
+    <div className="control-panel space-y-4">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="rounded-xl bg-blue-50 p-2 text-blue-700">
+            <MapPinned className="h-4 w-4" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">1. Select an analysis area</h2>
+            <p className="text-xs text-slate-500">Search for a known boundary or draw one on the map.</p>
+          </div>
+        </div>
+        <SearchBar onSearch={() => {}} onBoundaryFound={onBoundaryFound} />
+        <div className={`mt-3 rounded-xl border px-3 py-2.5 text-xs ${
+          polygon.length >= 3
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+            : "border-amber-200 bg-amber-50 text-amber-800"
+        }`}>
+          {polygon.length >= 3
+            ? `Boundary ready with ${polygon.length} points.`
+            : "A boundary with at least three points is required."}
+        </div>
+      </section>
 
-      {/* Search Bar */}
-      <SearchBar onSearch={() => {}} onBoundaryFound={onBoundaryFound} />
-
-      {/* Must-Have Locations */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Must-Have Locations (Optional)</label>
-        <div className="flex gap-2">
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700">
+            <Crosshair className="h-4 w-4" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">2. Add priority locations</h2>
+            <p className="text-xs text-slate-500">Optional sites that must remain in the deployment plan.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
           <Input
             type="number"
             placeholder="Latitude"
@@ -129,6 +153,7 @@ export function ControlPanel({
             onChange={(e) => setNewLat(e.target.value)}
             step="any"
             aria-label="Latitude"
+            className="h-11 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white"
           />
           <Input
             type="number"
@@ -137,44 +162,75 @@ export function ControlPanel({
             onChange={(e) => setNewLng(e.target.value)}
             step="any"
             aria-label="Longitude"
+            className="h-11 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white"
           />
-          <Button onClick={handleAddLocation} aria-label="Add Location">
-            Add
+          <Button onClick={handleAddLocation} aria-label="Add Location" className="col-span-2 gap-2 bg-slate-900 hover:bg-slate-800">
+            <Plus className="h-4 w-4" />
+            Add priority point
           </Button>
         </div>
-        <FileUpload onUpload={onMustHaveLocationsChange} />
-        <div className="text-sm text-muted-foreground">{mustHaveLocations.length} locations added</div>
-      </div>
+        <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <Upload className="h-3.5 w-3.5" />
+            Upload coordinates
+          </div>
+          <FileUpload onUpload={onMustHaveLocationsChange} />
+        </div>
+        <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+          <span className="text-xs text-slate-500">{mustHaveLocations.length} priority locations added</span>
+          {mustHaveLocations.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => onMustHaveLocationsChange([])}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Clear
+            </button>
+          ) : null}
+        </div>
+      </section>
 
-      {/* Minimum Distance */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Minimum Distance between sites (km) (Optional)</label>
-        <Input
-          type="number"
-          min="0.1"
-          step="0.1"
-          value={minDistance}
-          onChange={(e) => setMinDistance(e.target.value)}
-          aria-label="Minimum Distance"
-        />
-      </div>
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="rounded-xl bg-violet-50 p-2 text-violet-700">
+            <Ruler className="h-4 w-4" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">3. Configure the network</h2>
+            <p className="text-xs text-slate-500">Set deployment size and spacing constraints.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="space-y-2">
+            <span className="text-xs font-semibold text-slate-700">Sensors</span>
+            <Input
+              type="number"
+              min="1"
+              value={numSensors}
+              onChange={(e) => setNumSensors(e.target.value)}
+              required
+              aria-label="Number of Sensors"
+              className="h-11 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-semibold text-slate-700">Min. spacing (km)</span>
+            <Input
+              type="number"
+              min="0.1"
+              step="0.1"
+              value={minDistance}
+              onChange={(e) => setMinDistance(e.target.value)}
+              aria-label="Minimum Distance"
+              className="h-11 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white"
+            />
+          </label>
+        </div>
+      </section>
 
-      {/* Number of Sensors */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Number of Sensors (Required)</label>
-        <Input
-          type="number"
-          min="1"
-          value={numSensors}
-          onChange={(e) => setNumSensors(e.target.value)}
-          required
-          aria-label="Number of Sensors"
-        />
-      </div>
-
-      {/* Submit Button */}
       <Button
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+        className="h-12 w-full gap-2 rounded-xl bg-blue-700 text-white shadow-lg shadow-blue-700/20 hover:bg-blue-600"
         onClick={handleSubmit}
         disabled={isLoading}
         aria-label="Submit"
@@ -185,7 +241,10 @@ export function ControlPanel({
             <span>Submitting...</span>
           </div>
         ) : (
-          "Submit"
+          <>
+            <Sparkles className="h-4 w-4" />
+            Generate recommended sites
+          </>
         )}
       </Button>
     </div>
