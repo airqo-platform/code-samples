@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { LockKeyhole, ShieldCheck } from "lucide-react"
+import { Eye, EyeOff, LockKeyhole, ShieldCheck } from "lucide-react"
 import { Button } from "@/ui/button"
 import { Input } from "@/ui/input"
 
@@ -11,6 +11,7 @@ export default function AdminLoginForm() {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
@@ -69,23 +70,34 @@ export default function AdminLoginForm() {
                   autoComplete="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="mt-2 h-12"
+                  className="mt-2 h-12 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white"
                   required
                 />
               </label>
               <label className="block text-sm font-medium">
                 Password
-                <Input
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="mt-2 h-12"
-                  required
-                />
+                <div className="relative mt-2">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className="h-12 rounded-xl border-slate-300 bg-slate-50 pr-12 focus-visible:bg-white"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </label>
-              {error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-              <Button type="submit" disabled={loading} className="h-12 w-full bg-blue-700 text-white hover:bg-blue-800">
+              {error && <p className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+              <Button type="submit" disabled={loading} className="h-12 w-full rounded-xl bg-blue-700 text-white hover:bg-blue-800">
                 {loading ? "Signing in with AirQo..." : "Sign in with AirQo"}
               </Button>
             </form>

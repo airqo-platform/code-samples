@@ -148,7 +148,7 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
               <p className="text-xs text-slate-400">{session.email} · {session.role.replace("_", " ")}</p>
             </div>
           </div>
-          <Button onClick={logout} variant="ghost" className="text-white hover:bg-slate-800 hover:text-white">
+          <Button onClick={logout} variant="ghost" className="rounded-xl text-white hover:bg-slate-800 hover:text-white">
             <LogOut /> Sign out
           </Button>
         </div>
@@ -160,7 +160,7 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
             <p className="text-sm font-medium text-blue-100">Website controls</p>
             <h2 className="mt-1 text-2xl font-semibold">Choose what visitors can see and use</h2>
           </div>
-          <Button onClick={saveSettings} disabled={saving} className="bg-white text-blue-800 hover:bg-blue-50">
+          <Button onClick={saveSettings} disabled={saving} className="rounded-xl bg-white text-blue-800 hover:bg-blue-50">
             <Save /> {saving ? "Publishing..." : "Publish changes"}
           </Button>
         </section>
@@ -168,7 +168,7 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
         {message && <p className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">{message}</p>}
 
         <div className="grid gap-8 lg:grid-cols-[1.35fr_0.65fr]">
-          <section className="rounded-2xl bg-white p-6 shadow-sm">
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex items-center gap-3">
               <Settings2 className="text-blue-700" />
               <div>
@@ -179,13 +179,13 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
 
             <div className="space-y-3">
               {settings.pages.map((page) => (
-                <div key={page.id} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-center">
-                  <Input value={page.name} onChange={(event) => updatePage(page.id, { name: event.target.value })} aria-label="Page name" />
-                  <Input value={page.path} onChange={(event) => updatePage(page.id, { path: event.target.value })} aria-label="Page path" />
+                <div key={page.id} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-center">
+                  <Input value={page.name} onChange={(event) => updatePage(page.id, { name: event.target.value })} aria-label="Page name" className="h-11 rounded-xl border-slate-300 bg-white" />
+                  <Input value={page.path} onChange={(event) => updatePage(page.id, { path: event.target.value })} aria-label="Page path" className="h-11 rounded-xl border-slate-300 bg-white" />
                   <button
                     type="button"
                     onClick={() => updatePage(page.id, { enabled: !page.enabled })}
-                    className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium ${
                       page.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
                     }`}
                   >
@@ -204,14 +204,14 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
               ))}
             </div>
 
-            <form onSubmit={addPage} className="mt-5 grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-[1fr_1fr_auto]">
-              <Input placeholder="Page name" value={pageName} onChange={(event) => setPageName(event.target.value)} required />
-              <Input placeholder="/page-path" value={pagePath} onChange={(event) => setPagePath(event.target.value)} required />
-              <Button type="submit" className="bg-slate-900 text-white hover:bg-slate-800"><Plus /> Add page</Button>
+            <form onSubmit={addPage} className="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1fr_1fr_auto]">
+              <Input placeholder="Page name" value={pageName} onChange={(event) => setPageName(event.target.value)} required className="h-11 rounded-xl border-slate-300 bg-white" />
+              <Input placeholder="/page-path" value={pagePath} onChange={(event) => setPagePath(event.target.value)} required className="h-11 rounded-xl border-slate-300 bg-white" />
+              <Button type="submit" className="rounded-xl bg-slate-900 text-white hover:bg-slate-800"><Plus /> Add page</Button>
             </form>
           </section>
 
-          <section className="rounded-2xl bg-white p-6 shadow-sm">
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex items-center gap-3">
               <ShieldCheck className="text-cyan-700" />
               <div>
@@ -221,7 +221,7 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
             </div>
             <div className="space-y-4">
               {settings.features.map((feature) => (
-                <div key={feature.id} className="flex items-start justify-between gap-4 rounded-xl border p-4">
+                <div key={feature.id} className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                   <div>
                     <h3 className="font-medium">{feature.name}</h3>
                     <p className="mt-1 text-sm leading-5 text-slate-500">{feature.description}</p>
@@ -243,7 +243,7 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
         </div>
 
         {session.role === "super_admin" && (
-          <section className="rounded-2xl bg-white p-6 shadow-sm">
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex items-center gap-3">
               <Users className="text-violet-700" />
               <div>
@@ -255,7 +255,7 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
             <div className="grid gap-6 lg:grid-cols-[1fr_0.75fr]">
               <div className="space-y-3">
                 {admins.map((admin) => (
-                  <div key={admin.id} className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div key={admin.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-medium">{admin.email}</p>
                       <p className="text-xs text-slate-500">Added {new Date(admin.createdAt).toLocaleDateString()}</p>
@@ -264,7 +264,7 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
                       <select
                         value={admin.role}
                         onChange={(event) => patchAdministrator(admin.id, { role: event.target.value as AdminRole })}
-                        className="h-10 rounded-md border bg-white px-3 text-sm"
+                        className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm"
                         disabled={admin.id === session.id}
                       >
                         <option value="admin">Admin</option>
@@ -281,7 +281,7 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
                 ))}
               </div>
 
-              <form onSubmit={addAdministrator} className="space-y-4 rounded-xl bg-slate-50 p-5">
+              <form onSubmit={addAdministrator} className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
                 <h3 className="font-medium">Add administrator</h3>
                 <Input
                   type="email"
@@ -289,16 +289,17 @@ export default function AdminDashboard({ session }: { session: AdminSession }) {
                   value={newAdmin.email}
                   onChange={(event) => setNewAdmin({ ...newAdmin, email: event.target.value })}
                   required
+                  className="h-11 rounded-xl border-slate-300 bg-white"
                 />
                 <select
                   value={newAdmin.role}
                   onChange={(event) => setNewAdmin({ ...newAdmin, role: event.target.value as AdminRole })}
-                  className="h-10 w-full rounded-md border bg-white px-3 text-sm"
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
                 >
                   <option value="admin">Admin: manage site controls</option>
                   <option value="super_admin">Super admin: also manage admins</option>
                 </select>
-                <Button type="submit" className="w-full bg-violet-700 text-white hover:bg-violet-800"><Plus /> Grant access</Button>
+                <Button type="submit" className="w-full rounded-xl bg-violet-700 text-white hover:bg-violet-800"><Plus /> Grant access</Button>
               </form>
             </div>
           </section>
