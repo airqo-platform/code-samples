@@ -17,8 +17,10 @@ import {
   ChevronDown,
   ChevronUp,
   Clock3,
+  Cloud,
   CloudRain,
   Droplets,
+  Gauge,
   LoaderCircle,
   Thermometer,
   Wind,
@@ -525,7 +527,9 @@ interface DailyForecastItem {
   forecast_confidence?: number | null
   air_temperature?: number | null
   relative_humidity?: number | null
+  air_pressure_at_sea_level?: number | null
   precipitation_amount?: number | null
+  cloud_area_fraction?: number | null
   wind_speed?: number | null
   wind_direction_compass?: string
   aqi_category?: string
@@ -832,7 +836,6 @@ const ForecastDayPill: React.FC<{
 }> = ({ item, isActive, onClick }) => {
   const dt = parseForecastTime(item.time)
   const weekday = dt ? dt.toLocaleDateString(undefined, { weekday: "short" }) : (item.time || "?").slice(0, 3)
-  const dayMark = weekday.charAt(0).toUpperCase()
   const dayNum = dt ? String(dt.getDate()) : "--"
   const imageSrc = getAqiImageByCategory(item.aqi_category)
   const accentColor = normalizeHexColor(item.aqi_color)
@@ -852,7 +855,7 @@ const ForecastDayPill: React.FC<{
     >
       <div className="flex h-full flex-col items-center justify-between px-1 py-3">
         <div className={["text-[11px] font-semibold leading-none", isActive ? "text-white/90" : "text-slate-500"].join(" ")}>
-          {dayMark}
+          {weekday}
         </div>
         <div className={["text-[23px] font-semibold leading-none", isActive ? "text-white" : "text-slate-900"].join(" ")}>{dayNum}</div>
         <div className="flex flex-col items-center gap-1">
@@ -943,7 +946,9 @@ const ForecastPanel: React.FC<{
       forecast_confidence: item.forecast.forecast_confidence,
       air_temperature: item.met?.air_temperature ?? null,
       relative_humidity: item.met?.relative_humidity ?? null,
+      air_pressure_at_sea_level: item.met?.air_pressure_at_sea_level ?? null,
       precipitation_amount: item.met?.precipitation_amount ?? null,
+      cloud_area_fraction: item.met?.cloud_area_fraction ?? null,
       wind_speed: item.met?.wind_speed ?? null,
       wind_direction_compass: item.met?.wind_direction_compass,
       aqi_label: item.aqi.label,
@@ -2005,7 +2010,7 @@ function ForecastContent({
   if (hasForecastMetricValue(active?.air_temperature)) {
     metricCards.push({
       label: "Temperature",
-      value: formatForecastMetricWithUnit(active?.air_temperature, 1, "degC"),
+      value: formatForecastMetricWithUnit(active?.air_temperature, 1, "°C"),
       Icon: Thermometer,
     })
   }
@@ -2026,6 +2031,22 @@ function ForecastContent({
     })
   }
 
+  if (hasForecastMetricValue(active?.air_pressure_at_sea_level)) {
+    metricCards.push({
+      label: "Sea-level pressure",
+      value: formatForecastMetricWithUnit(active?.air_pressure_at_sea_level, 0, "hPa"),
+      Icon: Gauge,
+    })
+  }
+
+  if (hasForecastMetricValue(active?.cloud_area_fraction)) {
+    metricCards.push({
+      label: "Cloud cover",
+      value: formatForecastMetric(active?.cloud_area_fraction, 0, "%"),
+      Icon: Cloud,
+    })
+  }
+
   if (hasForecastMetricValue(active?.wind_speed)) {
     metricCards.push({
       label: "Wind",
@@ -2040,7 +2061,7 @@ function ForecastContent({
     <div className="space-y-5">
       <div>
         <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="text-sm font-semibold text-slate-900">Forecast outlook</div> 
+          <div className="text-sm font-semibold text-slate-900">7 days forecast outlook</div>
         </div>
         <div className="mb-3">
           <HourlyForecastToggle
@@ -2097,32 +2118,6 @@ function ForecastContent({
                 <span className="min-w-0 truncate whitespace-nowrap">{activeAqiCategory}</span>
               </div>
             </div>
-            <div className="grid grid-cols-[minmax(4.8rem,1.15fr)_minmax(5.45rem,1.2fr)_minmax(4.7rem,0.9fr)_minmax(4.45rem,0.85fr)] gap-x-2 gap-y-2">
-              <div className="min-w-0">
-                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">
-                  Average <Pm25Label />
-                </div>
-                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">{pm25MeanText}</div>
-                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
-              </div>
-              <div className="min-w-0">
-                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Low / High</div>
-                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">
-                  {formatForecastMetric(active.pm2_5_low, 1)} - {formatForecastMetric(active.pm2_5_high, 1)}
-                </div>
-                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
-              </div>
-              <div className="min-w-0">
-                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Spike</div>
-                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">{formatForecastMetric(active.pm2_5_max, 1)}</div>
-                 
-              </div>
-              <div className="min-w-0">
-                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Change</div>
-                <div className={["mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold", percentClass].join(" ")}>{percentText}</div>
-                <div className="whitespace-nowrap text-[clamp(0.62rem,2.2vw,0.75rem)] font-medium text-slate-500">vs last week</div>
-              </div>
-            </div>
             {active.aqi_label ? (
               <div
                 className="rounded-[8px] border px-3 py-2 text-xs leading-relaxed text-slate-700"
@@ -2137,6 +2132,31 @@ function ForecastContent({
                 {active.aqi_label}
               </div>
             ) : null}
+            <div className="grid grid-cols-[minmax(4.8rem,1.15fr)_minmax(5.45rem,1.2fr)_minmax(4.7rem,0.9fr)_minmax(4.45rem,0.85fr)] gap-x-2 gap-y-2">
+              <div className="min-w-0">
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">
+                  Average <br></br> <Pm25Label />
+                </div>
+                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">{pm25MeanText}</div>
+                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
+              </div>
+              <div className="min-w-0">
+                <div className="whitespace-nowrap text-[04px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Expected <br></br> Range</div>
+                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">
+                  {formatForecastMetric(active.pm2_5_low, 1)} - {formatForecastMetric(active.pm2_5_high, 1)}
+                </div>
+                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
+              </div>
+              <div className="min-w-0">
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Expected <br></br> Peak </div>
+                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">{formatForecastMetric(active.pm2_5_max, 1)}</div>
+                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
+              </div>
+              <div className="min-w-0">
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">WEEKLY <br></br> Change</div>
+                <div className={["mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold", percentClass].join(" ")}>{percentText}</div>
+              </div>
+            </div>
             <div className="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -2144,7 +2164,7 @@ function ForecastContent({
                     Forecast confidence
                   </div>
                   <div className="mt-0.5 text-xs font-medium text-slate-600">
-                    Chance <Pm25Label /> falls within {confidenceRangeText ?? "the forecast range"}
+                    Probability <Pm25Label /> remains within {confidenceRangeText ?? "the forecast range"}
                   </div>
                 </div>
                 <div className="text-sm font-semibold text-slate-950">{confidenceText}</div>
@@ -2170,22 +2190,23 @@ function ForecastContent({
       ) : null}
 
       {active && metricCards.length ? (
-        <div className="rounded-[8px] border border-slate-200 bg-[#F8FAFC] p-4">
-          <div className="flex flex-wrap gap-2">
+        <div className="rounded-[8px] border border-slate-200 bg-[#F8FAFC] p-3">
+          <div className="mb-2 text-xs font-semibold text-slate-900">Meteorological conditions</div>
+          <div className="forecast-strip flex gap-1.5 overflow-x-auto pb-1">
             {metricCards.map((metric) => (
               <div
                 key={metric.label}
-                className="min-w-[5rem] max-w-full flex-1 rounded-[8px] border border-slate-200 bg-white px-2 py-2 sm:flex-none"
+                className="w-[58px] shrink-0 rounded-[8px] border border-slate-200 bg-white px-1.5 py-1.5"
                 aria-label={`${metric.label}: ${metric.value}`}
                 title={metric.label}
               >
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-slate-100 text-slate-600">
-                    <metric.Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                <div className="flex items-center justify-center">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-[5px] bg-slate-100 text-slate-600">
+                    <metric.Icon className="h-3 w-3" aria-hidden="true" />
                   </span>
                   <span className="sr-only">{metric.label}</span>
                 </div>
-                <div className="mt-1 whitespace-normal break-words text-xs font-semibold leading-tight text-slate-950">
+                <div className="mt-1 min-w-0 break-words text-center text-[clamp(8px,2.2vw,10px)] font-semibold leading-tight text-slate-950">
                   {metric.value}
                 </div>
               </div>

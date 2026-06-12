@@ -47,6 +47,7 @@ interface MapComponentProps {
   onPolygonChange: (locations: Location[]) => void
   onLocationClick: (location: Location) => void
   isDrawing: boolean
+  isSelectingPriority: boolean
 }
 
 // Add map instance to window for global access
@@ -158,14 +159,35 @@ function DrawControl({
   return null
 }
 
+function PriorityLocationControl({ onLocationClick }: { onLocationClick: (location: Location) => void }) {
+  const map = useMap()
+
+  useEffect(() => {
+    const handleClick = (event: L.LeafletMouseEvent) => {
+      onLocationClick({ lat: event.latlng.lat, lng: event.latlng.lng })
+    }
+
+    map.getContainer().style.cursor = "crosshair"
+    map.on("click", handleClick)
+
+    return () => {
+      map.getContainer().style.cursor = ""
+      map.off("click", handleClick)
+    }
+  }, [map, onLocationClick])
+
+  return null
+}
+
 // Add a check for the Mapbox token at the beginning of the component
 export default function MapComponent({
   polygon,
   mustHaveLocations,
   suggestedLocations,
   onPolygonChange,
-  // onLocationClick,
+  onLocationClick,
   isDrawing,
+  isSelectingPriority,
 }: MapComponentProps) {
   // Check if Mapbox token is available
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
@@ -195,6 +217,7 @@ export default function MapComponent({
         />
 
         {isDrawing && <DrawControl onPolygonChange={onPolygonChange} />}
+        {isSelectingPriority && !isDrawing ? <PriorityLocationControl onLocationClick={onLocationClick} /> : null}
 
         {polygon.length > 2 && (
           <Polygon

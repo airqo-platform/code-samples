@@ -50,22 +50,51 @@ export interface SourceCandidate {
 }
 
 export interface SourceMetadataSiteCategory {
-  area_name: string | null
+  area_name?: string | null
   category: string | null
+  classification_confidence?: number | null
+  classification_method?: string | null
+  distance_to_matched_feature_m?: number | null
   highway: string | null
   landuse: string | null
   natural: string | null
-  search_radius: number | null
+  search_radius?: number | null
   waterway: string | null
 }
 
+export interface SourceMetadataMatchedFeature {
+  name: string | null
+  osm_id: number | null
+  osm_type: string | null
+  tags: Record<string, string>
+}
+
+export interface SourceMetadataSentinel2Context {
+  aerosol_optical_thickness: number | null
+  cache_hit: boolean
+  collection: string | null
+  date_range: SourceMetadataDateRange | null
+  elapsed_ms: number | null
+  indices: Record<string, number | null>
+  provider: string | null
+  scene_classification: number | null
+  scene_cloud_cover: number | null
+  scene_datetime: string | null
+  scene_id: string | null
+}
+
 export interface SourceMetadataEvidence {
-  osm_debug_info: string[]
-  satellite_error: string | null
-  satellite_pollutants_mean: Record<string, number | null>
-  satellite_reasoning: string[]
+  matched_feature?: SourceMetadataMatchedFeature | null
+  nearby_feature_counts?: Record<string, number>
+  osm_debug_info?: string[]
+  reasoning?: string[]
+  sentinel2_context?: SourceMetadataSentinel2Context | null
+  sentinel2_error?: string | null
+  satellite_error?: string | null
+  satellite_pollutants_mean?: Record<string, number | null>
+  satellite_reasoning?: string[]
   site_category: SourceMetadataSiteCategory | null
-  site_reasoning: string[]
+  site_reasoning?: string[]
 }
 
 export interface SourceMetadataDateRange {
@@ -76,15 +105,20 @@ export interface SourceMetadataDateRange {
 export interface SourceMetadataMetadata {
   computed_at_utc: string
   data_sources: string[]
-  date_range: SourceMetadataDateRange
+  date_range?: SourceMetadataDateRange
   disclaimer: string
+  cache_hit?: boolean
+  elapsed_ms?: number | null
   model_version: string
+  satellite_data_used?: boolean
+  satellite_provider?: string | null
 }
 
 export interface SourceMetadataPayload {
   candidate_sources: SourceCandidate[]
   evidence: SourceMetadataEvidence
   location: {
+    area_name?: string | null
     latitude: number
     longitude: number
   }
