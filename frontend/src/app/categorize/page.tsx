@@ -97,6 +97,26 @@ const sourceBarColor = (index: number) =>
 
 const sourceHexColors = ["#2563EB", "#8B5CF6", "#F59E0B", "#F43F5E", "#06B6D4"]
 
+const sentinelSceneClassLabels: Record<number, string> = {
+  0: "No Data",
+  1: "Saturated / Defective",
+  2: "Dark Area Pixels",
+  3: "Cloud Shadows",
+  4: "Vegetation",
+  5: "Bare Soil / Non-Vegetated Land",
+  6: "Water",
+  7: "Unclassified",
+  8: "Cloud (Medium Probability)",
+  9: "Cloud (High Probability)",
+  10: "Thin Cirrus Cloud",
+  11: "Snow / Ice",
+}
+
+const sentinelSceneClassLabel = (value: number | null | undefined) =>
+  value == null || !Number.isFinite(value)
+    ? "Scene class unavailable"
+    : sentinelSceneClassLabels[Math.round(value)] ?? "Unknown scene class"
+
 const sentinelIndexDetails: Record<
   string,
   {
@@ -1023,9 +1043,22 @@ function SiteCategoryContent() {
                             <p className="text-xs uppercase text-cyan-200">Aerosol depth</p>
                             <p className="mt-1 text-sm font-bold">{metricLabel(selectedSite.sentinel2_context.aerosol_optical_thickness, 3)}</p>
                           </div>
-                          <div className="rounded-xl bg-white/10 p-2">
+                          <div
+                            className="group relative rounded-xl bg-white/10 p-2 focus:outline-none focus:ring-2 focus:ring-cyan-200"
+                            tabIndex={0}
+                            aria-label={`Scene class ${displayValue(selectedSite.sentinel2_context.scene_classification)}: ${sentinelSceneClassLabel(selectedSite.sentinel2_context.scene_classification)}`}
+                          >
                             <p className="text-xs uppercase text-cyan-200">Scene class</p>
                             <p className="mt-1 text-sm font-bold">{displayValue(selectedSite.sentinel2_context.scene_classification)}</p>
+                            <div
+                              role="tooltip"
+                              className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 hidden w-52 rounded-xl border border-cyan-200 bg-white p-3 text-left text-xs leading-5 text-slate-700 shadow-xl group-hover:block group-focus:block"
+                            >
+                              <p className="font-bold text-cyan-800">
+                                Class {displayValue(selectedSite.sentinel2_context.scene_classification)}
+                              </p>
+                              <p>{sentinelSceneClassLabel(selectedSite.sentinel2_context.scene_classification)}</p>
+                            </div>
                           </div>
                         </div>
                       </div>
