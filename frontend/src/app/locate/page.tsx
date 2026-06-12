@@ -33,6 +33,7 @@ export default function Index() {
   const [suggestedLocations, setSuggestedLocations] = useState<Location[]>([])
   const { toast } = useToast()
   const [isDrawing, setIsDrawing] = useState(false)
+  const [isSelectingPriority, setIsSelectingPriority] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [showResultsNotice, setShowResultsNotice] = useState(false)
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
@@ -67,7 +68,16 @@ export default function Index() {
   }
 
   const handleLocationClick = (location: Location) => {
-    setMustHaveLocations([...mustHaveLocations, location])
+    setMustHaveLocations((current) => {
+      const duplicate = current.some(
+        (item) => Math.abs(item.lat - location.lat) < 0.000001 && Math.abs(item.lng - location.lng) < 0.000001,
+      )
+      return duplicate ? current : [...current, location]
+    })
+    toast({
+      title: "Priority location added",
+      description: `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`,
+    })
   }
 
   const handleExportCSV = () => {
@@ -128,6 +138,7 @@ export default function Index() {
   }
 
   const toggleDrawing = () => {
+    setIsSelectingPriority(false)
     setIsDrawing(!isDrawing)
   }
 
@@ -136,6 +147,7 @@ export default function Index() {
     setMustHaveLocations([])
     setSuggestedLocations([])
     setIsDrawing(false)
+    setIsSelectingPriority(false)
     setShowResultsNotice(false)
     toast({
       title: "Workspace cleared",
@@ -215,6 +227,11 @@ export default function Index() {
               mustHaveLocations={mustHaveLocations}
               onMustHaveLocationsChange={setMustHaveLocations}
               onBoundaryFound={setPolygon}
+              isSelectingPriority={isSelectingPriority}
+              onSelectingPriorityChange={(isSelecting) => {
+                setIsDrawing(false)
+                setIsSelectingPriority(isSelecting)
+              }}
             />
           </div>
 
@@ -259,21 +276,30 @@ export default function Index() {
             onPolygonChange={setPolygon}
             onLocationClick={handleLocationClick}
             isDrawing={isDrawing}
+            isSelectingPriority={isSelectingPriority}
           />
 
           <div className="pointer-events-none absolute left-16 right-4 top-4 z-[1000] flex items-start justify-between gap-3 sm:left-20">
             <div className="pointer-events-auto max-w-lg rounded-2xl border border-white/70 bg-white/95 p-3 shadow-lg backdrop-blur">
               <div className="flex items-center gap-3">
                 <div className={`rounded-xl p-2 ${isDrawing ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
-                  {isDrawing ? <MousePointer2 className="h-5 w-5" /> : <Route className="h-5 w-5" />}
+                  {isDrawing || isSelectingPriority ? <MousePointer2 className="h-5 w-5" /> : <Route className="h-5 w-5" />}
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
-                    {isDrawing ? "Click the map to trace your boundary" : boundaryReady ? "Boundary ready for analysis" : "Choose or draw a boundary"}
+                    {isDrawing
+                      ? "Click the map to trace your boundary"
+                      : isSelectingPriority
+                        ? "Click the map to add priority locations"
+                        : boundaryReady
+                          ? "Boundary ready for analysis"
+                          : "Choose or draw a boundary"}
                   </p>
                   <p className="text-xs text-slate-500">
                     {isDrawing
                       ? `${polygon.length} points added. Use at least three points.`
+                      : isSelectingPriority
+                        ? `${mustHaveLocations.length} priority locations added`
                       : boundaryReady
                         ? `${polygon.length} boundary points selected`
                         : "Search for an area in the panel or start drawing."}
@@ -360,7 +386,7 @@ export default function Index() {
             <div className="mt-5 grid gap-3">
               {[
                 ["1", "Set the boundary", "Search for an administrative area or draw a custom polygon on the map."],
-                ["2", "Add priorities", "Enter or upload locations that must be included in the final network."],
+                ["2", "Add priorities", "Search, click the map, enter coordinates, or upload locations that must be included in the final network."],
                 ["3", "Define spacing", "Choose the number of sensors and minimum distance between recommended sites."],
                 ["4", "Generate and export", "Review the suggested sites, then save the map or download the coordinates."],
               ].map(([step, title, description]) => (

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/ui/button"
 import { Input } from "@/ui/input"
 import { SearchBar } from "./SearchBar"
+import { PriorityLocationSearch } from "./PriorityLocationSearch"
 import { FileUpload } from "./FileUpload"
 import type { Location, ControlPanelProps } from "@/lib/types"
 import { useToast } from "@/ui/use-toast"
@@ -12,6 +13,8 @@ import { Crosshair, Loader2, MapPinned, Plus, Ruler, Sparkles, Trash2, Upload } 
 // Extend ControlPanelProps to include onBoundaryFound
 interface ExtendedControlPanelProps extends ControlPanelProps {
   onBoundaryFound: (boundary: Location[]) => void
+  isSelectingPriority: boolean
+  onSelectingPriorityChange: (isSelecting: boolean) => void
 }
 
 export function ControlPanel({
@@ -20,6 +23,8 @@ export function ControlPanel({
   mustHaveLocations,
   onMustHaveLocationsChange,
   onBoundaryFound,
+  isSelectingPriority,
+  onSelectingPriorityChange,
 }: ExtendedControlPanelProps) {
   const [minDistance, setMinDistance] = useState("0.5") // Default value for min_distance_km
   const [numSensors, setNumSensors] = useState("5") // Default value for num_sensors
@@ -111,6 +116,20 @@ export function ControlPanel({
     })
   }
 
+  const addPriorityLocation = (location: Location) => {
+    const duplicate = mustHaveLocations.some(
+      (current) => Math.abs(current.lat - location.lat) < 0.000001 && Math.abs(current.lng - location.lng) < 0.000001,
+    )
+    if (duplicate) {
+      toast({
+        title: "Location already added",
+        description: "Choose a different priority location.",
+      })
+      return
+    }
+    onMustHaveLocationsChange([...mustHaveLocations, location])
+  }
+
   return (
     <div className="control-panel space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -141,9 +160,28 @@ export function ControlPanel({
             <Crosshair className="h-4 w-4" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-900">2. Add priority locations</h2>
+            <h2 className="text-sm font-bold text-slate-900">2. Add priority locations (Optional)</h2>
             <p className="text-xs text-slate-500">Optional sites that must remain in the deployment plan.</p>
           </div>
+        </div>
+        <div className="mb-3 space-y-2">
+          <PriorityLocationSearch onLocationFound={addPriorityLocation} />
+          <Button
+            type="button"
+            variant={isSelectingPriority ? "default" : "outline"}
+            onClick={() => onSelectingPriorityChange(!isSelectingPriority)}
+            className={`h-11 w-full gap-2 rounded-xl ${
+              isSelectingPriority ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-white"
+            }`}
+          >
+            <Crosshair className="h-4 w-4" />
+            {isSelectingPriority ? "Click the map to add points" : "Pick priority points on map"}
+          </Button>
+        </div>
+        <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+          <span className="h-px flex-1 bg-slate-200" />
+          Or enter coordinates
+          <span className="h-px flex-1 bg-slate-200" />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Input
