@@ -293,6 +293,14 @@ function SiteCategoryContent() {
     const sidebar = sidebarRef.current
     const targetTop = Math.max(0, selectedPreviewRef.current.offsetTop - 45) // 45px is an estimated offset for the top padding and title
 
+    if (window.innerWidth < 1024) {
+      selectedPreviewRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      })
+      return
+    }
+
     sidebar.scrollTo({
       top: targetTop,
       behavior: "smooth",
@@ -501,7 +509,16 @@ function SiteCategoryContent() {
 
           const searchContainer = document.querySelector(".leaflet-control-geosearch")
           if (searchContainer) {
-            searchContainer.classList.add("!right-4", "!top-4", "!left-auto", "!transform-none", "!w-72")
+            searchContainer.classList.add(
+              "!right-3",
+              "!top-3",
+              "!left-auto",
+              "!transform-none",
+              "!w-[calc(100%_-_5rem)]",
+              "sm:!right-4",
+              "sm:!top-4",
+              "sm:!w-72",
+            )
           }
 
           const existingIcon = searchBar.querySelector(".categorize-search-icon")
@@ -619,8 +636,8 @@ function SiteCategoryContent() {
     <div className="min-h-screen bg-slate-50">
       <Suspense fallback={<div>Loading navigation...</div>}><Navigation /></Suspense>
       <div>
-        <div className="flex h-[calc(100vh-4rem)]">
-          <div className="relative flex-1">
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col lg:h-[calc(100vh-4rem)] lg:flex-row lg:overflow-hidden">
+          <div className="relative h-[52vh] min-h-[360px] w-full shrink-0 sm:h-[58vh] lg:h-full lg:min-h-0 lg:flex-1">
             <MapContainer center={mapCenter} zoom={7} className="h-full w-full">
               <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <SearchControl />
@@ -643,16 +660,16 @@ function SiteCategoryContent() {
                 </Marker>
               ))}
             </MapContainer>
-            <Button onClick={() => setShowInfo(true)} className="absolute left-4 top-4 z-[1000] rounded-full bg-blue-500 p-2 text-white hover:bg-blue-600">
+            <Button onClick={() => setShowInfo(true)} className="absolute left-3 top-3 z-[1000] h-11 w-11 rounded-full bg-blue-500 p-0 text-white shadow-lg hover:bg-blue-600 sm:left-4 sm:top-4">
               <Info className="h-5 w-5" />
             </Button>
           </div>
-          <div ref={sidebarRef} className="w-[28rem] shrink-0 space-y-4 overflow-y-auto border-l border-slate-200 bg-white p-4">
+          <div ref={sidebarRef} className="w-full space-y-4 border-t border-slate-200 bg-white p-3 sm:p-4 lg:h-full lg:w-[28rem] lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
             <Card className={cn("rounded-2xl border", requestTheme.detailPanel)}>
               <CardHeader className="pb-1"><CardTitle className="text-lg">Request Settings</CardTitle></CardHeader>
               <CardContent className="space-y-4 pt-1">
-                <div className={cn("flex items-center justify-between gap-4 rounded-xl border p-3", requestTheme.detailCard)}>
-                  <div>
+                <div className={cn("flex items-center justify-between gap-3 rounded-xl border p-3", requestTheme.detailCard)}>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className={cn("h-2.5 w-2.5 rounded-full", requestTheme.dot)} />
                       <Label htmlFor="satellite-toggle" className="font-semibold">
@@ -672,7 +689,7 @@ function SiteCategoryContent() {
                     className={requestTheme.switch}
                   />
                 </div>
-                <div className="flex items-center justify-between rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-600">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-600">
                   <span>Current mode</span>
                   <span className={cn("rounded-full px-2.5 py-1 font-semibold", requestTheme.badge)}>{requestTheme.tone}</span>
                 </div>
@@ -717,27 +734,27 @@ function SiteCategoryContent() {
                   {renderResultCard(selectedSite, true)}
                 </div>
                 <Card ref={metadataRef} className="overflow-hidden rounded-2xl border-slate-200">
-                <div className="bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 p-5 text-white">
-                  <div className="flex items-start justify-between gap-4">
+                <div className="bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 p-4 text-white sm:p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">
                         <Sparkles className="h-4 w-4" />
                         Classification profile
                       </div>
-                      <h2 className="text-2xl font-bold tracking-tight">{displayValue(selectedSite.category)}</h2>
+                      <h2 className="text-xl font-bold tracking-tight sm:text-2xl">{displayValue(selectedSite.category)}</h2>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-300">
                         <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{resultTitle(selectedSite)}</span>
                         <span>{selectedSite.lat.toFixed(5)}, {selectedSite.lng.toFixed(5)}</span>
                       </div>
                     </div>
-                    <div className="shrink-0 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-center backdrop-blur">
+                    <div className="self-start rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-center backdrop-blur sm:shrink-0">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-200">Confidence</p>
                       <p className="mt-1 text-xl font-bold">
                         {confidenceLabel(selectedSite.site_category?.classification_confidence)}
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="mt-4 grid grid-cols-1 gap-2 min-[360px]:grid-cols-3">
                     <div className="rounded-xl bg-white/10 p-2.5">
                       <p className="text-[10px] uppercase tracking-wide text-slate-300">Primary source</p>
                       <p className="mt-1 truncate text-sm font-semibold">{sourceLabel(selectedSite.primary_source)}</p>
@@ -757,10 +774,10 @@ function SiteCategoryContent() {
                   </div>
                 </div>
 
-                <CardContent className="space-y-5 p-5">
+                <CardContent className="space-y-5 p-3 sm:p-5">
                   {selectedSite.candidate_sources.length > 0 ? (
                     <section>
-                      <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
                           {sourceVisualization === "donut"
                             ? <PieChart className="h-4 w-4 text-blue-700" />
@@ -791,9 +808,9 @@ function SiteCategoryContent() {
                         </div>
                       </div>
                       {sourceVisualization === "donut" ? (
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
                           <div className="grid items-center gap-4 sm:grid-cols-[150px_minmax(0,1fr)]">
-                            <div className="relative mx-auto h-[150px] w-[150px]">
+                            <div className="relative mx-auto h-[140px] w-[140px] sm:h-[150px] sm:w-[150px]">
                               <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90 overflow-visible" aria-label="Interactive source contribution donut chart">
                                 <circle cx="60" cy="60" r="44" fill="none" stroke="#E2E8F0" strokeWidth="20" />
                                 {selectedSite.candidate_sources.map((item, index) => {
@@ -960,7 +977,7 @@ function SiteCategoryContent() {
                         </div>
                       ) : null}
                       {contextFields.length > 0 ? (
-                        <div className="mb-3 grid grid-cols-2 gap-2">
+                        <div className="mb-3 grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
                           {contextFields.map((field) => (
                             <div key={field.label} className="rounded-xl border border-slate-200 p-3">
                               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{field.label}</p>
@@ -970,7 +987,7 @@ function SiteCategoryContent() {
                         </div>
                       ) : null}
                       {nearbyFeatureEntries.length > 0 ? (
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                           {nearbyFeatureEntries.map(([key, value]) => (
                             <div key={key} className="rounded-xl bg-slate-100 px-2 py-2.5 text-center">
                               <p className="text-lg font-bold text-slate-900">{value}</p>
@@ -985,7 +1002,7 @@ function SiteCategoryContent() {
                   {selectedSite.sentinel2_context ? (
                     <section className="overflow-hidden rounded-2xl border border-cyan-200">
                       <div className="bg-gradient-to-r from-cyan-950 to-blue-950 p-4 text-white">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="flex items-center gap-3">
                             <div className="rounded-xl bg-white/10 p-2"><Satellite className="h-5 w-5 text-cyan-200" /></div>
                             <div>
@@ -997,7 +1014,7 @@ function SiteCategoryContent() {
                             {selectedSite.sentinel2_context.cache_hit ? "Cached scene" : "Fresh scene"}
                           </span>
                         </div>
-                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                        <div className="mt-4 grid grid-cols-1 gap-2 text-center min-[360px]:grid-cols-3">
                           <div className="rounded-xl bg-white/10 p-2">
                             <p className="text-xs uppercase text-cyan-200">Cloud cover</p>
                             <p className="mt-1 text-sm font-bold">{metricLabel(selectedSite.sentinel2_context.scene_cloud_cover, 1)}%</p>
@@ -1060,7 +1077,7 @@ function SiteCategoryContent() {
                   {pollutantEntries.length > 0 ? (
                     <section>
                       <h3 className="mb-2 text-sm font-bold text-slate-900">Satellite pollutant means</h3>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
                         {pollutantEntries.map(([key, value]) => (
                           <div key={key} className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">{key}</p>
@@ -1076,7 +1093,7 @@ function SiteCategoryContent() {
                       <Database className="h-4 w-4 text-slate-600" />
                       <h3 className="text-sm font-bold text-slate-900">Provenance and runtime</h3>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-1 gap-2 text-xs min-[360px]:grid-cols-2">
                       <div className="rounded-xl bg-white/80 p-3">
                         <Clock3 className="mb-1.5 h-4 w-4 text-slate-500" />
                         <p className="text-slate-500">Computed</p>
@@ -1105,8 +1122,8 @@ function SiteCategoryContent() {
         </div>
       </div>
       {showInfo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <Card className="relative w-full max-w-lg rounded-2xl bg-white">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+          <Card className="relative max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-white sm:max-w-lg sm:rounded-2xl">
             <CardHeader className="pr-12"><CardTitle className="text-xl">How Categorize Works</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm text-slate-600">
               <Button variant="ghost" className="absolute right-2 top-2 text-slate-500 hover:text-slate-700" onClick={() => setShowInfo(false)}><X className="h-5 w-5" /></Button>
