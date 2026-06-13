@@ -2141,7 +2141,7 @@ function ForecastContent({
                 <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
               </div>
               <div className="min-w-0">
-                <div className="whitespace-nowrap text-[04px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Expected <br></br> Range</div>
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Expected <br></br> Range</div>
                 <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">
                   {formatForecastMetric(active.pm2_5_low, 1)} - {formatForecastMetric(active.pm2_5_high, 1)}
                 </div>
