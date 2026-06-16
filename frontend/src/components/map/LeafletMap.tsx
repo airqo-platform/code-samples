@@ -553,6 +553,7 @@ interface HourlyForecastState {
 interface HourlyForecastCollectionState {
   isLoading: boolean
   error: string | null
+  requestedSiteId: string | null
   site: HourlyForecastSite | null
 }
 
@@ -908,10 +909,7 @@ const ForecastPanel: React.FC<{
       return { isLoading: false, error: null, site: null }
     }
 
-    const site =
-      hourlyForecastState.site?.site_details?.site_id === siteId
-        ? hourlyForecastState.site
-        : null
+    const site = hourlyForecastState.requestedSiteId === siteId ? hourlyForecastState.site : null
 
     if (site?.forecasts?.length) {
       return { isLoading: false, error: null, site }
@@ -931,6 +929,7 @@ const ForecastPanel: React.FC<{
     hourlyForecastState.site,
     hourlyForecastState.error,
     hourlyForecastState.isLoading,
+    hourlyForecastState.requestedSiteId,
     selectedNode?.site_id,
   ])
 
@@ -3044,6 +3043,7 @@ const LeafletMap: React.FC = () => {
   const [hourlyForecastState, setHourlyForecastState] = useState<HourlyForecastCollectionState>({
     isLoading: false,
     error: null,
+    requestedSiteId: null,
     site: null,
   })
   const [hourlyForecastRequest, setHourlyForecastRequest] = useState<HourlyForecastRequest | null>(null)
@@ -3129,7 +3129,7 @@ const LeafletMap: React.FC = () => {
     setHourlyForecastEnabled(enabled)
     if (!enabled) {
       setHourlyForecastRequest(null)
-      setHourlyForecastState({ isLoading: false, error: null, site: null })
+      setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
     }
   }
 
@@ -3139,7 +3139,7 @@ const LeafletMap: React.FC = () => {
 
   useEffect(() => {
     setHourlyForecastRequest(null)
-    setHourlyForecastState({ isLoading: false, error: null, site: null })
+    setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
   }, [selectedNode?.site_id])
 
   useEffect(() => {
@@ -3149,7 +3149,7 @@ const LeafletMap: React.FC = () => {
     const request = hourlyForecastRequest
 
     if (!hourlyForecastEnabled || !request || request.siteId !== selectedSiteId) {
-      setHourlyForecastState({ isLoading: false, error: null, site: null })
+      setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
       return
     }
 
@@ -3159,7 +3159,7 @@ const LeafletMap: React.FC = () => {
     const cacheKey = `${MAP_HOURLY_FORECAST_CACHE_KEY}:${siteId}`
 
     const loadHourlyForecast = async () => {
-      setHourlyForecastState({ isLoading: true, error: null, site: null })
+      setHourlyForecastState({ isLoading: true, error: null, requestedSiteId: siteId, site: null })
 
       const cached = await readBrowserApiCache<BrowserApiCacheEntry<HourlyForecastSite>>(cacheKey)
       const cachedAt = cached?.cachedAt ? new Date(cached.cachedAt) : null
@@ -3175,7 +3175,7 @@ const LeafletMap: React.FC = () => {
         cached.data.forecasts?.length
       ) {
         hasUsableCachedForecast = true
-        setHourlyForecastState({ isLoading: false, error: null, site: cached.data })
+        setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: siteId, site: cached.data })
         return
       }
 
@@ -3184,12 +3184,12 @@ const LeafletMap: React.FC = () => {
         if (!isActive) return
         if (!site?.forecasts?.length) {
           if (!hasUsableCachedForecast) {
-            setHourlyForecastState({ isLoading: false, error: "No hourly forecast returned for this site.", site: null })
+            setHourlyForecastState({ isLoading: false, error: "No hourly forecast returned for this site.", requestedSiteId: siteId, site: null })
           }
           return
         }
 
-        setHourlyForecastState({ isLoading: false, error: null, site })
+        setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: siteId, site })
         writeBrowserApiCache(cacheKey, site).catch((error) => {
           console.warn("Unable to cache hourly forecast:", error)
         })
@@ -3197,7 +3197,7 @@ const LeafletMap: React.FC = () => {
         if (!isActive) return
         console.error(error)
         if (!hasUsableCachedForecast) {
-          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast.", site: null })
+          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast.", requestedSiteId: siteId, site: null })
         }
       }
     }

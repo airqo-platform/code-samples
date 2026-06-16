@@ -415,12 +415,17 @@ const mergeHourlyForecastPages = (siteId: string, pages: HourlyForecastResponse[
     .flatMap((page) => page.forecasts || [])
     .filter((site) => site.site_details?.site_id === siteId)
 
-  if (!sites.length) return null
+  const returnedSites = pages.flatMap((page) => page.forecasts || []).filter((site) => site.forecasts?.length)
+  const returnedSiteIds = new Set(returnedSites.map((site) => site.site_details?.site_id).filter(Boolean))
+  const scopedFallbackSites =
+    sites.length > 0 ? sites : returnedSites.length > 0 && returnedSiteIds.size <= 1 ? returnedSites : []
 
-  const firstSite = sites[0]
+  if (!scopedFallbackSites.length) return null
+
+  const firstSite = scopedFallbackSites[0]
   const forecastByTimestamp = new Map<string, HourlyForecastEntry>()
 
-  sites.forEach((site) => {
+  scopedFallbackSites.forEach((site) => {
     site.forecasts?.forEach((forecast) => {
       if (forecast?.timestamp) {
         forecastByTimestamp.set(forecast.timestamp, forecast)
