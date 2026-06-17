@@ -59,6 +59,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
     const responseHeaders = new Headers()
     const upstreamContentType = upstreamResponse.headers.get("content-type")
     if (upstreamContentType) responseHeaders.set("Content-Type", upstreamContentType)
+    responseHeaders.set("Cache-Control", "no-store")
 
     return new Response(upstreamResponse.body, {
       status: upstreamResponse.status,

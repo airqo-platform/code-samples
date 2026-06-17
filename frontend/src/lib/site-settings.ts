@@ -46,6 +46,11 @@ export function sanitizeSiteSettings(value: unknown): SiteSettings {
   if (!value || typeof value !== "object") return defaultSiteSettings
 
   const candidate = value as Partial<SiteSettings>
+  const normalizePagePath = (page: ManagedPage) => {
+    const path = page.path.startsWith("/") ? page.path : `/${page.path}`
+    return page.id === "reports" || path === "/report" ? "/reports" : path
+  }
+
   const pages = Array.isArray(candidate.pages)
     ? candidate.pages
         .filter(
@@ -63,7 +68,7 @@ export function sanitizeSiteSettings(value: unknown): SiteSettings {
         )
         .map((page) => ({
           ...page,
-          path: page.path.startsWith("/") ? page.path : `/${page.path}`,
+          path: normalizePagePath(page),
         }))
     : defaultSiteSettings.pages
 
