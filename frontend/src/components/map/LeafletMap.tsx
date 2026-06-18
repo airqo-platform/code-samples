@@ -553,6 +553,7 @@ interface HourlyForecastState {
 interface HourlyForecastCollectionState {
   isLoading: boolean
   error: string | null
+  requestedSiteId: string | null
   site: HourlyForecastSite | null
 }
 
@@ -908,10 +909,7 @@ const ForecastPanel: React.FC<{
       return { isLoading: false, error: null, site: null }
     }
 
-    const site =
-      hourlyForecastState.site?.site_details?.site_id === siteId
-        ? hourlyForecastState.site
-        : null
+    const site = hourlyForecastState.requestedSiteId === siteId ? hourlyForecastState.site : null
 
     if (site?.forecasts?.length) {
       return { isLoading: false, error: null, site }
@@ -931,6 +929,7 @@ const ForecastPanel: React.FC<{
     hourlyForecastState.site,
     hourlyForecastState.error,
     hourlyForecastState.isLoading,
+    hourlyForecastState.requestedSiteId,
     selectedNode?.site_id,
   ])
 
@@ -2687,21 +2686,51 @@ const MapControls: React.FC<{
         container.style.display = "flex"
         container.style.flexDirection = "column"
         container.style.gap = "8px"
-        container.style.minWidth = "160px"
+        container.style.alignItems = "center"
+
+        const iconSvg = (paths: string) => `
+          <svg
+            aria-hidden="true"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            ${paths}
+          </svg>
+        `
+
+        const styleIconButton = (button: HTMLButtonElement) => {
+          button.type = "button"
+          button.style.width = "40px"
+          button.style.height = "40px"
+          button.style.border = "none"
+          button.style.display = "flex"
+          button.style.alignItems = "center"
+          button.style.justifyContent = "center"
+          button.style.padding = "0"
+          button.style.borderRadius = "8px"
+          button.style.cursor = "pointer"
+          button.style.transition = "all 0.2s"
+        }
 
         if (heatmapEnabled) {
           const heatmapButton = L.DomUtil.create("button", "", container)
-          heatmapButton.innerHTML = showHeatmaps ? "Heatmap ON" : "Heatmap OFF"
-          heatmapButton.style.border = "none"
+          heatmapButton.innerHTML = iconSvg(`
+            <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
+            <path d="m22 12.5-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5" />
+            <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
+          `)
+          styleIconButton(heatmapButton)
           heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"
-          heatmapButton.style.fontSize = "13px"
-          heatmapButton.style.fontWeight = showHeatmaps ? "600" : "500"
           heatmapButton.style.color = showHeatmaps ? "#1d4ed8" : "#374151"
-          heatmapButton.style.textAlign = "left"
-          heatmapButton.style.padding = "8px 12px"
-          heatmapButton.style.borderRadius = "6px"
-          heatmapButton.style.transition = "all 0.2s"
           heatmapButton.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
+          heatmapButton.setAttribute("aria-label", showHeatmaps ? "Hide heatmap" : "Show heatmap")
+          heatmapButton.setAttribute("aria-pressed", String(showHeatmaps))
 
           L.DomEvent.on(heatmapButton, "click", (e) => {
             L.DomEvent.stopPropagation(e)
@@ -2711,17 +2740,18 @@ const MapControls: React.FC<{
 
         // Emoji toggle button
         const emojiButton = L.DomUtil.create("button", "", container)
-        emojiButton.innerHTML = showEmojis ? "Emojis ON" : "Emojis OFF"
-        emojiButton.style.border = "none"
+        emojiButton.innerHTML = iconSvg(`
+          <circle cx="12" cy="12" r="10" />
+          <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+          <path d="M9 9h.01" />
+          <path d="M15 9h.01" />
+        `)
+        styleIconButton(emojiButton)
         emojiButton.style.background = showEmojis ? "#dcfce7" : "transparent"
-        emojiButton.style.fontSize = "13px"
-        emojiButton.style.fontWeight = showEmojis ? "600" : "500"
         emojiButton.style.color = showEmojis ? "#166534" : "#374151"
-        emojiButton.style.textAlign = "left"
-        emojiButton.style.padding = "8px 12px"
-        emojiButton.style.borderRadius = "6px"
-        emojiButton.style.transition = "all 0.2s"
         emojiButton.title = showEmojis ? "Hide Emojis" : "Show Emojis"
+        emojiButton.setAttribute("aria-label", showEmojis ? "Hide emoji markers" : "Show emoji markers")
+        emojiButton.setAttribute("aria-pressed", String(showEmojis))
 
         L.DomEvent.on(emojiButton, "click", (e) => {
           L.DomEvent.stopPropagation(e)
@@ -2730,17 +2760,15 @@ const MapControls: React.FC<{
 
         if (captureViewEnabled) {
           const downloadMapButton = L.DomUtil.create("button", "", container)
-          downloadMapButton.innerHTML = "Capture View"
-          downloadMapButton.style.border = "none"
+          downloadMapButton.innerHTML = iconSvg(`
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
+            <circle cx="12" cy="13" r="3" />
+          `)
+          styleIconButton(downloadMapButton)
           downloadMapButton.style.background = "#f3e8ff"
-          downloadMapButton.style.fontSize = "13px"
-          downloadMapButton.style.fontWeight = "500"
           downloadMapButton.style.color = "#7c3aed"
-          downloadMapButton.style.textAlign = "left"
-          downloadMapButton.style.padding = "8px 12px"
-          downloadMapButton.style.borderRadius = "6px"
-          downloadMapButton.style.transition = "all 0.2s"
           downloadMapButton.title = "Capture current map view as image"
+          downloadMapButton.setAttribute("aria-label", "Capture current map view as image")
 
           L.DomEvent.on(downloadMapButton, "click", (e) => {
             L.DomEvent.stopPropagation(e)
@@ -3044,6 +3072,7 @@ const LeafletMap: React.FC = () => {
   const [hourlyForecastState, setHourlyForecastState] = useState<HourlyForecastCollectionState>({
     isLoading: false,
     error: null,
+    requestedSiteId: null,
     site: null,
   })
   const [hourlyForecastRequest, setHourlyForecastRequest] = useState<HourlyForecastRequest | null>(null)
@@ -3129,7 +3158,7 @@ const LeafletMap: React.FC = () => {
     setHourlyForecastEnabled(enabled)
     if (!enabled) {
       setHourlyForecastRequest(null)
-      setHourlyForecastState({ isLoading: false, error: null, site: null })
+      setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
     }
   }
 
@@ -3139,7 +3168,7 @@ const LeafletMap: React.FC = () => {
 
   useEffect(() => {
     setHourlyForecastRequest(null)
-    setHourlyForecastState({ isLoading: false, error: null, site: null })
+    setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
   }, [selectedNode?.site_id])
 
   useEffect(() => {
@@ -3149,7 +3178,7 @@ const LeafletMap: React.FC = () => {
     const request = hourlyForecastRequest
 
     if (!hourlyForecastEnabled || !request || request.siteId !== selectedSiteId) {
-      setHourlyForecastState({ isLoading: false, error: null, site: null })
+      setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
       return
     }
 
@@ -3159,7 +3188,7 @@ const LeafletMap: React.FC = () => {
     const cacheKey = `${MAP_HOURLY_FORECAST_CACHE_KEY}:${siteId}`
 
     const loadHourlyForecast = async () => {
-      setHourlyForecastState({ isLoading: true, error: null, site: null })
+      setHourlyForecastState({ isLoading: true, error: null, requestedSiteId: siteId, site: null })
 
       const cached = await readBrowserApiCache<BrowserApiCacheEntry<HourlyForecastSite>>(cacheKey)
       const cachedAt = cached?.cachedAt ? new Date(cached.cachedAt) : null
@@ -3175,7 +3204,7 @@ const LeafletMap: React.FC = () => {
         cached.data.forecasts?.length
       ) {
         hasUsableCachedForecast = true
-        setHourlyForecastState({ isLoading: false, error: null, site: cached.data })
+        setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: siteId, site: cached.data })
         return
       }
 
@@ -3184,12 +3213,12 @@ const LeafletMap: React.FC = () => {
         if (!isActive) return
         if (!site?.forecasts?.length) {
           if (!hasUsableCachedForecast) {
-            setHourlyForecastState({ isLoading: false, error: "No hourly forecast returned for this site.", site: null })
+            setHourlyForecastState({ isLoading: false, error: "No hourly forecast returned for this site.", requestedSiteId: siteId, site: null })
           }
           return
         }
 
-        setHourlyForecastState({ isLoading: false, error: null, site })
+        setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: siteId, site })
         writeBrowserApiCache(cacheKey, site).catch((error) => {
           console.warn("Unable to cache hourly forecast:", error)
         })
@@ -3197,7 +3226,7 @@ const LeafletMap: React.FC = () => {
         if (!isActive) return
         console.error(error)
         if (!hasUsableCachedForecast) {
-          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast.", site: null })
+          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast.", requestedSiteId: siteId, site: null })
         }
       }
     }
