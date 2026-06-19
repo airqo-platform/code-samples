@@ -11,6 +11,7 @@ const ALLOWED_ROUTES = [
   { method: "GET", pattern: /^predict\/daily-forecasting$/ },
   { method: "GET", pattern: /^predict\/hourly-forecasting$/ },
   { method: "GET", pattern: /^spatial\/categorize_site$/ },
+  { method: "GET", pattern: /^spatial\/active_fires\/africa$/ },
   { method: "GET", pattern: /^spatial\/heatmaps$/ },
   { method: "GET", pattern: /^spatial\/source_metadata$/ },
   { method: "POST", pattern: /^spatial\/air_quality_report$/ },

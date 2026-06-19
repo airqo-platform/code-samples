@@ -68,6 +68,25 @@ interface HeatmapData {
   message: string
 }
 
+export interface ActiveFire {
+  acquisition_date: string
+  acquisition_datetime: string
+  acquisition_time: string
+  bright_t31: number | null
+  brightness: number | null
+  confidence: string | number | null
+  daynight: string | null
+  frp: number | null
+  instrument: string | null
+  latitude: number
+  longitude: number
+  product?: string | null
+  satellite: string | null
+  scan: number | null
+  track: number | null
+  version: string | null
+}
+
 export interface DailyForecastValues {
   pm2_5_mean: number | null
   pm2_5_low: number | null
@@ -263,6 +282,27 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
     return await heatmapDataRequest
   } finally {
     heatmapDataRequest = null
+  }
+}
+
+export const getActiveFires = async (): Promise<ActiveFire[] | null> => {
+  try {
+    const response = await apiService.get("/spatial/active_fires/africa")
+    const fires = response.data?.data?.fires
+
+    if (!Array.isArray(fires)) return null
+
+    return fires.filter(
+      (fire): fire is ActiveFire =>
+        fire &&
+        typeof fire.latitude === "number" &&
+        Number.isFinite(fire.latitude) &&
+        typeof fire.longitude === "number" &&
+        Number.isFinite(fire.longitude),
+    )
+  } catch (error) {
+    console.error("Error fetching active fires:", error)
+    return null
   }
 }
 
