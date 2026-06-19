@@ -286,7 +286,7 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
 }
 
 const ACTIVE_FIRE_SOURCES = [
-  undefined,
+  "VIIRS_NOAA20_NRT",
   "VIIRS_SNPP_NRT",
   "VIIRS_NOAA21_NRT",
   "MODIS_NRT",
@@ -295,20 +295,54 @@ const ACTIVE_FIRE_SOURCES = [
   "MODIS_SP",
 ] as const
 
+const getActiveFireTimestamp = (fire: ActiveFire) => {
+  const directTimestamp = Date.parse(fire.acquisition_datetime)
+  if (Number.isFinite(directTimestamp)) return directTimestamp
+
+  const time = fire.acquisition_time?.padStart(4, "0")
+  if (!fire.acquisition_date || !time) return null
+
+  const fallbackTimestamp = Date.parse(
+    `${fire.acquisition_date}T${time.slice(0, 2)}:${time.slice(2, 4)}:00Z`,
+  )
+  return Number.isFinite(fallbackTimestamp) ? fallbackTimestamp : null
+}
+
+const getActiveFireDeduplicationKey = (fire: ActiveFire) => {
+  const latitudeBucket = fire.latitude.toFixed(2)
+  const longitudeBucket = fire.longitude.toFixed(2)
+  const timestamp = getActiveFireTimestamp(fire)
+  const tenMinuteBucket = timestamp == null ? "unknown" : Math.floor(timestamp / 600_000)
+
+  return `${latitudeBucket}:${longitudeBucket}:${tenMinuteBucket}`
+}
+
+const deduplicateActiveFires = (fires: ActiveFire[]) => {
+  const uniqueFires = new Map<string, ActiveFire>()
+
+  fires.forEach((fire) => {
+    const key = getActiveFireDeduplicationKey(fire)
+    const existing = uniqueFires.get(key)
+
+    if (!existing || (fire.frp ?? 0) > (existing.frp ?? 0)) {
+      uniqueFires.set(key, fire)
+    }
+  })
+
+  return Array.from(uniqueFires.values())
+}
+
 export const getActiveFires = async (): Promise<ActiveFire[] | null> => {
-  for (const source of ACTIVE_FIRE_SOURCES) {
-    try {
-      const response = await apiService.get("/spatial/active_fires/africa", {
-        params: {
-          hours: 24,
-          ...(source ? { source } : {}),
-        },
-      })
-      const fires = response.data?.data?.fires
+  const requests = ACTIVE_FIRE_SOURCES.map(async (source) => {
+    const response = await apiService.get("/spatial/active_fires/africa", {
+      params: { hours: 24, source },
+    })
+    const fires = response.data?.data?.fires
 
-      if (!Array.isArray(fires)) continue
+    if (!Array.isArray(fires)) return []
 
-      const validFires = fires.filter(
+    return fires
+      .filter(
         (fire): fire is ActiveFire =>
           fire &&
           typeof fire.latitude === "number" &&
@@ -316,15 +350,29 @@ export const getActiveFires = async (): Promise<ActiveFire[] | null> => {
           typeof fire.longitude === "number" &&
           Number.isFinite(fire.longitude),
       )
+      .map((fire) => ({ ...fire, product: fire.product || source }))
+  })
 
-      if (validFires.length > 0) return validFires
-    } catch (error) {
-      console.warn(`Active-fire source ${source ?? "default"} failed:`, error)
+  const results = await Promise.allSettled(requests)
+  const mergedFires: ActiveFire[] = []
+  let successfulSources = 0
+
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      successfulSources += 1
+      mergedFires.push(...result.value)
+      return
     }
+
+    console.warn(`Active-fire source ${ACTIVE_FIRE_SOURCES[index]} failed:`, result.reason)
+  })
+
+  if (successfulSources === 0) {
+    console.error("All active-fire sources failed.")
+    return null
   }
 
-  console.error("No active-fire source returned usable fire data.")
-  return null
+  return deduplicateActiveFires(mergedFires)
 }
 
 const unwrapForecastPayload = (value: any): any => {

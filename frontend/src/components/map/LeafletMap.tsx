@@ -60,6 +60,7 @@ const MAP_FORECAST_CACHE_KEY = "map-daily-forecast"
 const MAP_HOURLY_FORECAST_CACHE_KEY = "map-hourly-forecast"
 const MAP_HOURLY_FORECAST_ENABLED_KEY = "map-hourly-forecast-enabled"
 const MAP_API_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
+const MAP_ACTIVE_FIRES_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
 const DAILY_FORECAST_REFRESH_HOUR_UTC = 3
 
 const isDailyForecastCacheCurrent = (
@@ -2682,10 +2683,11 @@ const ActiveFireMarkers: React.FC<{ showFires: boolean }> = ({ showFires }) => {
       const cached = await readBrowserApiCache<BrowserApiCacheEntry<ActiveFire[]>>(MAP_ACTIVE_FIRES_CACHE_KEY)
       if (
         isActive &&
-        isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) &&
+        isBrowserApiCacheFresh(cached, MAP_ACTIVE_FIRES_CACHE_MAX_AGE_MS) &&
         cached.data.length
       ) {
         setFires(cached.data)
+        return
       }
 
       const data = await getActiveFires()
