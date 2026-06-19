@@ -285,25 +285,46 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
   }
 }
 
+const ACTIVE_FIRE_SOURCES = [
+  undefined,
+  "VIIRS_SNPP_NRT",
+  "VIIRS_NOAA21_NRT",
+  "MODIS_NRT",
+  "VIIRS_NOAA20_SP",
+  "VIIRS_SNPP_SP",
+  "MODIS_SP",
+] as const
+
 export const getActiveFires = async (): Promise<ActiveFire[] | null> => {
-  try {
-    const response = await apiService.get("/spatial/active_fires/africa")
-    const fires = response.data?.data?.fires
+  for (const source of ACTIVE_FIRE_SOURCES) {
+    try {
+      const response = await apiService.get("/spatial/active_fires/africa", {
+        params: {
+          hours: 24,
+          ...(source ? { source } : {}),
+        },
+      })
+      const fires = response.data?.data?.fires
 
-    if (!Array.isArray(fires)) return null
+      if (!Array.isArray(fires)) continue
 
-    return fires.filter(
-      (fire): fire is ActiveFire =>
-        fire &&
-        typeof fire.latitude === "number" &&
-        Number.isFinite(fire.latitude) &&
-        typeof fire.longitude === "number" &&
-        Number.isFinite(fire.longitude),
-    )
-  } catch (error) {
-    console.error("Error fetching active fires:", error)
-    return null
+      const validFires = fires.filter(
+        (fire): fire is ActiveFire =>
+          fire &&
+          typeof fire.latitude === "number" &&
+          Number.isFinite(fire.latitude) &&
+          typeof fire.longitude === "number" &&
+          Number.isFinite(fire.longitude),
+      )
+
+      if (validFires.length > 0) return validFires
+    } catch (error) {
+      console.warn(`Active-fire source ${source ?? "default"} failed:`, error)
+    }
   }
+
+  console.error("No active-fire source returned usable fire data.")
+  return null
 }
 
 const unwrapForecastPayload = (value: any): any => {

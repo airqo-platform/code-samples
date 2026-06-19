@@ -2493,6 +2493,16 @@ const MapNodes: React.FC<{
             // Create a container for the popup
             const container = document.createElement("div")
             const root = ReactDOM.createRoot(container)
+            let isRootUnmountScheduled = false
+
+            const scheduleRootUnmount = () => {
+              if (isRootUnmountScheduled) return
+              isRootUnmountScheduled = true
+
+              window.setTimeout(() => {
+                root.unmount()
+              }, 0)
+            }
 
             // Bind popup but don't open it automatically
             root.render(
@@ -2504,7 +2514,6 @@ const MapNodes: React.FC<{
                 }}
                 onClose={() => {
                   marker.closePopup()
-                  root.unmount()
                 }}
               />,
             )
@@ -2514,14 +2523,9 @@ const MapNodes: React.FC<{
               offset: L.point(0, -20),
             })
 
-            // Ensure React tree is released on marker removal
-            marker.on("remove", () => {
-              try {
-                root.unmount()
-              } catch (error) {
-                console.error("Error unmounting React tree:", error)
-              }
-            })
+            // Leaflet emits "remove" synchronously, so wait until React finishes
+            // the current render before releasing this independently-created root.
+            marker.once("remove", scheduleRootUnmount)
 
             // Handle click to open popup
             marker.on("click", (e: any) => {
