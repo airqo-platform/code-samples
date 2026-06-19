@@ -2681,12 +2681,13 @@ const ActiveFireMarkers: React.FC<{ showFires: boolean }> = ({ showFires }) => {
 
     const loadFires = async () => {
       const cached = await readBrowserApiCache<BrowserApiCacheEntry<ActiveFire[]>>(MAP_ACTIVE_FIRES_CACHE_KEY)
+      const cachedFires = Array.isArray(cached?.data) ? cached.data : []
       if (
         isActive &&
         isBrowserApiCacheFresh(cached, MAP_ACTIVE_FIRES_CACHE_MAX_AGE_MS) &&
-        cached.data.length
+        cachedFires.length
       ) {
-        setFires(cached.data)
+        setFires(cachedFires)
         return
       }
 
@@ -3379,7 +3380,7 @@ const LeafletMap: React.FC = () => {
   }
 
   const handleHourlyForecastRequest = (request: HourlyForecastRequest) => {
-    setHourlyForecastRequest((current) => (current?.siteId === request.siteId ? current : request))
+    setHourlyForecastRequest({ ...request })
   }
 
   useEffect(() => {
@@ -3408,6 +3409,7 @@ const LeafletMap: React.FC = () => {
 
       const cached = await readBrowserApiCache<BrowserApiCacheEntry<HourlyForecastSite>>(cacheKey)
       const cachedAt = cached?.cachedAt ? new Date(cached.cachedAt) : null
+      const cachedForecasts = Array.isArray(cached?.data?.forecasts) ? cached.data.forecasts : []
       const cachedToday =
         cachedAt &&
         !Number.isNaN(cachedAt.getTime()) &&
@@ -3417,7 +3419,7 @@ const LeafletMap: React.FC = () => {
         isActive &&
         cachedToday &&
         isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) &&
-        cached.data.forecasts?.length
+        cachedForecasts.length
       ) {
         hasUsableCachedForecast = true
         setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: siteId, site: cached.data })

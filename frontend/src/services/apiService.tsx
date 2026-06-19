@@ -69,22 +69,22 @@ interface HeatmapData {
 }
 
 export interface ActiveFire {
-  acquisition_date: string
-  acquisition_datetime: string
-  acquisition_time: string
-  bright_t31: number | null
-  brightness: number | null
-  confidence: string | number | null
-  daynight: string | null
-  frp: number | null
-  instrument: string | null
+  acquisition_date?: string | null
+  acquisition_datetime?: string | null
+  acquisition_time?: string | null
+  bright_t31?: number | null
+  brightness?: number | null
+  confidence?: string | number | null
+  daynight?: string | null
+  frp?: number | null
+  instrument?: string | null
   latitude: number
   longitude: number
   product?: string | null
-  satellite: string | null
-  scan: number | null
-  track: number | null
-  version: string | null
+  satellite?: string | null
+  scan?: number | null
+  track?: number | null
+  version?: string | null
 }
 
 export interface DailyForecastValues {
@@ -296,7 +296,7 @@ const ACTIVE_FIRE_SOURCES = [
 ] as const
 
 const getActiveFireTimestamp = (fire: ActiveFire) => {
-  const directTimestamp = Date.parse(fire.acquisition_datetime)
+  const directTimestamp = fire.acquisition_datetime ? Date.parse(fire.acquisition_datetime) : Number.NaN
   if (Number.isFinite(directTimestamp)) return directTimestamp
 
   const time = fire.acquisition_time?.padStart(4, "0")
@@ -520,9 +520,9 @@ export const getHourlyForecastCollection = async (hours = 168, pageSize = 10): P
 }
 
 const mergeHourlyForecastPages = (siteId: string, pages: HourlyForecastResponse[]): HourlyForecastSite | null => {
-  const sites = pages
-    .flatMap((page) => page.forecasts || [])
-    .filter((site) => site.site_details?.site_id === siteId)
+  const returnedSites = pages.flatMap((page) => page.forecasts || [])
+  const matchingSites = returnedSites.filter((site) => site.site_details?.site_id === siteId)
+  const sites = matchingSites.length > 0 ? matchingSites : returnedSites.length === 1 ? returnedSites : []
 
   if (!sites.length) return null
 
