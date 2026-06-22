@@ -946,7 +946,7 @@
 
     function fetchLiveMeasurements() {
       $.ajax({
-        url: apiEndpoint.replace("{GRID_ID}", gridId) + "?token=" + accessToken,
+        url: apiEndpoint.replace("{GRID_ID}", gridId) + "?token=" + encodeURIComponent(accessToken),
         method: "GET",
         success: function (response) {
           apiResponse = response;
@@ -984,7 +984,7 @@
 
     function fetchDailyForecast() {
       $.ajax({
-        url: forecastEndpoint.replace("{GRID_ID}", gridId) + "?token=" + accessToken,
+        url: forecastEndpoint.replace("{GRID_ID}", gridId) + "?token=" + encodeURIComponent(accessToken),
         method: "GET",
         success: function (response) {
           var data = response.data || response;
