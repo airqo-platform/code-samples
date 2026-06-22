@@ -59,7 +59,7 @@ const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { 
 
 export default function ReportPage() {
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100">
+    <div className="reports-theme flex min-h-screen flex-col bg-gray-100 text-slate-950">
       <Navigation />
       <ReportContent />
     </div>
