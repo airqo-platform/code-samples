@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -321,9 +321,9 @@
       flex: 0 0 25px;
       align-items: center;
       justify-content: center;
-      border: 1px solid #f1d38c;
+      border: 1px solid transparent;
       border-radius: 50%;
-      background: #fff8e7;
+      background: #f2f4f7;
     }
 
     .legend-icon {
@@ -471,8 +471,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #fff5cf;
-      border: 1px solid #f7d069;
+      background: #f2f4f7;
+      border: 1px solid transparent;
     }
 
     .forecast-icon {
@@ -804,8 +804,8 @@
     var forecastEndpoint = apiBaseUrl + "/predict/daily-forecasting/{GRID_ID}";
     var heatmapEndpoint = apiBaseUrl + "/spatial/heatmaps/{GRID_ID}";
 
-    var accessToken = "JNWSNW1U1AQHBARN";  // Replace with your actual access token
-    var gridId =  "688d2b176689ba0013631188";           // Replace with your actual grid ID
+    var accessToken = "YOUR ACCESS TOKEN";  // Replace with your actual access token
+    var gridId =  "YOUR GRID ID";           // Replace with your actual grid ID
 
     var apiResponse = null;
     var forecastBySiteId = {};
@@ -1107,7 +1107,9 @@
           '">' +
           '<div class="forecast-dow">' + dow + "</div>" +
           '<div class="forecast-date-num">' + dateNum + "</div>" +
-          '<div class="forecast-icon-wrap">' + airqoPmIcon(aqi.aqi_category) + "</div>" +
+          '<div class="forecast-icon-wrap" style="background:' + getAqiCategoryColor(aqi.aqi_category) +
+          '; border-color:' + getAqiCategoryBorderColor(aqi.aqi_category) + ';">' +
+          airqoPmIcon(aqi.aqi_category) + "</div>" +
           '<div class="forecast-pm25">' + (isNaN(mean) ? "N/A" : mean) + "</div>" +
           "</div>"
         );
@@ -1268,13 +1270,34 @@
       return "&#x2753;";
     }
 
+    function getAqiCategoryColor(aqiCategory) {
+      var category = String(aqiCategory || "").toLowerCase();
+
+      if (category === "good") return AQI_INDEX_COLORS.good;
+      if (category === "moderate") return AQI_INDEX_COLORS.moderate;
+      if (category === "unhealthy for sensitive groups") return AQI_INDEX_COLORS.u4sg;
+      if (category === "unhealthy") return AQI_INDEX_COLORS.unhealthy;
+      if (category === "very unhealthy") return AQI_INDEX_COLORS.very_unhealthy;
+      if (category === "hazardous") return AQI_INDEX_COLORS.hazardous;
+      return "#e5e7eb";
+    }
+
+    function getAqiCategoryBorderColor(aqiCategory) {
+      var color = getAqiCategoryColor(aqiCategory);
+      return color === AQI_INDEX_COLORS.moderate ? "#d4a900" : color;
+    }
+
     function airqoPmIcon(aqiCategory) {
       return '<span class="forecast-icon" role="img" aria-label="' +
         (aqiCategory || "Air quality") + '">' + getAqiEmoji(aqiCategory) + "</span>";
     }
 
     function legendItem(label) {
-      return '<li title="' + label + '"><span class="legend-icon-wrap"><span class="legend-icon" role="img" aria-label="' +
+      var color = getAqiCategoryColor(label);
+      var borderColor = getAqiCategoryBorderColor(label);
+
+      return '<li title="' + label + '"><span class="legend-icon-wrap" style="background:' + color +
+        '; border-color:' + borderColor + ';"><span class="legend-icon" role="img" aria-label="' +
         label + '">' + getAqiEmoji(label) + '</span></span><span class="legend-label">' + label + "</span></li>";
     }
     function addLegend() {
