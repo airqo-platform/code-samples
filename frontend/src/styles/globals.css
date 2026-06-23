@@ -3,12 +3,14 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --background: #0a0a0a;
     --foreground: #ededed;
   }
@@ -280,4 +282,81 @@ body {
 /* Ensure dialogs and popovers appear above the map */
 [data-radix-popper-content-wrapper] {
   z-index: 1500 !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .reports-theme {
+    background-color: #020617;
+    color: #f8fafc;
+  }
+
+  .reports-theme [class~="bg-white"],
+  .reports-theme [class~="bg-card"] {
+    background-color: #0f172a !important;
+  }
+
+  .reports-theme [class~="bg-gray-50"],
+  .reports-theme [class~="bg-gray-100"],
+  .reports-theme [class~="bg-slate-50"],
+  .reports-theme [class~="bg-slate-100"] {
+    background-color: #1e293b !important;
+  }
+
+  .reports-theme [class~="from-white"] {
+    --tw-gradient-from: #0f172a var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgb(15 23 42 / 0) var(--tw-gradient-to-position) !important;
+  }
+
+  .reports-theme [class~="via-white"] {
+    --tw-gradient-to: rgb(15 23 42 / 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), #0f172a var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+  }
+
+  .reports-theme [class~="to-slate-50"] {
+    --tw-gradient-to: #1e293b var(--tw-gradient-to-position) !important;
+  }
+
+  .reports-theme [class~="text-gray-950"],
+  .reports-theme [class~="text-gray-900"],
+  .reports-theme [class~="text-gray-800"],
+  .reports-theme [class~="text-gray-700"],
+  .reports-theme [class~="text-slate-950"],
+  .reports-theme [class~="text-slate-900"],
+  .reports-theme [class~="text-slate-800"],
+  .reports-theme [class~="text-slate-700"] {
+    color: #f1f5f9 !important;
+  }
+
+  .reports-theme [class~="text-gray-600"],
+  .reports-theme [class~="text-gray-500"],
+  .reports-theme [class~="text-slate-600"],
+  .reports-theme [class~="text-slate-500"],
+  .reports-theme [class~="text-slate-400"] {
+    color: #cbd5e1 !important;
+  }
+
+  .reports-theme [class~="border-gray-100"],
+  .reports-theme [class~="border-gray-200"],
+  .reports-theme [class~="border-gray-300"],
+  .reports-theme [class~="border-slate-100"],
+  .reports-theme [class~="border-slate-200"],
+  .reports-theme [class~="border-slate-300"] {
+    border-color: #334155 !important;
+  }
+
+  .reports-theme input,
+  .reports-theme textarea,
+  .reports-theme select {
+    border-color: #475569;
+    background-color: #0f172a;
+    color: #f8fafc;
+  }
+
+  .reports-theme .recharts-text {
+    fill: #cbd5e1;
+  }
+
+  .reports-theme .recharts-cartesian-grid line {
+    stroke: #334155;
+  }
 }
