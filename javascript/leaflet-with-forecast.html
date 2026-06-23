@@ -514,10 +514,11 @@
     }
 
     .forecast-metric {
-      background: #f8fafc;
+      min-width: 0;
+      padding: 10px 11px;
+      border: 1px solid #e4e7ec;
       border-radius: 11px;
-      padding: 9px;
-      border: 1px solid #eef2f6;
+      background: #f8fafc;
     }
 
     .forecast-metric span {
@@ -528,8 +529,12 @@
     }
 
     .forecast-metric strong {
+      display: block;
       color: #101828;
       font-size: 13px;
+      font-weight: 800;
+      line-height: 1.3;
+      white-space: nowrap;
     }
 
     .forecast-confidence {
@@ -651,6 +656,11 @@
 
     .forecast-guidance-text {
       margin: 0;
+    }
+
+    .forecast-detail-grid > .forecast-guidance {
+      grid-column: 1 / -1;
+      margin-top: 0;
     }
 
     .forecast-guidance-trend {
@@ -804,8 +814,8 @@
     var forecastEndpoint = apiBaseUrl + "/predict/daily-forecasting/{GRID_ID}";
     var heatmapEndpoint = apiBaseUrl + "/spatial/heatmaps/{GRID_ID}";
 
-    var accessToken = "YOUR ACCESS TOKEN";  // Replace with your actual access token
-    var gridId =  "YOUR GRID ID";           // Replace with your actual grid ID
+    var accessToken = "your-access-token";  // Replace with your actual access token
+    var gridId =  "your-grid-id";           // Replace with your actual grid ID
 
     var apiResponse = null;
     var forecastBySiteId = {};
@@ -1146,6 +1156,11 @@
         '<div class="forecast-detail-grid">' +
         forecastMetric("Average PM<sub>2.5</sub>", valueOrNA(f.pm2_5_mean) + " µg/m³") +
         forecastMetric("Expected Range", valueOrNA(f.pm2_5_low) + " - " + valueOrNA(f.pm2_5_high) + " µg/m³") +
+        '<div class="forecast-guidance">' +
+        '<span class="forecast-guidance-title">Health guidance</span>' +
+        '<p class="forecast-guidance-text">' +
+        (aqi.label || "No health guidance is available for this forecast.") +
+        "</p></div>" +
         forecastConfidence(f.forecast_confidence, f.pm2_5_low, f.pm2_5_high) +
         "</div>" +
         '<div class="met-title">Meteorological conditions</div>' +
@@ -1156,11 +1171,6 @@
         weatherMetric("☁", valueOrNA(met.cloud_area_fraction) + "%", "Cloud") +
         weatherMetric("≋", valueOrNA(met.wind_speed) + " m/s<br>" + (met.wind_direction_compass || ""), "Wind") +
         "</div>" +
-        '<div class="forecast-guidance">' +
-        '<span class="forecast-guidance-title">Health guidance</span>' +
-        '<p class="forecast-guidance-text">' +
-        (aqi.label || "No health guidance is available for this forecast.") +
-        "</p></div>" +
         (aqi.trend_message
           ? '<div class="forecast-guidance forecast-guidance-trend">' +
             '<span class="forecast-guidance-title">Trend</span>' +
