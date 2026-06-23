@@ -141,16 +141,21 @@
       border: none;
     }
 
-    .custom-marker .airqo-marker-image {
-      display: block;
+    .custom-marker .airqo-marker-icon {
+      display: flex;
       width: 44px;
       height: 44px;
-      object-fit: contain;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+      font-size: 23px;
       filter: drop-shadow(0 5px 7px rgba(15, 23, 42, 0.28));
       transition: transform 160ms ease, filter 160ms ease;
     }
 
-    .custom-marker:hover .airqo-marker-image {
+    .custom-marker:hover .airqo-marker-icon {
       transform: scale(1.14);
       filter: drop-shadow(0 7px 10px rgba(15, 23, 42, 0.34));
     }
@@ -322,10 +327,9 @@
     }
 
     .legend-icon {
-      display: block;
-      width: 19px;
-      height: 19px;
-      object-fit: contain;
+      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+      font-size: 16px;
+      line-height: 1;
     }
 
     #forecast-panel {
@@ -471,11 +475,10 @@
       border: 1px solid #f7d069;
     }
 
-    .forecast-icon-image {
-      width: 14px;
-      height: 14px;
-      object-fit: contain;
-      display: block;
+    .forecast-icon {
+      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+      font-size: 13px;
+      line-height: 1;
     }
 
     .forecast-pm25 {
@@ -723,10 +726,11 @@
         margin-top: 4px;
       }
 
-      .forecast-icon-image {
-        width: 13px;
-        height: 13px;
-      }
+      .forecast-icon {
+      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+      font-size: 13px;
+      line-height: 1;
+    }
 
       .forecast-pm25 {
         font-size: 13px;
@@ -800,8 +804,8 @@
     var forecastEndpoint = apiBaseUrl + "/predict/daily-forecasting/{GRID_ID}";
     var heatmapEndpoint = apiBaseUrl + "/spatial/heatmaps/{GRID_ID}";
 
-    var accessToken = "your-access-token";  // Replace with your actual access token
-    var gridId =  "your-grid-id";           // Replace with your actual grid ID
+    var accessToken = "JNWSNW1U1AQHBARN";  // Replace with your actual access token
+    var gridId =  "688d2b176689ba0013631188";           // Replace with your actual grid ID
 
     var apiResponse = null;
     var forecastBySiteId = {};
@@ -1030,8 +1034,9 @@
           iconSize: [44, 44],
           iconAnchor: [22, 22],
           popupAnchor: [0, -26],
-          html: '<img class="airqo-marker-image" src="../frontend/public/images/' +
-            getAirqoAqiImageName(aqiCategory) + '" alt="' + aqiCategory + '" />',
+          html: '<span class="airqo-marker-icon" style="background:' + aqiColor +
+            ';" role="img" aria-label="' + aqiCategory + '">' +
+            getAqiEmoji(aqiCategory) + "</span>",
         }),
       })
       .addTo(map)
@@ -1251,28 +1256,27 @@
       return brightness > 145 ? "#111827" : "#ffffff";
     }
 
-    function getAirqoAqiImageName(aqiCategory) {
+    function getAqiEmoji(aqiCategory) {
       var category = String(aqiCategory || "").toLowerCase();
 
-      if (category === "good") return "GoodAir.png";
-      if (category === "moderate") return "Moderate.png";
-      if (category === "unhealthy for sensitive groups") return "UnhealthySG.png";
-      if (category === "unhealthy") return "Unhealthy.png";
-      if (category === "very unhealthy") return "VeryUnhealthy.png";
-      if (category === "hazardous") return "Hazardous.png";
-      return "Invalid.png";
+      if (category === "good") return "&#x1F60A;";
+      if (category === "moderate") return "&#x1F610;";
+      if (category === "unhealthy for sensitive groups") return "&#x1F637;";
+      if (category === "unhealthy") return "&#x1F915;";
+      if (category === "very unhealthy") return "&#x1F922;";
+      if (category === "hazardous") return "&#x2620;&#xFE0F;";
+      return "&#x2753;";
     }
 
     function airqoPmIcon(aqiCategory) {
-      return '<img class="forecast-icon-image" src="../frontend/public/images/' +
-        getAirqoAqiImageName(aqiCategory) + '" alt="' + (aqiCategory || "Air quality") + '" />';
+      return '<span class="forecast-icon" role="img" aria-label="' +
+        (aqiCategory || "Air quality") + '">' + getAqiEmoji(aqiCategory) + "</span>";
     }
 
-    function legendItem(imageName, label) {
-      return '<li title="' + label + '"><span class="legend-icon-wrap"><img class="legend-icon" src="../frontend/public/images/' +
-        imageName + '" alt="' + label + '" /></span><span class="legend-label">' + label + "</span></li>";
+    function legendItem(label) {
+      return '<li title="' + label + '"><span class="legend-icon-wrap"><span class="legend-icon" role="img" aria-label="' +
+        label + '">' + getAqiEmoji(label) + '</span></span><span class="legend-label">' + label + "</span></li>";
     }
-
     function addLegend() {
       var legend = L.control({ position: "bottomleft" });
 
@@ -1285,12 +1289,12 @@
           '<div class="legend-title">Air quality index' +
           '<span class="legend-subtitle">AirQo PM<sub>2.5</sub> categories</span></div>' +
           "<ul>" +
-          legendItem("GoodAir.png", "Good") +
-          legendItem("Moderate.png", "Moderate") +
-          legendItem("UnhealthySG.png", "Unhealthy for Sensitive Groups") +
-          legendItem("Unhealthy.png", "Unhealthy") +
-          legendItem("VeryUnhealthy.png", "Very Unhealthy") +
-          legendItem("Hazardous.png", "Hazardous") +
+          legendItem("Good") +
+          legendItem("Moderate") +
+          legendItem("Unhealthy for Sensitive Groups") +
+          legendItem("Unhealthy") +
+          legendItem("Very Unhealthy") +
+          legendItem("Hazardous") +
           "</ul>";
 
         return div;
