@@ -813,6 +813,7 @@
     var apiEndpoint = apiBaseUrl + "/devices/measurements/grids/{GRID_ID}";
     var forecastEndpoint = apiBaseUrl + "/predict/daily-forecasting/{GRID_ID}";
     var heatmapEndpoint = apiBaseUrl + "/spatial/heatmaps/{GRID_ID}";
+    var gridMeasurementsPageLimit = 1000;
 
     var accessToken = "your-access-token";  // Replace with your actual access token
     var gridId =  "your-grid-id";           // Replace with your actual grid ID
@@ -969,40 +970,132 @@
 
     function fetchLiveMeasurements() {
       $.ajax({
-        url: apiEndpoint.replace("{GRID_ID}", gridId) + "?token=" + encodeURIComponent(accessToken),
+        url: getGridMeasurementsUrl(1),
         method: "GET",
         success: function (response) {
-          apiResponse = response;
-          var measurements = response.measurements || [];
-          var siteCoordinates = [];
-
-          measurements.forEach(function (measurement) {
-            var siteDetails = measurement.siteDetails || measurement.site_details || {};
-            var lat = Number(siteDetails.approximate_latitude ?? siteDetails.latitude);
-            var lon = Number(siteDetails.approximate_longitude ?? siteDetails.longitude);
-            var pm25Value = Math.round(Number((measurement.pm2_5 || {}).value));
-            var siteName = siteDetails.description || siteDetails.site_name || siteDetails.name || "Unknown site";
-            var siteId = getSiteId(measurement);
-            var aqiCategory = measurement.aqi_category || getAqiCategoryFromPm25(pm25Value);
-            var aqiColor = normalizeAqiColor(measurement.aqi_color_name || measurement.aqi_color || aqiCategory);
-
-            if (!isValidCoordinate(lat, lon)) return;
-
-            createMarker(lat, lon, aqiColor, aqiCategory, pm25Value, siteName, siteId);
-            siteCoordinates.push([lat, lon]);
-          });
-
-          if (!heatmapEnabled) setInitialSiteView(siteCoordinates);
-
-          if (!legendAdded) {
-            addLegend();
-            legendAdded = true;
-          }
+          fetchRemainingGridMeasurementPages(response)
+            .then(function (pages) {
+              var measurements = mergeGridMeasurementPages(pages);
+              apiResponse = buildMergedGridMeasurementResponse(response, measurements);
+              renderLiveMeasurements(measurements);
+            })
+            .catch(function (error) {
+              console.error("Error fetching paginated live measurements:", error);
+              var measurements = getGridMeasurements(response);
+              apiResponse = buildMergedGridMeasurementResponse(response, measurements);
+              renderLiveMeasurements(measurements);
+            });
         },
         error: function (error) {
           console.error("Error fetching live measurements:", error);
         },
       });
+    }
+
+    function getGridMeasurementsUrl(page) {
+      return apiEndpoint.replace("{GRID_ID}", gridId) +
+        "?token=" + encodeURIComponent(accessToken) +
+        "&page=" + encodeURIComponent(page) +
+        "&limit=" + encodeURIComponent(gridMeasurementsPageLimit);
+    }
+
+    function fetchRemainingGridMeasurementPages(firstResponse) {
+      var totalPages = getTotalGridMeasurementPages(firstResponse);
+      var pageRequests = [];
+
+      for (var page = 2; page <= totalPages; page += 1) {
+        pageRequests.push($.ajax({
+          url: getGridMeasurementsUrl(page),
+          method: "GET",
+        }));
+      }
+
+      if (pageRequests.length === 0) {
+        return Promise.resolve([firstResponse]);
+      }
+
+      return Promise.all(pageRequests).then(function (remainingPages) {
+        return [firstResponse].concat(remainingPages);
+      });
+    }
+
+    function getTotalGridMeasurementPages(response) {
+      var meta = getGridMeasurementMeta(response);
+      var explicitPages = Number(meta.pages || meta.total_pages || meta.totalPages || meta.page_count || meta.pageCount);
+
+      if (Number.isFinite(explicitPages) && explicitPages > 0) {
+        return Math.ceil(explicitPages);
+      }
+
+      var total = Number(meta.total || meta.total_results || meta.totalResults);
+      var limit = Number(meta.limit || meta.page_size || meta.pageSize || gridMeasurementsPageLimit);
+
+      if (Number.isFinite(total) && Number.isFinite(limit) && limit > 0) {
+        return Math.max(1, Math.ceil(total / limit));
+      }
+
+      return 1;
+    }
+
+    function getGridMeasurementMeta(response) {
+      var data = response.data || {};
+      return response.meta || response.metadata || response.pagination ||
+        data.meta || data.metadata || data.pagination || {};
+    }
+
+    function getGridMeasurements(response) {
+      var data = response.data || {};
+
+      if (Array.isArray(response.measurements)) return response.measurements;
+      if (Array.isArray(data.measurements)) return data.measurements;
+      if (Array.isArray(data)) return data;
+
+      return [];
+    }
+
+    function mergeGridMeasurementPages(pages) {
+      return pages.reduce(function (measurements, pageResponse) {
+        return measurements.concat(getGridMeasurements(pageResponse));
+      }, []);
+    }
+
+    function buildMergedGridMeasurementResponse(response, measurements) {
+      var mergedResponse = $.extend(true, {}, response);
+
+      if (mergedResponse.data && Array.isArray(mergedResponse.data.measurements)) {
+        mergedResponse.data.measurements = measurements;
+      } else {
+        mergedResponse.measurements = measurements;
+      }
+
+      return mergedResponse;
+    }
+
+    function renderLiveMeasurements(measurements) {
+      var siteCoordinates = [];
+
+      measurements.forEach(function (measurement) {
+        var siteDetails = measurement.siteDetails || measurement.site_details || {};
+        var lat = Number(siteDetails.approximate_latitude ?? siteDetails.latitude);
+        var lon = Number(siteDetails.approximate_longitude ?? siteDetails.longitude);
+        var pm25Value = Math.round(Number((measurement.pm2_5 || {}).value));
+        var siteName = siteDetails.description || siteDetails.site_name || siteDetails.name || "Unknown site";
+        var siteId = getSiteId(measurement);
+        var aqiCategory = measurement.aqi_category || getAqiCategoryFromPm25(pm25Value);
+        var aqiColor = normalizeAqiColor(measurement.aqi_color_name || measurement.aqi_color || aqiCategory);
+
+        if (!isValidCoordinate(lat, lon)) return;
+
+        createMarker(lat, lon, aqiColor, aqiCategory, pm25Value, siteName, siteId);
+        siteCoordinates.push([lat, lon]);
+      });
+
+      if (!heatmapEnabled) setInitialSiteView(siteCoordinates);
+
+      if (!legendAdded) {
+        addLegend();
+        legendAdded = true;
+      }
     }
 
     function fetchDailyForecast() {
