@@ -68,6 +68,25 @@ interface HeatmapData {
   message: string
 }
 
+export interface ActiveFire {
+  acquisition_date?: string | null
+  acquisition_datetime?: string | null
+  acquisition_time?: string | null
+  bright_t31?: number | null
+  brightness?: number | null
+  confidence?: string | number | null
+  daynight?: string | null
+  frp?: number | null
+  instrument?: string | null
+  latitude: number
+  longitude: number
+  product?: string | null
+  satellite?: string | null
+  scan?: number | null
+  track?: number | null
+  version?: string | null
+}
+
 export interface DailyForecastValues {
   pm2_5_mean: number | null
   pm2_5_low: number | null
@@ -266,6 +285,96 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
   }
 }
 
+const ACTIVE_FIRE_SOURCES = [
+  "VIIRS_NOAA20_NRT",
+  "VIIRS_SNPP_NRT",
+  "VIIRS_NOAA21_NRT",
+  "MODIS_NRT",
+  "VIIRS_NOAA20_SP",
+  "VIIRS_SNPP_SP",
+  "MODIS_SP",
+] as const
+
+const getActiveFireTimestamp = (fire: ActiveFire) => {
+  const directTimestamp = fire.acquisition_datetime ? Date.parse(fire.acquisition_datetime) : Number.NaN
+  if (Number.isFinite(directTimestamp)) return directTimestamp
+
+  const time = fire.acquisition_time?.padStart(4, "0")
+  if (!fire.acquisition_date || !time) return null
+
+  const fallbackTimestamp = Date.parse(
+    `${fire.acquisition_date}T${time.slice(0, 2)}:${time.slice(2, 4)}:00Z`,
+  )
+  return Number.isFinite(fallbackTimestamp) ? fallbackTimestamp : null
+}
+
+const getActiveFireDeduplicationKey = (fire: ActiveFire) => {
+  const latitudeBucket = fire.latitude.toFixed(2)
+  const longitudeBucket = fire.longitude.toFixed(2)
+  const timestamp = getActiveFireTimestamp(fire)
+  const tenMinuteBucket = timestamp == null ? "unknown" : Math.floor(timestamp / 600_000)
+
+  return `${latitudeBucket}:${longitudeBucket}:${tenMinuteBucket}`
+}
+
+const deduplicateActiveFires = (fires: ActiveFire[]) => {
+  const uniqueFires = new Map<string, ActiveFire>()
+
+  fires.forEach((fire) => {
+    const key = getActiveFireDeduplicationKey(fire)
+    const existing = uniqueFires.get(key)
+
+    if (!existing || (fire.frp ?? 0) > (existing.frp ?? 0)) {
+      uniqueFires.set(key, fire)
+    }
+  })
+
+  return Array.from(uniqueFires.values())
+}
+
+export const getActiveFires = async (): Promise<ActiveFire[] | null> => {
+  const requests = ACTIVE_FIRE_SOURCES.map(async (source) => {
+    const response = await apiService.get("/spatial/active_fires/africa", {
+      params: { hours: 24, source },
+    })
+    const fires = response.data?.data?.fires
+
+    if (!Array.isArray(fires)) return []
+
+    return fires
+      .filter(
+        (fire): fire is ActiveFire =>
+          fire &&
+          typeof fire.latitude === "number" &&
+          Number.isFinite(fire.latitude) &&
+          typeof fire.longitude === "number" &&
+          Number.isFinite(fire.longitude),
+      )
+      .map((fire) => ({ ...fire, product: fire.product || source }))
+  })
+
+  const results = await Promise.allSettled(requests)
+  const mergedFires: ActiveFire[] = []
+  let successfulSources = 0
+
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      successfulSources += 1
+      mergedFires.push(...result.value)
+      return
+    }
+
+    console.warn(`Active-fire source ${ACTIVE_FIRE_SOURCES[index]} failed:`, result.reason)
+  })
+
+  if (successfulSources === 0) {
+    console.error("All active-fire sources failed.")
+    return null
+  }
+
+  return deduplicateActiveFires(mergedFires)
+}
+
 const unwrapForecastPayload = (value: any): any => {
   let current = value
 
@@ -411,9 +520,9 @@ export const getHourlyForecastCollection = async (hours = 168, pageSize = 10): P
 }
 
 const mergeHourlyForecastPages = (siteId: string, pages: HourlyForecastResponse[]): HourlyForecastSite | null => {
-  const sites = pages
-    .flatMap((page) => page.forecasts || [])
-    .filter((site) => site.site_details?.site_id === siteId)
+  const returnedSites = pages.flatMap((page) => page.forecasts || [])
+  const matchingSites = returnedSites.filter((site) => site.site_details?.site_id === siteId)
+  const sites = matchingSites.length > 0 ? matchingSites : returnedSites.length === 1 ? returnedSites : []
 
   if (!sites.length) return null
 

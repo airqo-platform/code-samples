@@ -35,9 +35,11 @@ import {
   getSatelliteData,
   getMapNodes,
   getHeatmapData,
+  getActiveFires,
   getDailyForecastCollection,
   getHourlyForecast,
   getSiteHistorical,
+  type ActiveFire,
   type DailyForecastResponse,
   type HourlyForecastSite,
 } from "@/services/apiService"
@@ -53,10 +55,12 @@ import { MapLayerControl } from "./MapLayerControl"
 
 const MAP_NODES_CACHE_KEY = "map-nodes"
 const MAP_HEATMAPS_CACHE_KEY = "map-heatmaps"
+const MAP_ACTIVE_FIRES_CACHE_KEY = "map-active-fires"
 const MAP_FORECAST_CACHE_KEY = "map-daily-forecast"
 const MAP_HOURLY_FORECAST_CACHE_KEY = "map-hourly-forecast"
 const MAP_HOURLY_FORECAST_ENABLED_KEY = "map-hourly-forecast-enabled"
 const MAP_API_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
+const MAP_ACTIVE_FIRES_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
 const DAILY_FORECAST_REFRESH_HOUR_UTC = 3
 
 const isDailyForecastCacheCurrent = (
@@ -553,6 +557,7 @@ interface HourlyForecastState {
 interface HourlyForecastCollectionState {
   isLoading: boolean
   error: string | null
+  requestedSiteId: string | null
   site: HourlyForecastSite | null
 }
 
@@ -908,10 +913,7 @@ const ForecastPanel: React.FC<{
       return { isLoading: false, error: null, site: null }
     }
 
-    const site =
-      hourlyForecastState.site?.site_details?.site_id === siteId
-        ? hourlyForecastState.site
-        : null
+    const site = hourlyForecastState.requestedSiteId === siteId ? hourlyForecastState.site : null
 
     if (site?.forecasts?.length) {
       return { isLoading: false, error: null, site }
@@ -931,6 +933,7 @@ const ForecastPanel: React.FC<{
     hourlyForecastState.site,
     hourlyForecastState.error,
     hourlyForecastState.isLoading,
+    hourlyForecastState.requestedSiteId,
     selectedNode?.site_id,
   ])
 
@@ -2491,6 +2494,16 @@ const MapNodes: React.FC<{
             // Create a container for the popup
             const container = document.createElement("div")
             const root = ReactDOM.createRoot(container)
+            let isRootUnmountScheduled = false
+
+            const scheduleRootUnmount = () => {
+              if (isRootUnmountScheduled) return
+              isRootUnmountScheduled = true
+
+              window.setTimeout(() => {
+                root.unmount()
+              }, 0)
+            }
 
             // Bind popup but don't open it automatically
             root.render(
@@ -2502,7 +2515,6 @@ const MapNodes: React.FC<{
                 }}
                 onClose={() => {
                   marker.closePopup()
-                  root.unmount()
                 }}
               />,
             )
@@ -2512,14 +2524,9 @@ const MapNodes: React.FC<{
               offset: L.point(0, -20),
             })
 
-            // Ensure React tree is released on marker removal
-            marker.on("remove", () => {
-              try {
-                root.unmount()
-              } catch (error) {
-                console.error("Error unmounting React tree:", error)
-              }
-            })
+            // Leaflet emits "remove" synchronously, so wait until React finishes
+            // the current render before releasing this independently-created root.
+            marker.once("remove", scheduleRootUnmount)
 
             // Handle click to open popup
             marker.on("click", (e: any) => {
@@ -2618,6 +2625,177 @@ const ClearSelectionOnMapClick: React.FC<{ onClear: () => void }> = ({ onClear }
   return null
 }
 
+const createFireIcon = () =>
+  L.divIcon({
+    className: "active-fire-marker",
+    html: `
+      <div style="
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #dc2626;
+        background: rgba(255,255,255,0.94);
+        border: 2px solid #fdba74;
+        border-radius: 9999px;
+        box-shadow: 0 2px 8px rgba(127,29,29,0.35);
+      ">
+        <svg
+          aria-hidden="true"
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="#f97316"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 22c4.97 0 8-3.58 8-8 0-3.5-2-6.5-5-9 .5 3-1 5-3 6-1-3-3-5-5-7 .5 4-3 6.5-3 10 0 4.42 3.03 8 8 8Z" />
+        </svg>
+      </div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -13],
+  })
+
+const getFireGridSize = (zoom: number) => {
+  if (zoom <= 4) return 140
+  if (zoom === 5) return 105
+  if (zoom === 6) return 75
+  if (zoom === 7) return 50
+  if (zoom === 8) return 32
+  if (zoom === 9) return 20
+  return 0
+}
+
+const ActiveFireMarkers: React.FC<{ showFires: boolean }> = ({ showFires }) => {
+  const map = useMap()
+  const [fires, setFires] = useState<ActiveFire[]>([])
+  const markersRef = useRef<L.Marker[]>([])
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadFires = async () => {
+      const cached = await readBrowserApiCache<BrowserApiCacheEntry<ActiveFire[]>>(MAP_ACTIVE_FIRES_CACHE_KEY)
+      const cachedFires = Array.isArray(cached?.data) ? cached.data : []
+      if (
+        isActive &&
+        isBrowserApiCacheFresh(cached, MAP_ACTIVE_FIRES_CACHE_MAX_AGE_MS) &&
+        cachedFires.length
+      ) {
+        setFires(cachedFires)
+        return
+      }
+
+      const data = await getActiveFires()
+      if (!isActive || !data) return
+
+      setFires(data)
+      writeBrowserApiCache(MAP_ACTIVE_FIRES_CACHE_KEY, data).catch((error) => {
+        console.warn("Unable to cache active-fire data:", error)
+      })
+    }
+
+    loadFires()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    const clearMarkers = () => {
+      markersRef.current.forEach((marker) => marker.remove())
+      markersRef.current = []
+    }
+
+    const renderMarkers = () => {
+      clearMarkers()
+      if (!showFires || !fires.length) return
+
+      const bounds = map.getBounds()
+      const zoom = map.getZoom()
+      const gridSize = getFireGridSize(zoom)
+      const visibleFires = fires
+        .filter((fire) => bounds.contains([fire.latitude, fire.longitude]))
+        .sort((a, b) => (b.frp ?? 0) - (a.frp ?? 0))
+
+      const selectedFires =
+        gridSize === 0
+          ? visibleFires
+          : Array.from(
+              visibleFires
+                .reduce((cells, fire) => {
+                  const point = map.latLngToContainerPoint([fire.latitude, fire.longitude])
+                  const cellKey = `${Math.floor(point.x / gridSize)}:${Math.floor(point.y / gridSize)}`
+                  if (!cells.has(cellKey)) cells.set(cellKey, fire)
+                  return cells
+                }, new Map<string, ActiveFire>())
+                .values(),
+            )
+
+      const fireIcon = createFireIcon()
+
+      selectedFires.forEach((fire) => {
+        const marker = L.marker([fire.latitude, fire.longitude], {
+          icon: fireIcon,
+          keyboard: true,
+          title: `Active fire detected ${fire.acquisition_datetime || fire.acquisition_date}`,
+        }).addTo(map)
+
+        const popup = document.createElement("div")
+        popup.style.minWidth = "190px"
+
+        const title = document.createElement("div")
+        title.textContent = "Active fire detection"
+        title.style.fontWeight = "700"
+        title.style.color = "#b91c1c"
+        title.style.marginBottom = "6px"
+        popup.appendChild(title)
+
+        const details = [
+          ["Detected", fire.acquisition_datetime || fire.acquisition_date],
+          ["Satellite", fire.satellite],
+          ["Instrument", fire.instrument],
+          ["FRP", fire.frp == null ? null : `${fire.frp} MW`],
+          ["Confidence", fire.confidence],
+          ["Day/Night", fire.daynight],
+        ]
+
+        details.forEach(([label, value]) => {
+          if (value == null || value === "") return
+          const row = document.createElement("div")
+          row.style.fontSize = "12px"
+          row.style.marginTop = "3px"
+
+          const labelElement = document.createElement("strong")
+          labelElement.textContent = `${label}: `
+          row.appendChild(labelElement)
+          row.appendChild(document.createTextNode(String(value)))
+          popup.appendChild(row)
+        })
+
+        marker.bindPopup(popup, { maxWidth: 260 })
+        markersRef.current.push(marker)
+      })
+    }
+
+    renderMarkers()
+    map.on("zoomend moveend", renderMarkers)
+
+    return () => {
+      map.off("zoomend moveend", renderMarkers)
+      clearMarkers()
+    }
+  }, [fires, map, showFires])
+
+  return null
+}
+
 interface HeatmapData {
   bounds: [[number, number], [number, number]]
   city: string
@@ -2632,6 +2810,8 @@ const MapControls: React.FC<{
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
   setShowEmojis: (value: boolean) => void
+  showFires: boolean
+  setShowFires: (value: boolean) => void
   heatmapEnabled: boolean
   captureViewEnabled: boolean
 }> = ({
@@ -2639,6 +2819,8 @@ const MapControls: React.FC<{
   setShowHeatmaps,
   showEmojis,
   setShowEmojis,
+  showFires,
+  setShowFires,
   heatmapEnabled,
   captureViewEnabled,
 }) => {
@@ -2679,29 +2861,66 @@ const MapControls: React.FC<{
       onAdd: () => {
         const container = L.DomUtil.create("div", "leaflet-control leaflet-bar")
         container.style.backgroundColor = "white"
-        container.style.padding = "12px"
-        container.style.borderRadius = "8px"
+        container.style.padding = "7px"
+        container.style.borderRadius = "7px"
         container.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"
         container.style.cursor = "pointer"
         container.style.userSelect = "none"
         container.style.display = "flex"
         container.style.flexDirection = "column"
-        container.style.gap = "8px"
-        container.style.minWidth = "160px"
+        container.style.gap = "5px"
+        container.style.alignItems = "center"
+        container.style.marginTop = "128px"
+
+        const iconSvg = (paths: string) => `
+          <svg
+            aria-hidden="true"
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            ${paths}
+          </svg>
+        `
+
+        const styleIconButton = (button: HTMLButtonElement) => {
+          button.type = "button"
+          button.style.width = "32px"
+          button.style.height = "32px"
+          button.style.border = "none"
+          button.style.display = "flex"
+          button.style.alignItems = "center"
+          button.style.justifyContent = "center"
+          button.style.padding = "0"
+          button.style.borderRadius = "6px"
+          button.style.cursor = "pointer"
+          button.style.transition = "all 0.2s"
+        }
 
         if (heatmapEnabled) {
           const heatmapButton = L.DomUtil.create("button", "", container)
-          heatmapButton.innerHTML = showHeatmaps ? "Heatmap ON" : "Heatmap OFF"
-          heatmapButton.style.border = "none"
+          heatmapButton.innerHTML = iconSvg(`
+            <circle cx="6" cy="6" r="1.8" fill="currentColor" stroke="none" opacity="0.35" />
+            <circle cx="12" cy="5" r="2.2" fill="currentColor" stroke="none" opacity="0.55" />
+            <circle cx="18" cy="7" r="1.6" fill="currentColor" stroke="none" opacity="0.3" />
+            <circle cx="7" cy="13" r="2.4" fill="currentColor" stroke="none" opacity="0.65" />
+            <circle cx="13" cy="12" r="3.4" fill="currentColor" stroke="none" opacity="0.95" />
+            <circle cx="18" cy="14" r="2" fill="currentColor" stroke="none" opacity="0.5" />
+            <circle cx="5" cy="19" r="1.4" fill="currentColor" stroke="none" opacity="0.25" />
+            <circle cx="12" cy="19" r="2" fill="currentColor" stroke="none" opacity="0.45" />
+            <circle cx="19" cy="19" r="1.5" fill="currentColor" stroke="none" opacity="0.28" />
+          `)
+          styleIconButton(heatmapButton)
           heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"
-          heatmapButton.style.fontSize = "13px"
-          heatmapButton.style.fontWeight = showHeatmaps ? "600" : "500"
           heatmapButton.style.color = showHeatmaps ? "#1d4ed8" : "#374151"
-          heatmapButton.style.textAlign = "left"
-          heatmapButton.style.padding = "8px 12px"
-          heatmapButton.style.borderRadius = "6px"
-          heatmapButton.style.transition = "all 0.2s"
           heatmapButton.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
+          heatmapButton.setAttribute("aria-label", showHeatmaps ? "Hide heatmap" : "Show heatmap")
+          heatmapButton.setAttribute("aria-pressed", String(showHeatmaps))
 
           L.DomEvent.on(heatmapButton, "click", (e) => {
             L.DomEvent.stopPropagation(e)
@@ -2711,36 +2930,51 @@ const MapControls: React.FC<{
 
         // Emoji toggle button
         const emojiButton = L.DomUtil.create("button", "", container)
-        emojiButton.innerHTML = showEmojis ? "Emojis ON" : "Emojis OFF"
-        emojiButton.style.border = "none"
+        emojiButton.innerHTML = iconSvg(`
+          <circle cx="12" cy="12" r="10" />
+          <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+          <path d="M9 9h.01" />
+          <path d="M15 9h.01" />
+        `)
+        styleIconButton(emojiButton)
         emojiButton.style.background = showEmojis ? "#dcfce7" : "transparent"
-        emojiButton.style.fontSize = "13px"
-        emojiButton.style.fontWeight = showEmojis ? "600" : "500"
         emojiButton.style.color = showEmojis ? "#166534" : "#374151"
-        emojiButton.style.textAlign = "left"
-        emojiButton.style.padding = "8px 12px"
-        emojiButton.style.borderRadius = "6px"
-        emojiButton.style.transition = "all 0.2s"
         emojiButton.title = showEmojis ? "Hide Emojis" : "Show Emojis"
+        emojiButton.setAttribute("aria-label", showEmojis ? "Hide emoji markers" : "Show emoji markers")
+        emojiButton.setAttribute("aria-pressed", String(showEmojis))
 
         L.DomEvent.on(emojiButton, "click", (e) => {
           L.DomEvent.stopPropagation(e)
           setShowEmojis(!showEmojis)
         })
 
+        const fireButton = L.DomUtil.create("button", "", container)
+        fireButton.innerHTML = iconSvg(`
+          <path d="M12 22c4.97 0 8-3.58 8-8 0-3.5-2-6.5-5-9 .5 3-1 5-3 6-1-3-3-5-5-7 .5 4-3 6.5-3 10 0 4.42 3.03 8 8 8Z" />
+        `)
+        styleIconButton(fireButton)
+        fireButton.style.background = showFires ? "#ffedd5" : "transparent"
+        fireButton.style.color = showFires ? "#c2410c" : "#374151"
+        fireButton.title = showFires ? "Hide active fires" : "Show active fires"
+        fireButton.setAttribute("aria-label", showFires ? "Hide active fires" : "Show active fires")
+        fireButton.setAttribute("aria-pressed", String(showFires))
+
+        L.DomEvent.on(fireButton, "click", (e) => {
+          L.DomEvent.stopPropagation(e)
+          setShowFires(!showFires)
+        })
+
         if (captureViewEnabled) {
           const downloadMapButton = L.DomUtil.create("button", "", container)
-          downloadMapButton.innerHTML = "Capture View"
-          downloadMapButton.style.border = "none"
+          downloadMapButton.innerHTML = iconSvg(`
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
+            <circle cx="12" cy="13" r="3" />
+          `)
+          styleIconButton(downloadMapButton)
           downloadMapButton.style.background = "#f3e8ff"
-          downloadMapButton.style.fontSize = "13px"
-          downloadMapButton.style.fontWeight = "500"
           downloadMapButton.style.color = "#7c3aed"
-          downloadMapButton.style.textAlign = "left"
-          downloadMapButton.style.padding = "8px 12px"
-          downloadMapButton.style.borderRadius = "6px"
-          downloadMapButton.style.transition = "all 0.2s"
           downloadMapButton.title = "Capture current map view as image"
+          downloadMapButton.setAttribute("aria-label", "Capture current map view as image")
 
           L.DomEvent.on(downloadMapButton, "click", (e) => {
             L.DomEvent.stopPropagation(e)
@@ -2752,13 +2986,23 @@ const MapControls: React.FC<{
       },
     })
 
-    const mapControls = new MapControls({ position: "topleft" })
+    const mapControls = new MapControls({ position: "topright" })
     map.addControl(mapControls)
 
     return () => {
       map.removeControl(mapControls)
     }
-  }, [map, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis, heatmapEnabled, captureViewEnabled])
+  }, [
+    map,
+    showHeatmaps,
+    setShowHeatmaps,
+    showEmojis,
+    setShowEmojis,
+    showFires,
+    setShowFires,
+    heatmapEnabled,
+    captureViewEnabled,
+  ])
 
   return null
 }
@@ -2769,6 +3013,8 @@ const HeatmapOverlays: React.FC<{
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
   setShowEmojis: (value: boolean) => void
+  showFires: boolean
+  setShowFires: (value: boolean) => void
   heatmapEnabled: boolean
   captureViewEnabled: boolean
 }> = ({
@@ -2777,6 +3023,8 @@ const HeatmapOverlays: React.FC<{
   setShowHeatmaps,
   showEmojis,
   setShowEmojis,
+  showFires,
+  setShowFires,
   heatmapEnabled,
   captureViewEnabled,
 }) => {
@@ -2903,6 +3151,8 @@ const HeatmapOverlays: React.FC<{
       setShowHeatmaps={setShowHeatmaps}
       showEmojis={showEmojis}
       setShowEmojis={setShowEmojis}
+      showFires={showFires}
+      setShowFires={setShowFires}
       heatmapEnabled={heatmapEnabled}
       captureViewEnabled={captureViewEnabled}
     />
@@ -3033,6 +3283,7 @@ const LeafletMap: React.FC = () => {
   })
   const [showEmojis, setShowEmojis] = useState(true)
   const [showHeatmaps, setShowHeatmaps] = useState(false)
+  const [showFires, setShowFires] = useState(true)
   const [selectedNode, setSelectedNode] = useState<MapNode | null>(null)
   const [hourlyForecastEnabled, setHourlyForecastEnabled] = useState(false)
   const [hourlyForecastPreferenceLoaded, setHourlyForecastPreferenceLoaded] = useState(false)
@@ -3044,6 +3295,7 @@ const LeafletMap: React.FC = () => {
   const [hourlyForecastState, setHourlyForecastState] = useState<HourlyForecastCollectionState>({
     isLoading: false,
     error: null,
+    requestedSiteId: null,
     site: null,
   })
   const [hourlyForecastRequest, setHourlyForecastRequest] = useState<HourlyForecastRequest | null>(null)
@@ -3129,17 +3381,17 @@ const LeafletMap: React.FC = () => {
     setHourlyForecastEnabled(enabled)
     if (!enabled) {
       setHourlyForecastRequest(null)
-      setHourlyForecastState({ isLoading: false, error: null, site: null })
+      setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
     }
   }
 
   const handleHourlyForecastRequest = (request: HourlyForecastRequest) => {
-    setHourlyForecastRequest((current) => (current?.siteId === request.siteId ? current : request))
+    setHourlyForecastRequest({ ...request })
   }
 
   useEffect(() => {
     setHourlyForecastRequest(null)
-    setHourlyForecastState({ isLoading: false, error: null, site: null })
+    setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
   }, [selectedNode?.site_id])
 
   useEffect(() => {
@@ -3149,7 +3401,7 @@ const LeafletMap: React.FC = () => {
     const request = hourlyForecastRequest
 
     if (!hourlyForecastEnabled || !request || request.siteId !== selectedSiteId) {
-      setHourlyForecastState({ isLoading: false, error: null, site: null })
+      setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
       return
     }
 
@@ -3159,10 +3411,11 @@ const LeafletMap: React.FC = () => {
     const cacheKey = `${MAP_HOURLY_FORECAST_CACHE_KEY}:${siteId}`
 
     const loadHourlyForecast = async () => {
-      setHourlyForecastState({ isLoading: true, error: null, site: null })
+      setHourlyForecastState({ isLoading: true, error: null, requestedSiteId: siteId, site: null })
 
       const cached = await readBrowserApiCache<BrowserApiCacheEntry<HourlyForecastSite>>(cacheKey)
       const cachedAt = cached?.cachedAt ? new Date(cached.cachedAt) : null
+      const cachedForecasts = Array.isArray(cached?.data?.forecasts) ? cached.data.forecasts : []
       const cachedToday =
         cachedAt &&
         !Number.isNaN(cachedAt.getTime()) &&
@@ -3172,10 +3425,10 @@ const LeafletMap: React.FC = () => {
         isActive &&
         cachedToday &&
         isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) &&
-        cached.data.forecasts?.length
+        cachedForecasts.length
       ) {
         hasUsableCachedForecast = true
-        setHourlyForecastState({ isLoading: false, error: null, site: cached.data })
+        setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: siteId, site: cached.data })
         return
       }
 
@@ -3184,12 +3437,12 @@ const LeafletMap: React.FC = () => {
         if (!isActive) return
         if (!site?.forecasts?.length) {
           if (!hasUsableCachedForecast) {
-            setHourlyForecastState({ isLoading: false, error: "No hourly forecast returned for this site.", site: null })
+            setHourlyForecastState({ isLoading: false, error: "No hourly forecast returned for this site.", requestedSiteId: siteId, site: null })
           }
           return
         }
 
-        setHourlyForecastState({ isLoading: false, error: null, site })
+        setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: siteId, site })
         writeBrowserApiCache(cacheKey, site).catch((error) => {
           console.warn("Unable to cache hourly forecast:", error)
         })
@@ -3197,7 +3450,7 @@ const LeafletMap: React.FC = () => {
         if (!isActive) return
         console.error(error)
         if (!hasUsableCachedForecast) {
-          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast.", site: null })
+          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast.", requestedSiteId: siteId, site: null })
         }
       }
     }
@@ -3227,12 +3480,15 @@ const LeafletMap: React.FC = () => {
             <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
             <ClearSelectionOnMapClick onClear={() => setSelectedNode(null)} />
             <MapNodes onLoadingChange={setLoadingState} showEmojis={showEmojis} onNodeSelect={setSelectedNode} />
+            <ActiveFireMarkers showFires={showFires} />
             <HeatmapOverlays
               onLoadingChange={setLoadingState}
               showHeatmaps={heatmapEnabled && showHeatmaps}
               setShowHeatmaps={setShowHeatmaps}
               showEmojis={showEmojis}
               setShowEmojis={setShowEmojis}
+              showFires={showFires}
+              setShowFires={setShowFires}
               heatmapEnabled={heatmapEnabled}
               captureViewEnabled={captureViewEnabled}
             />
