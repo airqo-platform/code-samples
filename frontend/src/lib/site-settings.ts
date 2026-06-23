@@ -24,7 +24,6 @@ export const defaultSiteSettings: SiteSettings = {
     { id: "locate", name: "Locate", path: "/locate", enabled: true },
     { id: "categorize", name: "Categorize", path: "/categorize", enabled: true },
     { id: "reports", name: "Reports", path: "/reports", enabled: true },
-    { id: "about", name: "About", path: "/about", enabled: true },
   ],
   features: [
     {

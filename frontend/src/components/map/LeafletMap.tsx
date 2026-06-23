@@ -2905,9 +2905,15 @@ const MapControls: React.FC<{
         if (heatmapEnabled) {
           const heatmapButton = L.DomUtil.create("button", "", container)
           heatmapButton.innerHTML = iconSvg(`
-            <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
-            <path d="m22 12.5-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5" />
-            <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5" />
+            <circle cx="6" cy="6" r="1.8" fill="currentColor" stroke="none" opacity="0.35" />
+            <circle cx="12" cy="5" r="2.2" fill="currentColor" stroke="none" opacity="0.55" />
+            <circle cx="18" cy="7" r="1.6" fill="currentColor" stroke="none" opacity="0.3" />
+            <circle cx="7" cy="13" r="2.4" fill="currentColor" stroke="none" opacity="0.65" />
+            <circle cx="13" cy="12" r="3.4" fill="currentColor" stroke="none" opacity="0.95" />
+            <circle cx="18" cy="14" r="2" fill="currentColor" stroke="none" opacity="0.5" />
+            <circle cx="5" cy="19" r="1.4" fill="currentColor" stroke="none" opacity="0.25" />
+            <circle cx="12" cy="19" r="2" fill="currentColor" stroke="none" opacity="0.45" />
+            <circle cx="19" cy="19" r="1.5" fill="currentColor" stroke="none" opacity="0.28" />
           `)
           styleIconButton(heatmapButton)
           heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"

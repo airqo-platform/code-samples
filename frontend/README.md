@@ -12,7 +12,6 @@ AirQo AI Platform [https://ai.airqo.net/](https://ai.airqo.net/).
 - **Site Locator**: AI-powered tool to suggest optimal locations for new air quality sensors.
 - **Site Categorization**: Automatically categorize sites based on their characteristics and surrounding environment.
 - **Air Quality Reports**: Generate comprehensive reports with historical data and trends.
-- **About Page**: Information about AirQo's mission and impact.
 
 ## Getting Started
 
@@ -93,8 +92,6 @@ Generate comprehensive air quality reports:
 2. View visualizations of air quality trends
 3. Access AI-generated insights and recommendations
 
-### About Page
-Learn more about AirQo's mission, core values, and impact in air quality monitoring across Africa.
 
 ## Deployment
 
