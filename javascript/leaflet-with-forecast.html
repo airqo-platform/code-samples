@@ -1014,8 +1014,11 @@
         return Promise.resolve([firstResponse]);
       }
 
-      return Promise.all(pageRequests).then(function (remainingPages) {
-        return [firstResponse].concat(remainingPages);
+      return Promise.allSettled(pageRequests).then(function (results) {
+        var fulfilledPages = results
+          .filter(function (result) { return result.status === "fulfilled"; })
+          .map(function (result) { return result.value; });
+        return [firstResponse].concat(fulfilledPages);
       });
     }
 
@@ -1062,7 +1065,9 @@
     function buildMergedGridMeasurementResponse(response, measurements) {
       var mergedResponse = $.extend(true, {}, response);
 
-      if (mergedResponse.data && Array.isArray(mergedResponse.data.measurements)) {
+      if (Array.isArray(mergedResponse.data)) {
+        mergedResponse.data = measurements;
+      } else if (mergedResponse.data && Array.isArray(mergedResponse.data.measurements)) {
         mergedResponse.data.measurements = measurements;
       } else {
         mergedResponse.measurements = measurements;
