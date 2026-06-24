@@ -164,6 +164,8 @@ interface SatelliteData {
   longitude: number
   pm2_5_prediction: number
   timestamp: string
+  aqi_category?: string
+  aqi_color?: string
 }
 
 // Add type guard for API response
@@ -232,6 +234,7 @@ const PopupContent: React.FC<{
   onClose: () => void
 }> = ({ label, data, onClose }) => {
   const { level, image, color } = getAirQualityInfo(data.pm2_5_prediction ?? null)
+  const aqiCategory = data.aqi_category || level
 
   // Safely format timestamp
   const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : "Unknown"
@@ -254,11 +257,13 @@ const PopupContent: React.FC<{
           x
         </button>
       </div>
-      <div className="text-sm font-medium mb-2">{label}</div>
-      <div className="text-lg font-semibold mb-1">{level}</div>
-      <div className="text-sm text-gray-700">
-        <Pm25Label />: {data.pm2_5_prediction?.toFixed(1) ?? "N/A"} <Pm25Unit />
-      </div>
+      <div className="text-sm font-semibold leading-tight text-slate-950">{label}</div>
+      <AqiStatusLine
+        pm25={data.pm2_5_prediction}
+        category={aqiCategory}
+        color={data.aqi_color}
+        className="mt-1"
+      />
       <div className="text-xs text-gray-500 mt-2">Updated {timestamp}</div>
     </div>
   )
@@ -682,7 +687,7 @@ const formatLocalDateKey = (date: Date) =>
 const formatForecastMetric = (value: number | null | undefined, digits = 1, suffix = "") =>
   typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : "N/A"
 
-const PM25_UNIT_TEXT = "µg/m³"
+const PM25_UNIT_TEXT = "&micro;g/m³"
 
 const formatForecastMetricWithUnit = (
   value: number | null | undefined,
@@ -734,8 +739,42 @@ function Pm25Label() {
 function Pm25Unit() {
   return (
     <>
-      µg/m<sup className="align-super text-[0.7em] leading-none">3</sup>
+      &micro;g/m<sup className="align-super text-[0.7em] leading-none">3</sup>
     </>
+  )
+}
+
+function AqiStatusLine({
+  pm25,
+  category,
+  color,
+  className = "",
+}: {
+  pm25?: number | null
+  category?: string | null
+  color?: string | null
+  className?: string
+}) {
+  const badgeStyle = getAqiBadgeStyle(category, normalizeHexColor(color))
+  const displayCategory = category || "Unknown"
+
+  return (
+    <div className={["flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-700", className].join(" ")}>
+      <span className="whitespace-nowrap font-medium text-slate-600">
+        Current <Pm25Label />: <span className="font-semibold text-slate-950">{formatForecastMetric(pm25, 0)}</span> <Pm25Unit />
+      </span>
+      <span className="relative h-2.5 w-2.5 shrink-0" aria-hidden="true">
+        <span className="absolute inset-0 rounded-full opacity-60 animate-ping" style={{ backgroundColor: badgeStyle.dotColor }} />
+        <span className="absolute inset-0 rounded-full" style={{ backgroundColor: badgeStyle.dotColor }} />
+      </span>
+      <span
+        className="inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase leading-none tracking-normal text-white shadow-sm"
+        style={{ backgroundColor: badgeStyle.dotColor }}
+        title={displayCategory}
+      >
+        <span className="min-w-0 truncate">{displayCategory}</span>
+      </span>
+    </div>
   )
 }
 
@@ -968,6 +1007,12 @@ const ForecastPanel: React.FC<{
     selectedNode?.siteDetails?.formatted_name ||
     selectedNode?.siteDetails?.location_name ||
     "Select a site"
+  const currentPm25 =
+    typeof selectedNode?.pm2_5?.value === "number" && Number.isFinite(selectedNode.pm2_5.value)
+      ? selectedNode.pm2_5.value
+      : selectedForecasts?.[0]?.pm2_5 ?? null
+  const currentAqiCategory = selectedNode?.aqi_category || selectedForecasts?.[0]?.aqi_category
+  const currentAqiColor = selectedNode?.aqi_color || selectedForecasts?.[0]?.aqi_color
 
   return (
     <aside className="flex h-full w-[448px] flex-col border-l bg-white/92 backdrop-blur-xl">
@@ -975,8 +1020,14 @@ const ForecastPanel: React.FC<{
         <div className="flex items-start gap-3 px-5 py-4">
           <div className="min-w-0 order-last flex-1">
             <div className="truncate text-lg font-semibold text-gray-900">{title}</div>
+            <AqiStatusLine
+              pm25={currentPm25}
+              category={currentAqiCategory}
+              color={currentAqiColor}
+              className="mt-1"
+            />
             {selectedNode?.site_id ? (
-              <div className="truncate text-xs text-gray-500">{selectedNode.site_id}</div>
+              <div className="mt-1 truncate text-xs text-gray-500">{selectedNode.site_id}</div>
             ) : null}
           </div>
           <button
@@ -2512,6 +2563,8 @@ const MapNodes: React.FC<{
                 data={{
                   pm2_5_prediction: pm25Value ?? undefined,
                   timestamp: timestamp ?? undefined,
+                  aqi_category: aqiCategory,
+                  aqi_color: node?.aqi_color,
                 }}
                 onClose={() => {
                   marker.closePopup()

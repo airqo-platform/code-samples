@@ -285,16 +285,6 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
   }
 }
 
-const ACTIVE_FIRE_SOURCES = [
-  "VIIRS_NOAA20_NRT",
-  "VIIRS_SNPP_NRT",
-  "VIIRS_NOAA21_NRT",
-  "MODIS_NRT",
-  "VIIRS_NOAA20_SP",
-  "VIIRS_SNPP_SP",
-  "MODIS_SP",
-] as const
-
 const getActiveFireTimestamp = (fire: ActiveFire) => {
   const directTimestamp = fire.acquisition_datetime ? Date.parse(fire.acquisition_datetime) : Number.NaN
   if (Number.isFinite(directTimestamp)) return directTimestamp
@@ -333,15 +323,18 @@ const deduplicateActiveFires = (fires: ActiveFire[]) => {
 }
 
 export const getActiveFires = async (): Promise<ActiveFire[] | null> => {
-  const requests = ACTIVE_FIRE_SOURCES.map(async (source) => {
+  try {
     const response = await apiService.get("/spatial/active_fires/africa", {
-      params: { hours: 24, source },
+      params: { hours: 24 },
     })
     const fires = response.data?.data?.fires
 
-    if (!Array.isArray(fires)) return []
+    if (!Array.isArray(fires)) {
+      console.warn("Active-fire response did not include a fires array.")
+      return []
+    }
 
-    return fires
+    const validFires = fires
       .filter(
         (fire): fire is ActiveFire =>
           fire &&
@@ -350,29 +343,13 @@ export const getActiveFires = async (): Promise<ActiveFire[] | null> => {
           typeof fire.longitude === "number" &&
           Number.isFinite(fire.longitude),
       )
-      .map((fire) => ({ ...fire, product: fire.product || source }))
-  })
+      .map((fire) => ({ ...fire, product: fire.product || "NASA FIRMS" }))
 
-  const results = await Promise.allSettled(requests)
-  const mergedFires: ActiveFire[] = []
-  let successfulSources = 0
-
-  results.forEach((result, index) => {
-    if (result.status === "fulfilled") {
-      successfulSources += 1
-      mergedFires.push(...result.value)
-      return
-    }
-
-    console.warn(`Active-fire source ${ACTIVE_FIRE_SOURCES[index]} failed:`, result.reason)
-  })
-
-  if (successfulSources === 0) {
-    console.error("All active-fire sources failed.")
+    return deduplicateActiveFires(validFires)
+  } catch (error) {
+    console.error("Active-fire request failed:", error)
     return null
   }
-
-  return deduplicateActiveFires(mergedFires)
 }
 
 const unwrapForecastPayload = (value: any): any => {
