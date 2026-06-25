@@ -17,8 +17,10 @@ import {
   ChevronDown,
   ChevronUp,
   Clock3,
+  Cloud,
   CloudRain,
   Droplets,
+  Gauge,
   LoaderCircle,
   Thermometer,
   Wind,
@@ -33,9 +35,11 @@ import {
   getSatelliteData,
   getMapNodes,
   getHeatmapData,
+  getActiveFires,
   getDailyForecastCollection,
   getHourlyForecast,
   getSiteHistorical,
+  type ActiveFire,
   type DailyForecastResponse,
   type HourlyForecastSite,
 } from "@/services/apiService"
@@ -51,10 +55,12 @@ import { MapLayerControl } from "./MapLayerControl"
 
 const MAP_NODES_CACHE_KEY = "map-nodes"
 const MAP_HEATMAPS_CACHE_KEY = "map-heatmaps"
+const MAP_ACTIVE_FIRES_CACHE_KEY = "map-active-fires"
 const MAP_FORECAST_CACHE_KEY = "map-daily-forecast"
 const MAP_HOURLY_FORECAST_CACHE_KEY = "map-hourly-forecast"
 const MAP_HOURLY_FORECAST_ENABLED_KEY = "map-hourly-forecast-enabled"
 const MAP_API_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
+const MAP_ACTIVE_FIRES_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
 const DAILY_FORECAST_REFRESH_HOUR_UTC = 3
 
 const isDailyForecastCacheCurrent = (
@@ -158,6 +164,8 @@ interface SatelliteData {
   longitude: number
   pm2_5_prediction: number
   timestamp: string
+  aqi_category?: string
+  aqi_color?: string
 }
 
 // Add type guard for API response
@@ -226,6 +234,7 @@ const PopupContent: React.FC<{
   onClose: () => void
 }> = ({ label, data, onClose }) => {
   const { level, image, color } = getAirQualityInfo(data.pm2_5_prediction ?? null)
+  const aqiCategory = data.aqi_category || level
 
   // Safely format timestamp
   const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : "Unknown"
@@ -248,11 +257,13 @@ const PopupContent: React.FC<{
           x
         </button>
       </div>
-      <div className="text-sm font-medium mb-2">{label}</div>
-      <div className="text-lg font-semibold mb-1">{level}</div>
-      <div className="text-sm text-gray-700">
-        <Pm25Label />: {data.pm2_5_prediction?.toFixed(1) ?? "N/A"} <Pm25Unit />
-      </div>
+      <div className="text-sm font-semibold leading-tight text-slate-950">{label}</div>
+      <AqiStatusLine
+        pm25={data.pm2_5_prediction}
+        category={aqiCategory}
+        color={data.aqi_color}
+        className="mt-1"
+      />
       <div className="text-xs text-gray-500 mt-2">Updated {timestamp}</div>
     </div>
   )
@@ -525,7 +536,9 @@ interface DailyForecastItem {
   forecast_confidence?: number | null
   air_temperature?: number | null
   relative_humidity?: number | null
+  air_pressure_at_sea_level?: number | null
   precipitation_amount?: number | null
+  cloud_area_fraction?: number | null
   wind_speed?: number | null
   wind_direction_compass?: string
   aqi_category?: string
@@ -549,6 +562,7 @@ interface HourlyForecastState {
 interface HourlyForecastCollectionState {
   isLoading: boolean
   error: string | null
+  requestedSiteId: string | null
   site: HourlyForecastSite | null
 }
 
@@ -673,7 +687,7 @@ const formatLocalDateKey = (date: Date) =>
 const formatForecastMetric = (value: number | null | undefined, digits = 1, suffix = "") =>
   typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : "N/A"
 
-const PM25_UNIT_TEXT = "µg/m³"
+const PM25_UNIT_TEXT = "&micro;g/m³"
 
 const formatForecastMetricWithUnit = (
   value: number | null | undefined,
@@ -725,8 +739,42 @@ function Pm25Label() {
 function Pm25Unit() {
   return (
     <>
-      µg/m<sup className="align-super text-[0.7em] leading-none">3</sup>
+      &micro;g/m<sup className="align-super text-[0.7em] leading-none">3</sup>
     </>
+  )
+}
+
+function AqiStatusLine({
+  pm25,
+  category,
+  color,
+  className = "",
+}: {
+  pm25?: number | null
+  category?: string | null
+  color?: string | null
+  className?: string
+}) {
+  const badgeStyle = getAqiBadgeStyle(category, normalizeHexColor(color))
+  const displayCategory = category || "Unknown"
+
+  return (
+    <div className={["flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-700", className].join(" ")}>
+      <span className="whitespace-nowrap font-medium text-slate-600">
+        Current <Pm25Label />: <span className="font-semibold text-slate-950">{formatForecastMetric(pm25, 0)}</span> <Pm25Unit />
+      </span>
+      <span className="relative h-2.5 w-2.5 shrink-0" aria-hidden="true">
+        <span className="absolute inset-0 rounded-full opacity-60 animate-ping" style={{ backgroundColor: badgeStyle.dotColor }} />
+        <span className="absolute inset-0 rounded-full" style={{ backgroundColor: badgeStyle.dotColor }} />
+      </span>
+      <span
+        className="inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-[11px] font-bold uppercase leading-none tracking-normal text-white shadow-sm"
+        style={{ backgroundColor: badgeStyle.dotColor }}
+        title={displayCategory}
+      >
+        <span className="min-w-0 truncate">{displayCategory}</span>
+      </span>
+    </div>
   )
 }
 
@@ -832,7 +880,6 @@ const ForecastDayPill: React.FC<{
 }> = ({ item, isActive, onClick }) => {
   const dt = parseForecastTime(item.time)
   const weekday = dt ? dt.toLocaleDateString(undefined, { weekday: "short" }) : (item.time || "?").slice(0, 3)
-  const dayMark = weekday.charAt(0).toUpperCase()
   const dayNum = dt ? String(dt.getDate()) : "--"
   const imageSrc = getAqiImageByCategory(item.aqi_category)
   const accentColor = normalizeHexColor(item.aqi_color)
@@ -852,7 +899,7 @@ const ForecastDayPill: React.FC<{
     >
       <div className="flex h-full flex-col items-center justify-between px-1 py-3">
         <div className={["text-[11px] font-semibold leading-none", isActive ? "text-white/90" : "text-slate-500"].join(" ")}>
-          {dayMark}
+          {weekday}
         </div>
         <div className={["text-[23px] font-semibold leading-none", isActive ? "text-white" : "text-slate-900"].join(" ")}>{dayNum}</div>
         <div className="flex flex-col items-center gap-1">
@@ -905,10 +952,7 @@ const ForecastPanel: React.FC<{
       return { isLoading: false, error: null, site: null }
     }
 
-    const site =
-      hourlyForecastState.site?.site_details?.site_id === siteId
-        ? hourlyForecastState.site
-        : null
+    const site = hourlyForecastState.requestedSiteId === siteId ? hourlyForecastState.site : null
 
     if (site?.forecasts?.length) {
       return { isLoading: false, error: null, site }
@@ -928,6 +972,7 @@ const ForecastPanel: React.FC<{
     hourlyForecastState.site,
     hourlyForecastState.error,
     hourlyForecastState.isLoading,
+    hourlyForecastState.requestedSiteId,
     selectedNode?.site_id,
   ])
 
@@ -943,7 +988,9 @@ const ForecastPanel: React.FC<{
       forecast_confidence: item.forecast.forecast_confidence,
       air_temperature: item.met?.air_temperature ?? null,
       relative_humidity: item.met?.relative_humidity ?? null,
+      air_pressure_at_sea_level: item.met?.air_pressure_at_sea_level ?? null,
       precipitation_amount: item.met?.precipitation_amount ?? null,
+      cloud_area_fraction: item.met?.cloud_area_fraction ?? null,
       wind_speed: item.met?.wind_speed ?? null,
       wind_direction_compass: item.met?.wind_direction_compass,
       aqi_label: item.aqi.label,
@@ -960,6 +1007,12 @@ const ForecastPanel: React.FC<{
     selectedNode?.siteDetails?.formatted_name ||
     selectedNode?.siteDetails?.location_name ||
     "Select a site"
+  const currentPm25 =
+    typeof selectedNode?.pm2_5?.value === "number" && Number.isFinite(selectedNode.pm2_5.value)
+      ? selectedNode.pm2_5.value
+      : selectedForecasts?.[0]?.pm2_5 ?? null
+  const currentAqiCategory = selectedNode?.aqi_category || selectedForecasts?.[0]?.aqi_category
+  const currentAqiColor = selectedNode?.aqi_color || selectedForecasts?.[0]?.aqi_color
 
   return (
     <aside className="flex h-full w-[448px] flex-col border-l bg-white/92 backdrop-blur-xl">
@@ -967,8 +1020,14 @@ const ForecastPanel: React.FC<{
         <div className="flex items-start gap-3 px-5 py-4">
           <div className="min-w-0 order-last flex-1">
             <div className="truncate text-lg font-semibold text-gray-900">{title}</div>
+            <AqiStatusLine
+              pm25={currentPm25}
+              category={currentAqiCategory}
+              color={currentAqiColor}
+              className="mt-1"
+            />
             {selectedNode?.site_id ? (
-              <div className="truncate text-xs text-gray-500">{selectedNode.site_id}</div>
+              <div className="mt-1 truncate text-xs text-gray-500">{selectedNode.site_id}</div>
             ) : null}
           </div>
           <button
@@ -2011,7 +2070,7 @@ function ForecastContent({
   if (hasForecastMetricValue(active?.air_temperature)) {
     metricCards.push({
       label: "Temperature",
-      value: formatForecastMetricWithUnit(active?.air_temperature, 1, "degC"),
+      value: formatForecastMetricWithUnit(active?.air_temperature, 1, "°C"),
       Icon: Thermometer,
     })
   }
@@ -2032,6 +2091,22 @@ function ForecastContent({
     })
   }
 
+  if (hasForecastMetricValue(active?.air_pressure_at_sea_level)) {
+    metricCards.push({
+      label: "Sea-level pressure",
+      value: formatForecastMetricWithUnit(active?.air_pressure_at_sea_level, 0, "hPa"),
+      Icon: Gauge,
+    })
+  }
+
+  if (hasForecastMetricValue(active?.cloud_area_fraction)) {
+    metricCards.push({
+      label: "Cloud cover",
+      value: formatForecastMetric(active?.cloud_area_fraction, 0, "%"),
+      Icon: Cloud,
+    })
+  }
+
   if (hasForecastMetricValue(active?.wind_speed)) {
     metricCards.push({
       label: "Wind",
@@ -2046,7 +2121,7 @@ function ForecastContent({
     <div className="space-y-5">
       <div>
         <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="text-sm font-semibold text-slate-900">Forecast outlook</div> 
+          <div className="text-sm font-semibold text-slate-900">7 days forecast outlook</div>
         </div>
         <div className="mb-3">
           <HourlyForecastToggle
@@ -2103,32 +2178,6 @@ function ForecastContent({
                 <span className="min-w-0 truncate whitespace-nowrap">{activeAqiCategory}</span>
               </div>
             </div>
-            <div className="grid grid-cols-[minmax(4.8rem,1.15fr)_minmax(5.45rem,1.2fr)_minmax(4.7rem,0.9fr)_minmax(4.45rem,0.85fr)] gap-x-2 gap-y-2">
-              <div className="min-w-0">
-                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">
-                  Average <Pm25Label />
-                </div>
-                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">{pm25MeanText}</div>
-                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
-              </div>
-              <div className="min-w-0">
-                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Low / High</div>
-                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">
-                  {formatForecastMetric(active.pm2_5_low, 1)} - {formatForecastMetric(active.pm2_5_high, 1)}
-                </div>
-                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
-              </div>
-              <div className="min-w-0">
-                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Spike</div>
-                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">{formatForecastMetric(active.pm2_5_max, 1)}</div>
-                 
-              </div>
-              <div className="min-w-0">
-                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Change</div>
-                <div className={["mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold", percentClass].join(" ")}>{percentText}</div>
-                <div className="whitespace-nowrap text-[clamp(0.62rem,2.2vw,0.75rem)] font-medium text-slate-500">vs last week</div>
-              </div>
-            </div>
             {active.aqi_label ? (
               <div
                 className="rounded-[8px] border px-3 py-2 text-xs leading-relaxed text-slate-700"
@@ -2143,6 +2192,31 @@ function ForecastContent({
                 {active.aqi_label}
               </div>
             ) : null}
+            <div className="grid grid-cols-[minmax(4.8rem,1.15fr)_minmax(5.45rem,1.2fr)_minmax(4.7rem,0.9fr)_minmax(4.45rem,0.85fr)] gap-x-2 gap-y-2">
+              <div className="min-w-0">
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">
+                  Average <br></br> <Pm25Label />
+                </div>
+                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">{pm25MeanText}</div>
+                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
+              </div>
+              <div className="min-w-0">
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Expected <br></br> Range</div>
+                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">
+                  {formatForecastMetric(active.pm2_5_low, 1)} - {formatForecastMetric(active.pm2_5_high, 1)}
+                </div>
+                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
+              </div>
+              <div className="min-w-0">
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">Expected <br></br> Peak </div>
+                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-slate-950">{formatForecastMetric(active.pm2_5_max, 1)}</div>
+                <div className="text-xs font-medium text-slate-500"><Pm25Unit /></div>
+              </div>
+              <div className="min-w-0">
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-slate-500 sm:text-[11px]">WEEKLY <br></br> Change</div>
+                <div className={["mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold", percentClass].join(" ")}>{percentText}</div>
+              </div>
+            </div>
             <div className="rounded-[8px] border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
@@ -2150,7 +2224,7 @@ function ForecastContent({
                     Forecast confidence
                   </div>
                   <div className="mt-0.5 text-xs font-medium text-slate-600">
-                    Chance <Pm25Label /> falls within {confidenceRangeText ?? "the forecast range"}
+                    Probability <Pm25Label /> remains within {confidenceRangeText ?? "the forecast range"}
                   </div>
                 </div>
                 <div className="text-sm font-semibold text-slate-950">{confidenceText}</div>
@@ -2176,22 +2250,23 @@ function ForecastContent({
       ) : null}
 
       {active && metricCards.length ? (
-        <div className="rounded-[8px] border border-slate-200 bg-[#F8FAFC] p-4">
-          <div className="flex flex-wrap gap-2">
+        <div className="rounded-[8px] border border-slate-200 bg-[#F8FAFC] p-3">
+          <div className="mb-2 text-xs font-semibold text-slate-900">Meteorological conditions</div>
+          <div className="forecast-strip flex gap-1.5 overflow-x-auto pb-1">
             {metricCards.map((metric) => (
               <div
                 key={metric.label}
-                className="min-w-[5rem] max-w-full flex-1 rounded-[8px] border border-slate-200 bg-white px-2 py-2 sm:flex-none"
+                className="w-[58px] shrink-0 rounded-[8px] border border-slate-200 bg-white px-1.5 py-1.5"
                 aria-label={`${metric.label}: ${metric.value}`}
                 title={metric.label}
               >
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-[6px] bg-slate-100 text-slate-600">
-                    <metric.Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                <div className="flex items-center justify-center">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-[5px] bg-slate-100 text-slate-600">
+                    <metric.Icon className="h-3 w-3" aria-hidden="true" />
                   </span>
                   <span className="sr-only">{metric.label}</span>
                 </div>
-                <div className="mt-1 whitespace-normal break-words text-xs font-semibold leading-tight text-slate-950">
+                <div className="mt-1 min-w-0 break-words text-center text-[clamp(8px,2.2vw,10px)] font-semibold leading-tight text-slate-950">
                   {metric.value}
                 </div>
               </div>
@@ -2476,6 +2551,16 @@ const MapNodes: React.FC<{
             // Create a container for the popup
             const container = document.createElement("div")
             const root = ReactDOM.createRoot(container)
+            let isRootUnmountScheduled = false
+
+            const scheduleRootUnmount = () => {
+              if (isRootUnmountScheduled) return
+              isRootUnmountScheduled = true
+
+              window.setTimeout(() => {
+                root.unmount()
+              }, 0)
+            }
 
             // Bind popup but don't open it automatically
             root.render(
@@ -2484,10 +2569,11 @@ const MapNodes: React.FC<{
                 data={{
                   pm2_5_prediction: pm25Value ?? undefined,
                   timestamp: timestamp ?? undefined,
+                  aqi_category: aqiCategory,
+                  aqi_color: node?.aqi_color,
                 }}
                 onClose={() => {
                   marker.closePopup()
-                  root.unmount()
                 }}
               />,
             )
@@ -2497,14 +2583,9 @@ const MapNodes: React.FC<{
               offset: L.point(0, -20),
             })
 
-            // Ensure React tree is released on marker removal
-            marker.on("remove", () => {
-              try {
-                root.unmount()
-              } catch (error) {
-                console.error("Error unmounting React tree:", error)
-              }
-            })
+            // Leaflet emits "remove" synchronously, so wait until React finishes
+            // the current render before releasing this independently-created root.
+            marker.once("remove", scheduleRootUnmount)
 
             // Handle click to open popup
             marker.on("click", (e: any) => {
@@ -2603,6 +2684,177 @@ const ClearSelectionOnMapClick: React.FC<{ onClear: () => void }> = ({ onClear }
   return null
 }
 
+const createFireIcon = () =>
+  L.divIcon({
+    className: "active-fire-marker",
+    html: `
+      <div style="
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #dc2626;
+        background: rgba(255,255,255,0.94);
+        border: 2px solid #fdba74;
+        border-radius: 9999px;
+        box-shadow: 0 2px 8px rgba(127,29,29,0.35);
+      ">
+        <svg
+          aria-hidden="true"
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="#f97316"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 22c4.97 0 8-3.58 8-8 0-3.5-2-6.5-5-9 .5 3-1 5-3 6-1-3-3-5-5-7 .5 4-3 6.5-3 10 0 4.42 3.03 8 8 8Z" />
+        </svg>
+      </div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -13],
+  })
+
+const getFireGridSize = (zoom: number) => {
+  if (zoom <= 4) return 140
+  if (zoom === 5) return 105
+  if (zoom === 6) return 75
+  if (zoom === 7) return 50
+  if (zoom === 8) return 32
+  if (zoom === 9) return 20
+  return 0
+}
+
+const ActiveFireMarkers: React.FC<{ showFires: boolean }> = ({ showFires }) => {
+  const map = useMap()
+  const [fires, setFires] = useState<ActiveFire[]>([])
+  const markersRef = useRef<L.Marker[]>([])
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadFires = async () => {
+      const cached = await readBrowserApiCache<BrowserApiCacheEntry<ActiveFire[]>>(MAP_ACTIVE_FIRES_CACHE_KEY)
+      const cachedFires = Array.isArray(cached?.data) ? cached.data : []
+      if (
+        isActive &&
+        isBrowserApiCacheFresh(cached, MAP_ACTIVE_FIRES_CACHE_MAX_AGE_MS) &&
+        cachedFires.length
+      ) {
+        setFires(cachedFires)
+        return
+      }
+
+      const data = await getActiveFires()
+      if (!isActive || !data) return
+
+      setFires(data)
+      writeBrowserApiCache(MAP_ACTIVE_FIRES_CACHE_KEY, data).catch((error) => {
+        console.warn("Unable to cache active-fire data:", error)
+      })
+    }
+
+    loadFires()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    const clearMarkers = () => {
+      markersRef.current.forEach((marker) => marker.remove())
+      markersRef.current = []
+    }
+
+    const renderMarkers = () => {
+      clearMarkers()
+      if (!showFires || !fires.length) return
+
+      const bounds = map.getBounds()
+      const zoom = map.getZoom()
+      const gridSize = getFireGridSize(zoom)
+      const visibleFires = fires
+        .filter((fire) => bounds.contains([fire.latitude, fire.longitude]))
+        .sort((a, b) => (b.frp ?? 0) - (a.frp ?? 0))
+
+      const selectedFires =
+        gridSize === 0
+          ? visibleFires
+          : Array.from(
+              visibleFires
+                .reduce((cells, fire) => {
+                  const point = map.latLngToContainerPoint([fire.latitude, fire.longitude])
+                  const cellKey = `${Math.floor(point.x / gridSize)}:${Math.floor(point.y / gridSize)}`
+                  if (!cells.has(cellKey)) cells.set(cellKey, fire)
+                  return cells
+                }, new Map<string, ActiveFire>())
+                .values(),
+            )
+
+      const fireIcon = createFireIcon()
+
+      selectedFires.forEach((fire) => {
+        const marker = L.marker([fire.latitude, fire.longitude], {
+          icon: fireIcon,
+          keyboard: true,
+          title: `Active fire detected ${fire.acquisition_datetime || fire.acquisition_date}`,
+        }).addTo(map)
+
+        const popup = document.createElement("div")
+        popup.style.minWidth = "190px"
+
+        const title = document.createElement("div")
+        title.textContent = "Active fire detection"
+        title.style.fontWeight = "700"
+        title.style.color = "#b91c1c"
+        title.style.marginBottom = "6px"
+        popup.appendChild(title)
+
+        const details = [
+          ["Detected", fire.acquisition_datetime || fire.acquisition_date],
+          ["Satellite", fire.satellite],
+          ["Instrument", fire.instrument],
+          ["FRP", fire.frp == null ? null : `${fire.frp} MW`],
+          ["Confidence", fire.confidence],
+          ["Day/Night", fire.daynight],
+        ]
+
+        details.forEach(([label, value]) => {
+          if (value == null || value === "") return
+          const row = document.createElement("div")
+          row.style.fontSize = "12px"
+          row.style.marginTop = "3px"
+
+          const labelElement = document.createElement("strong")
+          labelElement.textContent = `${label}: `
+          row.appendChild(labelElement)
+          row.appendChild(document.createTextNode(String(value)))
+          popup.appendChild(row)
+        })
+
+        marker.bindPopup(popup, { maxWidth: 260 })
+        markersRef.current.push(marker)
+      })
+    }
+
+    renderMarkers()
+    map.on("zoomend moveend", renderMarkers)
+
+    return () => {
+      map.off("zoomend moveend", renderMarkers)
+      clearMarkers()
+    }
+  }, [fires, map, showFires])
+
+  return null
+}
+
 interface HeatmapData {
   bounds: [[number, number], [number, number]]
   city: string
@@ -2617,6 +2869,8 @@ const MapControls: React.FC<{
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
   setShowEmojis: (value: boolean) => void
+  showFires: boolean
+  setShowFires: (value: boolean) => void
   heatmapEnabled: boolean
   captureViewEnabled: boolean
 }> = ({
@@ -2624,6 +2878,8 @@ const MapControls: React.FC<{
   setShowHeatmaps,
   showEmojis,
   setShowEmojis,
+  showFires,
+  setShowFires,
   heatmapEnabled,
   captureViewEnabled,
 }) => {
@@ -2664,29 +2920,66 @@ const MapControls: React.FC<{
       onAdd: () => {
         const container = L.DomUtil.create("div", "leaflet-control leaflet-bar")
         container.style.backgroundColor = "white"
-        container.style.padding = "12px"
-        container.style.borderRadius = "8px"
+        container.style.padding = "7px"
+        container.style.borderRadius = "7px"
         container.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"
         container.style.cursor = "pointer"
         container.style.userSelect = "none"
         container.style.display = "flex"
         container.style.flexDirection = "column"
-        container.style.gap = "8px"
-        container.style.minWidth = "160px"
+        container.style.gap = "5px"
+        container.style.alignItems = "center"
+        container.style.marginTop = "128px"
+
+        const iconSvg = (paths: string) => `
+          <svg
+            aria-hidden="true"
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            ${paths}
+          </svg>
+        `
+
+        const styleIconButton = (button: HTMLButtonElement) => {
+          button.type = "button"
+          button.style.width = "32px"
+          button.style.height = "32px"
+          button.style.border = "none"
+          button.style.display = "flex"
+          button.style.alignItems = "center"
+          button.style.justifyContent = "center"
+          button.style.padding = "0"
+          button.style.borderRadius = "6px"
+          button.style.cursor = "pointer"
+          button.style.transition = "all 0.2s"
+        }
 
         if (heatmapEnabled) {
           const heatmapButton = L.DomUtil.create("button", "", container)
-          heatmapButton.innerHTML = showHeatmaps ? "Heatmap ON" : "Heatmap OFF"
-          heatmapButton.style.border = "none"
+          heatmapButton.innerHTML = iconSvg(`
+            <circle cx="6" cy="6" r="1.8" fill="currentColor" stroke="none" opacity="0.35" />
+            <circle cx="12" cy="5" r="2.2" fill="currentColor" stroke="none" opacity="0.55" />
+            <circle cx="18" cy="7" r="1.6" fill="currentColor" stroke="none" opacity="0.3" />
+            <circle cx="7" cy="13" r="2.4" fill="currentColor" stroke="none" opacity="0.65" />
+            <circle cx="13" cy="12" r="3.4" fill="currentColor" stroke="none" opacity="0.95" />
+            <circle cx="18" cy="14" r="2" fill="currentColor" stroke="none" opacity="0.5" />
+            <circle cx="5" cy="19" r="1.4" fill="currentColor" stroke="none" opacity="0.25" />
+            <circle cx="12" cy="19" r="2" fill="currentColor" stroke="none" opacity="0.45" />
+            <circle cx="19" cy="19" r="1.5" fill="currentColor" stroke="none" opacity="0.28" />
+          `)
+          styleIconButton(heatmapButton)
           heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"
-          heatmapButton.style.fontSize = "13px"
-          heatmapButton.style.fontWeight = showHeatmaps ? "600" : "500"
           heatmapButton.style.color = showHeatmaps ? "#1d4ed8" : "#374151"
-          heatmapButton.style.textAlign = "left"
-          heatmapButton.style.padding = "8px 12px"
-          heatmapButton.style.borderRadius = "6px"
-          heatmapButton.style.transition = "all 0.2s"
           heatmapButton.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
+          heatmapButton.setAttribute("aria-label", showHeatmaps ? "Hide heatmap" : "Show heatmap")
+          heatmapButton.setAttribute("aria-pressed", String(showHeatmaps))
 
           L.DomEvent.on(heatmapButton, "click", (e) => {
             L.DomEvent.stopPropagation(e)
@@ -2696,36 +2989,51 @@ const MapControls: React.FC<{
 
         // Emoji toggle button
         const emojiButton = L.DomUtil.create("button", "", container)
-        emojiButton.innerHTML = showEmojis ? "Emojis ON" : "Emojis OFF"
-        emojiButton.style.border = "none"
+        emojiButton.innerHTML = iconSvg(`
+          <circle cx="12" cy="12" r="10" />
+          <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+          <path d="M9 9h.01" />
+          <path d="M15 9h.01" />
+        `)
+        styleIconButton(emojiButton)
         emojiButton.style.background = showEmojis ? "#dcfce7" : "transparent"
-        emojiButton.style.fontSize = "13px"
-        emojiButton.style.fontWeight = showEmojis ? "600" : "500"
         emojiButton.style.color = showEmojis ? "#166534" : "#374151"
-        emojiButton.style.textAlign = "left"
-        emojiButton.style.padding = "8px 12px"
-        emojiButton.style.borderRadius = "6px"
-        emojiButton.style.transition = "all 0.2s"
         emojiButton.title = showEmojis ? "Hide Emojis" : "Show Emojis"
+        emojiButton.setAttribute("aria-label", showEmojis ? "Hide emoji markers" : "Show emoji markers")
+        emojiButton.setAttribute("aria-pressed", String(showEmojis))
 
         L.DomEvent.on(emojiButton, "click", (e) => {
           L.DomEvent.stopPropagation(e)
           setShowEmojis(!showEmojis)
         })
 
+        const fireButton = L.DomUtil.create("button", "", container)
+        fireButton.innerHTML = iconSvg(`
+          <path d="M12 22c4.97 0 8-3.58 8-8 0-3.5-2-6.5-5-9 .5 3-1 5-3 6-1-3-3-5-5-7 .5 4-3 6.5-3 10 0 4.42 3.03 8 8 8Z" />
+        `)
+        styleIconButton(fireButton)
+        fireButton.style.background = showFires ? "#ffedd5" : "transparent"
+        fireButton.style.color = showFires ? "#c2410c" : "#374151"
+        fireButton.title = showFires ? "Hide active fires" : "Show active fires"
+        fireButton.setAttribute("aria-label", showFires ? "Hide active fires" : "Show active fires")
+        fireButton.setAttribute("aria-pressed", String(showFires))
+
+        L.DomEvent.on(fireButton, "click", (e) => {
+          L.DomEvent.stopPropagation(e)
+          setShowFires(!showFires)
+        })
+
         if (captureViewEnabled) {
           const downloadMapButton = L.DomUtil.create("button", "", container)
-          downloadMapButton.innerHTML = "Capture View"
-          downloadMapButton.style.border = "none"
+          downloadMapButton.innerHTML = iconSvg(`
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
+            <circle cx="12" cy="13" r="3" />
+          `)
+          styleIconButton(downloadMapButton)
           downloadMapButton.style.background = "#f3e8ff"
-          downloadMapButton.style.fontSize = "13px"
-          downloadMapButton.style.fontWeight = "500"
           downloadMapButton.style.color = "#7c3aed"
-          downloadMapButton.style.textAlign = "left"
-          downloadMapButton.style.padding = "8px 12px"
-          downloadMapButton.style.borderRadius = "6px"
-          downloadMapButton.style.transition = "all 0.2s"
           downloadMapButton.title = "Capture current map view as image"
+          downloadMapButton.setAttribute("aria-label", "Capture current map view as image")
 
           L.DomEvent.on(downloadMapButton, "click", (e) => {
             L.DomEvent.stopPropagation(e)
@@ -2737,13 +3045,23 @@ const MapControls: React.FC<{
       },
     })
 
-    const mapControls = new MapControls({ position: "topleft" })
+    const mapControls = new MapControls({ position: "topright" })
     map.addControl(mapControls)
 
     return () => {
       map.removeControl(mapControls)
     }
-  }, [map, showHeatmaps, setShowHeatmaps, showEmojis, setShowEmojis, heatmapEnabled, captureViewEnabled])
+  }, [
+    map,
+    showHeatmaps,
+    setShowHeatmaps,
+    showEmojis,
+    setShowEmojis,
+    showFires,
+    setShowFires,
+    heatmapEnabled,
+    captureViewEnabled,
+  ])
 
   return null
 }
@@ -2754,6 +3072,8 @@ const HeatmapOverlays: React.FC<{
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
   setShowEmojis: (value: boolean) => void
+  showFires: boolean
+  setShowFires: (value: boolean) => void
   heatmapEnabled: boolean
   captureViewEnabled: boolean
 }> = ({
@@ -2762,6 +3082,8 @@ const HeatmapOverlays: React.FC<{
   setShowHeatmaps,
   showEmojis,
   setShowEmojis,
+  showFires,
+  setShowFires,
   heatmapEnabled,
   captureViewEnabled,
 }) => {
@@ -2888,6 +3210,8 @@ const HeatmapOverlays: React.FC<{
       setShowHeatmaps={setShowHeatmaps}
       showEmojis={showEmojis}
       setShowEmojis={setShowEmojis}
+      showFires={showFires}
+      setShowFires={setShowFires}
       heatmapEnabled={heatmapEnabled}
       captureViewEnabled={captureViewEnabled}
     />
@@ -3018,6 +3342,7 @@ const LeafletMap: React.FC = () => {
   })
   const [showEmojis, setShowEmojis] = useState(true)
   const [showHeatmaps, setShowHeatmaps] = useState(false)
+  const [showFires, setShowFires] = useState(true)
   const [selectedNode, setSelectedNode] = useState<MapNode | null>(null)
   const [hourlyForecastEnabled, setHourlyForecastEnabled] = useState(false)
   const [hourlyForecastPreferenceLoaded, setHourlyForecastPreferenceLoaded] = useState(false)
@@ -3029,6 +3354,7 @@ const LeafletMap: React.FC = () => {
   const [hourlyForecastState, setHourlyForecastState] = useState<HourlyForecastCollectionState>({
     isLoading: false,
     error: null,
+    requestedSiteId: null,
     site: null,
   })
   const [hourlyForecastRequest, setHourlyForecastRequest] = useState<HourlyForecastRequest | null>(null)
@@ -3114,17 +3440,17 @@ const LeafletMap: React.FC = () => {
     setHourlyForecastEnabled(enabled)
     if (!enabled) {
       setHourlyForecastRequest(null)
-      setHourlyForecastState({ isLoading: false, error: null, site: null })
+      setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
     }
   }
 
   const handleHourlyForecastRequest = (request: HourlyForecastRequest) => {
-    setHourlyForecastRequest((current) => (current?.siteId === request.siteId ? current : request))
+    setHourlyForecastRequest({ ...request })
   }
 
   useEffect(() => {
     setHourlyForecastRequest(null)
-    setHourlyForecastState({ isLoading: false, error: null, site: null })
+    setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
   }, [selectedNode?.site_id])
 
   useEffect(() => {
@@ -3134,7 +3460,7 @@ const LeafletMap: React.FC = () => {
     const request = hourlyForecastRequest
 
     if (!hourlyForecastEnabled || !request || request.siteId !== selectedSiteId) {
-      setHourlyForecastState({ isLoading: false, error: null, site: null })
+      setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: null, site: null })
       return
     }
 
@@ -3144,10 +3470,11 @@ const LeafletMap: React.FC = () => {
     const cacheKey = `${MAP_HOURLY_FORECAST_CACHE_KEY}:${siteId}`
 
     const loadHourlyForecast = async () => {
-      setHourlyForecastState({ isLoading: true, error: null, site: null })
+      setHourlyForecastState({ isLoading: true, error: null, requestedSiteId: siteId, site: null })
 
       const cached = await readBrowserApiCache<BrowserApiCacheEntry<HourlyForecastSite>>(cacheKey)
       const cachedAt = cached?.cachedAt ? new Date(cached.cachedAt) : null
+      const cachedForecasts = Array.isArray(cached?.data?.forecasts) ? cached.data.forecasts : []
       const cachedToday =
         cachedAt &&
         !Number.isNaN(cachedAt.getTime()) &&
@@ -3157,10 +3484,10 @@ const LeafletMap: React.FC = () => {
         isActive &&
         cachedToday &&
         isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) &&
-        cached.data.forecasts?.length
+        cachedForecasts.length
       ) {
         hasUsableCachedForecast = true
-        setHourlyForecastState({ isLoading: false, error: null, site: cached.data })
+        setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: siteId, site: cached.data })
         return
       }
 
@@ -3169,12 +3496,12 @@ const LeafletMap: React.FC = () => {
         if (!isActive) return
         if (!site?.forecasts?.length) {
           if (!hasUsableCachedForecast) {
-            setHourlyForecastState({ isLoading: false, error: "No hourly forecast returned for this site.", site: null })
+            setHourlyForecastState({ isLoading: false, error: "No hourly forecast returned for this site.", requestedSiteId: siteId, site: null })
           }
           return
         }
 
-        setHourlyForecastState({ isLoading: false, error: null, site })
+        setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: siteId, site })
         writeBrowserApiCache(cacheKey, site).catch((error) => {
           console.warn("Unable to cache hourly forecast:", error)
         })
@@ -3182,7 +3509,7 @@ const LeafletMap: React.FC = () => {
         if (!isActive) return
         console.error(error)
         if (!hasUsableCachedForecast) {
-          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast.", site: null })
+          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast.", requestedSiteId: siteId, site: null })
         }
       }
     }
@@ -3212,12 +3539,15 @@ const LeafletMap: React.FC = () => {
             <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
             <ClearSelectionOnMapClick onClear={() => setSelectedNode(null)} />
             <MapNodes onLoadingChange={setLoadingState} showEmojis={showEmojis} onNodeSelect={setSelectedNode} />
+            <ActiveFireMarkers showFires={showFires} />
             <HeatmapOverlays
               onLoadingChange={setLoadingState}
               showHeatmaps={heatmapEnabled && showHeatmaps}
               setShowHeatmaps={setShowHeatmaps}
               showEmojis={showEmojis}
               setShowEmojis={setShowEmojis}
+              showFires={showFires}
+              setShowFires={setShowFires}
               heatmapEnabled={heatmapEnabled}
               captureViewEnabled={captureViewEnabled}
             />
