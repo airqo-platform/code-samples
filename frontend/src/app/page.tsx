@@ -410,155 +410,28 @@ function DailyForecastTicker() {
   }
 
   return (
-    <section className="border-y border-blue-100 bg-blue-50 text-slate-900" aria-label="Daily air quality forecast">
-      <div className="flex min-h-16 items-stretch overflow-hidden">
-        <div
-          className="relative z-10 flex w-12 shrink-0 items-center justify-center gap-2 bg-blue-700 px-2 text-xs font-bold uppercase tracking-[0.16em] text-white shadow-[12px_0_24px_rgba(37,99,235,0.16)] sm:w-auto sm:px-6"
-          aria-label="Daily forecast"
-        >
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-300 opacity-75" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300" />
-          </span>
-          <span className="hidden sm:inline">Daily forecast</span>
-        </div>
-
-        <div className="forecast-ticker relative flex min-w-0 flex-1 items-center overflow-hidden">
-          {loading ? (
-            <p className="px-6 text-sm text-slate-600">Loading today&apos;s air quality outlook...</p>
-          ) : locationState !== "ready" ? (
-            <div className="flex w-full flex-col items-stretch gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">
-                  {locationState === "denied"
-                    ? "Location access was not granted"
-                    : locationState === "unavailable"
-                      ? "We could not determine your country"
-                      : "See forecasts for your country"}
-                </p>
-                <p className="truncate text-xs text-slate-500">
-                  Your location is used only to choose country-specific AirQo forecast sites.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={requestLocation}
-                disabled={locationState === "requesting" || mapNodes.length === 0}
-                className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm ring-1 ring-blue-200 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-              >
-                <Locate className="h-4 w-4" />
-                {locationState === "requesting" ? "Finding country..." : "Use my location"}
-              </button>
-            </div>
-          ) : renderedItems.length > 0 ? (
-            <div className={`forecast-ticker-track flex w-max items-center ${isTickerActive ? "" : "forecast-ticker-paused"}`}>
-              {renderedItems.map((item, index) => {
-                const pm25 = item.forecast.forecast.pm2_5_mean
-                const temperature = item.forecast.met?.air_temperature
-                const label =
-                  item.forecast.aqi.aqi_category ||
-                  item.forecast.aqi.aqi_color_name ||
-                  item.forecast.aqi.label ||
-                  "Air quality outlook"
-                const color = normalizeColor(item.forecast.aqi.aqi_color)
-
-                return (
-                  <div
-                    key={`${item.id}-${index}`}
-                    className="flex shrink-0 items-center gap-3 border-r border-blue-100 px-4 py-3 sm:px-6"
-                  >
-                    <Image
-                      src={getAqiImageByCategory(label)}
-                      alt=""
-                      width={32}
-                      height={32}
-                      className="h-8 w-8 shrink-0 object-contain"
-                      aria-hidden="true"
-                    />
-                    <span className="font-semibold text-slate-950">{item.siteName}</span>
-                    <span className="text-xs font-medium text-blue-700">{item.country}</span>
-                    <span className="text-xs uppercase tracking-wide text-slate-500">
-                      {formatForecastDate(item.forecast.date)}
-                    </span>
-                    <span className="h-2.5 w-2.5 rounded-full ring-4 ring-white" style={{ backgroundColor: color }} />
-                    <span className="text-sm text-slate-700">{label}</span>
-                    {typeof pm25 === "number" && (
-                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-sm ring-1 ring-slate-200">
-                        PM<sub>2.5</sub> {pm25.toFixed(1)} µg/m³
-                      </span>
-                    )}
-                    {typeof temperature === "number" && (
-                      <span className="text-xs text-blue-700">🌡️ {temperature.toFixed(0)}°C</span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <p className="px-6 text-sm text-slate-600">
-              🌬️ No daily forecasts are currently available for {visitorCountry}. Open the map for nearby measurements.
-            </p>
-          )}
-        </div>
-        <div className="relative z-10 flex shrink-0 items-center gap-1 border-l border-blue-100 bg-blue-50 px-1 sm:px-2">
-          {renderedItems.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsTickerActive((current) => !current)}
-              className="rounded-lg p-2 text-blue-700 transition hover:bg-blue-100"
-              aria-label={isTickerActive ? "Pause daily forecast ticker" : "Resume daily forecast ticker"}
-              title={isTickerActive ? "Pause forecast" : "Resume forecast"}
-            >
-              {isTickerActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setIsTickerVisible(false)}
-            className="rounded-lg p-2 text-slate-500 transition hover:bg-blue-100 hover:text-blue-700"
-            aria-label="Close daily forecast ticker"
-            title="Close forecast"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-export default function Home() {
-  return (
-    <div className="min-h-screen bg-white font-[family-name:var(--font-geist-sans)] text-slate-950">
+    <div className="flex min-h-screen flex-col bg-white text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       <Navigation />
       <DailyForecastTicker />
 
-      <main>
-        <section className="relative overflow-hidden bg-blue-50">
-          <div className="absolute inset-0">
-            <div className="absolute -left-24 top-12 h-72 w-72 rounded-full bg-blue-300/35 blur-3xl" />
-            <div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-cyan-200/40 blur-3xl" />
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(37,99,235,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(37,99,235,0.05)_1px,transparent_1px)] bg-[size:54px_54px]" />
-          </div>
-
-          <div className="relative mx-auto grid max-w-7xl gap-12 px-5 py-16 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-8 lg:py-24">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">
-                <Sparkles className="h-3.5 w-3.5" />
-                AI for cleaner African cities
-              </div>
-              <h1 className="mt-6 max-w-3xl text-3xl font-bold leading-[1.05] tracking-[-0.04em] text-slate-950 sm:text-5xl lg:text-6xl">
-                Turn air quality data into decisions that matter.
+      {/* Hero Section */}
+      <section className="relative flex min-h-screen items-center bg-blue-50 p-8 dark:bg-slate-900">
+        <div className="absolute inset-0 bg-cover bg-center opacity-10"></div>
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6 text-slate-950 dark:text-white">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
+                AI-Powered Air Quality Monitoring
               </h1>
-              <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
-                Monitor pollution, anticipate tomorrow&apos;s conditions, and plan stronger sensor networks with AirQo&apos;s
-                AI-powered environmental intelligence platform.
+              <p className="text-lg text-slate-700 dark:text-slate-300 md:text-xl">
+                AirQo AI provides advanced tools for monitoring, analyzing, and optimizing air quality across African
+                cities using artificial intelligence.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/map"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-500"
+                  className="flex items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-6 py-3 font-medium text-blue-700 transition-colors hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-300 dark:hover:bg-slate-700"
                 >
                   Explore the live map <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -619,51 +492,79 @@ export default function Home() {
                   </span>
                 </div>
               </div>
-            </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Key Features Section */}
+      <section className="bg-white py-16 dark:bg-slate-950 md:py-24">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Powered by Artificial Intelligence</h2>
+            <p className="mx-auto max-w-3xl text-lg text-gray-600 dark:text-slate-300">
+              Our platform leverages cutting-edge AI to provide accurate, real-time air quality data and insights for
+              researchers, policymakers, and citizens.
+            </p>
           </div>
         </section>
 
-        <section className="bg-slate-50 py-16 sm:py-20">
-          <div className="mx-auto max-w-7xl px-5 lg:px-8">
-            <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-              <div>
-                <p className="text-sm font-bold uppercase tracking-[0.18em] text-blue-700">One connected platform</p>
-                <h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
-                  From street-level evidence to city-level action.
-                </h2>
-              </div>
-              <p className="max-w-lg text-sm leading-6 text-slate-600">
-                Choose a workflow and move from observation to a practical environmental decision without leaving AirQo AI.
-              </p>
-            </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <FeatureCard
+              imageSrc="/images/model/locate.webp"
+              Icon={MapPin}
+              title="Optimal Site Location"
+              description="Use AI algorithms to determine the best locations for air quality monitors based on population density, pollution sources, and geographic factors."
+              href="/locate/optimal-site-location"
+            />
+            <FeatureCard
+              Icon={Wind}
+              title="Air Quality Categorization"
+              description="Automatically categorize monitoring sites based on surrounding land use, traffic patterns, and environmental factors."
+              href="/categorize/site-categorization"
+              imageSrc="/images/model/categorisemap.webp"
+            />
+            <FeatureCard
+              Icon={BarChart3}
+              title="Data Analytics"
+              description="Generate comprehensive reports with trends, forecasts, and actionable insights from air quality data."
+              href="/analytics/data-analytics"
+              imageSrc="/images/model/analyticsHome.webp"
+            />
+            <FeatureCard
+              Icon={BrainCircuit}
+              title="Machine Learning Models"
+              description="Continuously improving prediction models that account for seasonal variations, weather patterns, and human activities."
+              href="/models"
+              imageSrc="/images/model/modelapi.webp"
+            />
+            <FeatureCard
+              Icon={Shield}
+              title="Health Impact Assessment"
+              description="Evaluate potential health impacts of air pollution on different population groups and geographic areas."
+              href="/comingsoon/health-impact"
+              imageSrc="/images/model/calibration-header.webp"
+            />
+            <FeatureCard
+              Icon={MapPin}
+              title="Interactive Mapping"
+              description="Visualize air quality data across regions with interactive maps showing real-time pollution levels."
+              href="/map/interactive-mapping"
+              imageSrc="/images/homemap.webp"
+            />
+          </div>
+        </div>
+      </section>
 
-            <div className="mt-10 grid gap-5 lg:grid-cols-3">
-              {capabilityCards.map((card) => {
-                const Icon = card.icon
-                return (
-                  <Link
-                    key={card.title}
-                    href={card.href}
-                    className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
-                  >
-                    <div className="relative h-52 overflow-hidden">
-                      <Image src={card.image} alt="" fill className="object-cover transition duration-500 group-hover:scale-105" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
-                      <div className={`absolute left-5 top-5 rounded-2xl p-3 text-white shadow-lg ${card.accent}`}>
-                        <Icon className="h-5 w-5" />
-                      </div>
-                    </div>
-                    <div className="p-6">
-                      <h3 className="text-xl font-bold">{card.title}</h3>
-                      <p className="mt-3 text-sm leading-6 text-slate-600">{card.description}</p>
-                      <span className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-blue-700">
-                        Open tool <ChevronRight className="h-4 w-4 transition group-hover:translate-x-1" />
-                      </span>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
+      {/* How It Works Section - Redesigned */}
+      <section className="bg-gradient-to-b from-gray-50 to-blue-50 py-8 dark:from-slate-900 dark:to-slate-950 md:py-12">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">How AirQo AI Works</h2>
+            <p className="mx-auto max-w-3xl text-lg text-gray-600 dark:text-slate-300">
+              Our platform combines low-cost sensors, advanced algorithms, and user-friendly interfaces to democratize
+              air quality monitoring.
+            </p>
           </div>
         </section>
 
@@ -702,19 +603,23 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section className="px-5 pb-16 sm:pb-20 lg:px-8">
-          <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 overflow-hidden rounded-[2rem] bg-blue-700 px-6 py-10 text-white sm:px-10 lg:flex-row lg:items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 text-sm font-semibold text-blue-100">
-                <BarChart3 className="h-4 w-4" />
-                Evidence for action
-              </div>
-              <h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight">
-                Make your next air quality decision with clearer evidence.
-              </h2>
-            </div>
+      {/* CTA Section */}
+      <section className="bg-blue-50 py-8 text-slate-950 dark:bg-slate-900 dark:text-white md:py-12">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Improve Air Quality?</h2>
+          <p className="mx-auto mb-8 max-w-3xl text-xl text-slate-700 dark:text-slate-300">
+            Start using our AI-powered tools to make data-driven decisions for cleaner air.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/map"
+              className="rounded-lg border border-blue-100 bg-white px-8 py-4 font-medium text-blue-700 transition-colors hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-300 dark:hover:bg-slate-700"
+            >
+              Explore the Map
+            </Link>
             <Link
               href="/reports"
               className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-white px-5 py-3 font-semibold text-blue-800 transition hover:bg-blue-50"
@@ -722,16 +627,52 @@ export default function Home() {
               Explore reports <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
-        </section>
-      </main>
+        </div>
+      </section>
 
-      <footer className="border-t border-slate-200 bg-slate-50">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-8 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between lg:px-8">
-          <p>© {new Date().getFullYear()} AirQo. Clean air intelligence for African cities.</p>
-          <div className="flex gap-5">
-            <Link href="/about" className="hover:text-blue-700">About</Link>
-            <Link href="/map" className="hover:text-blue-700">Map</Link>
-            <Link href="/reports" className="hover:text-blue-700">Reports</Link>
+      {/* Footer */}
+      <footer className="mb-12 rounded-lg bg-blue-50 p-8 text-slate-700 dark:bg-slate-900 dark:text-slate-300">
+        <div className="mt-8 border-t border-gray-300 pt-8 text-center text-sm dark:border-slate-700">
+          &copy; {new Date().getFullYear()} AirQo. All rights reserved.
+        </div>
+      </footer>
+    </div>
+  )
+}
+
+// Process Card Component - Redesigned
+const ProcessCard = ({
+  icon,
+  number,
+  title,
+  description,
+  imageSrc,
+}: {
+  icon: React.ReactNode
+  number: string
+  title: string
+  description: string
+  imageSrc?: string
+}) => {
+  return (
+    <div className="relative h-full transform overflow-hidden rounded-xl border border-blue-100 bg-white p-8 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-700 dark:bg-slate-900">
+      {imageSrc && (
+        <div className="absolute inset-0 w-full h-full">
+          <Image src={imageSrc || "/placeholder.svg"} alt={title} fill className="object-cover" />
+        </div>
+      )}
+      <div className="flex flex-col items-center relative z-10 bg-gray-900/50 p-4 rounded-2xl backdrop-blur-sm">
+        <div className="mb-4 rounded-full bg-white/80 p-2 dark:bg-slate-100/90">{icon}</div>
+
+        {/* Enhanced Number Display */}
+        <div className="relative mb-6 mt-2">
+          <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-400 rounded-full blur-md opacity-75 animate-pulse"></div>
+          <div className="relative flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-400 rounded-full shadow-lg">
+            <div className="absolute inset-0.5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center">
+              <span className="text-2xl font-bold text-white">{number}</span>
+            </div>
+            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-blue-50 shadow-md dark:bg-slate-200"></div>
+            <div className="absolute -bottom-1 -left-1 h-3 w-3 rounded-full bg-blue-50 shadow-md dark:bg-slate-200"></div>
           </div>
         </div>
       </footer>
