@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Embedding AirQo Maps Demo</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="./embedding-airqo-maps.js"></script>
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f8fafc;
+      color: #101828;
+    }
+
+    .demo-shell {
+      display: grid;
+      min-height: 100vh;
+      grid-template-rows: auto auto 1fr;
+    }
+
+    .demo-config {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
+      gap: 8px;
+      padding: 12px;
+      border-bottom: 1px solid #e4e7ec;
+      background: #ffffff;
+    }
+
+    .demo-config input {
+      min-width: 0;
+      height: 38px;
+      padding: 8px 10px;
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .demo-config button {
+      height: 38px;
+      padding: 0 14px;
+      border: 1px solid #0f52ba;
+      border-radius: 6px;
+      background: #0f52ba;
+      color: #ffffff;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .demo-embed {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border-bottom: 1px solid #e4e7ec;
+      background: #f8fafc;
+    }
+
+    .demo-embed strong {
+      font-size: 13px;
+    }
+
+    .demo-embed code {
+      display: block;
+      overflow-x: auto;
+      padding: 10px;
+      border: 1px solid #e4e7ec;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #344054;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: nowrap;
+    }
+
+    #embedding-airqo-maps {
+      min-height: 620px;
+    }
+
+    @media (max-width: 720px) {
+      .demo-config {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="demo-shell">
+    <form class="demo-config" id="embedding-config">
+      <input id="embedding-token" type="password" placeholder="Access token" autocomplete="off" />
+      <input id="embedding-grid" type="text" placeholder="Grid ID" autocomplete="off" />
+      <button type="submit">Load map</button>
+    </form>
+
+    <section class="demo-embed" aria-label="Embed examples">
+      <strong>Iframe embed</strong>
+      <code>&lt;iframe src="embedding-airqo-maps.html?accessToken=YOUR_ACCESS_TOKEN&amp;gridId=YOUR_GRID_ID" width="100%" height="450" style="border:0;" loading="lazy"&gt;&lt;/iframe&gt;</code>
+      <strong>Auto-mount embed</strong>
+      <code>&lt;div data-embedding-airqo-maps data-access-token="YOUR_ACCESS_TOKEN" data-grid-id="YOUR_GRID_ID" data-height="450px"&gt;&lt;/div&gt;</code>
+    </section>
+
+    <div id="embedding-airqo-maps"></div>
+  </main>
+
+  <script>
+    var embeddedMap = null;
+
+    document.getElementById("embedding-config").addEventListener("submit", function (event) {
+      event.preventDefault();
+
+      if (embeddedMap) {
+        embeddedMap.destroy();
+      }
+
+      embeddedMap = EmbeddingAirQoMaps.init({
+        elementId: "embedding-airqo-maps",
+        accessToken: document.getElementById("embedding-token").value,
+        gridId: document.getElementById("embedding-grid").value,
+      });
+    });
+  </script>
+</body>
+</html>
+

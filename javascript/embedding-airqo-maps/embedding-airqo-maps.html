@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Embedding AirQo Maps</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="./embedding-airqo-maps.js"></script>
+
+  <style>
+    html,
+    body,
+    #embedding-airqo-maps {
+      width: 100%;
+      height: 100%;
+      min-height: 100%;
+      margin: 0;
+    }
+
+    body {
+      overflow: hidden;
+      background: #f8fafc;
+    }
+
+    .embed-error {
+      display: grid;
+      min-height: 100%;
+      place-items: center;
+      padding: 18px;
+      color: #be123c;
+      font: 700 14px Arial, Helvetica, sans-serif;
+      text-align: center;
+      background: #fff1f2;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="embedding-airqo-maps"></div>
+
+  <script>
+    var params = new URLSearchParams(window.location.search);
+    var accessToken = params.get("accessToken") || params.get("token");
+    var gridId = params.get("gridId") || params.get("grid");
+
+    if (!accessToken || !gridId) {
+      document.getElementById("embedding-airqo-maps").innerHTML =
+        '<div class="embed-error">Missing accessToken and gridId in the iframe URL.</div>';
+    } else {
+      EmbeddingAirQoMaps.init({
+        elementId: "embedding-airqo-maps",
+        accessToken: accessToken,
+        gridId: gridId,
+        height: "100%",
+      });
+    }
+  </script>
+</body>
+</html>
