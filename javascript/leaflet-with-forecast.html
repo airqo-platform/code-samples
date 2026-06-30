@@ -143,20 +143,18 @@
 
     .custom-marker .airqo-marker-icon {
       display: flex;
-      width: 44px;
-      height: 44px;
+      width: 30px;
+      height: 30px;
       align-items: center;
       justify-content: center;
       border: 2px solid #ffffff;
       border-radius: 50%;
-      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
-      font-size: 23px;
       filter: drop-shadow(0 5px 7px rgba(15, 23, 42, 0.28));
       transition: transform 160ms ease, filter 160ms ease;
     }
 
     .custom-marker:hover .airqo-marker-icon {
-      transform: scale(1.14);
+      transform: scale(1.12);
       filter: drop-shadow(0 7px 10px rgba(15, 23, 42, 0.34));
     }
 
@@ -316,9 +314,9 @@
 
     .legend-icon-wrap {
       display: flex;
-      width: 25px;
-      height: 25px;
-      flex: 0 0 25px;
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
       align-items: center;
       justify-content: center;
       border: 1px solid transparent;
@@ -327,9 +325,7 @@
     }
 
     .legend-icon {
-      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
-      font-size: 16px;
-      line-height: 1;
+      display: none;
     }
 
     #forecast-panel {
@@ -464,9 +460,9 @@
     }
 
     .forecast-icon-wrap {
-      width: 20px;
-      height: 20px;
-      margin: 5px auto 1px;
+      width: 16px;
+      height: 16px;
+      margin: 6px auto 2px;
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -476,9 +472,7 @@
     }
 
     .forecast-icon {
-      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
-      font-size: 13px;
-      line-height: 1;
+      display: none;
     }
 
     .forecast-pm25 {
@@ -737,9 +731,7 @@
       }
 
       .forecast-icon {
-      font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
-      font-size: 13px;
-      line-height: 1;
+      display: none;
     }
 
       .forecast-pm25 {
@@ -1139,12 +1131,11 @@
       var marker = L.marker([lat, lon], {
         icon: L.divIcon({
           className: "custom-marker",
-          iconSize: [44, 44],
-          iconAnchor: [22, 22],
-          popupAnchor: [0, -26],
+          iconSize: [30, 30],
+          iconAnchor: [15, 15],
+          popupAnchor: [0, -18],
           html: '<span class="airqo-marker-icon" style="background:' + aqiColor +
-            ';" role="img" aria-label="' + aqiCategory + '">' +
-            getAqiEmoji(aqiCategory) + "</span>",
+            ';" aria-label="' + aqiCategory + '"></span>',
         }),
       })
       .addTo(map)
@@ -1154,7 +1145,7 @@
       })
       .bindTooltip(markerSummaryHtml, {
         direction: "top",
-        offset: [0, -24],
+        offset: [0, -18],
         opacity: 1,
         className: "airqo-marker-tooltip",
       });
@@ -1217,7 +1208,7 @@
           '<div class="forecast-date-num">' + dateNum + "</div>" +
           '<div class="forecast-icon-wrap" style="background:' + getAqiCategoryColor(aqi.aqi_category) +
           '; border-color:' + getAqiCategoryBorderColor(aqi.aqi_category) + ';">' +
-          airqoPmIcon(aqi.aqi_category) + "</div>" +
+          aqiColorDot(aqi.aqi_category) + "</div>" +
           '<div class="forecast-pm25">' + (isNaN(mean) ? "N/A" : mean) + "</div>" +
           "</div>"
         );
@@ -1366,17 +1357,6 @@
       return brightness > 145 ? "#111827" : "#ffffff";
     }
 
-    function getAqiEmoji(aqiCategory) {
-      var category = String(aqiCategory || "").toLowerCase();
-
-      if (category === "good") return "&#x1F60A;";
-      if (category === "moderate") return "&#x1F610;";
-      if (category === "unhealthy for sensitive groups") return "&#x1F637;";
-      if (category === "unhealthy") return "&#x1F915;";
-      if (category === "very unhealthy") return "&#x1F922;";
-      if (category === "hazardous") return "&#x2620;&#xFE0F;";
-      return "&#x2753;";
-    }
 
     function getAqiCategoryColor(aqiCategory) {
       var category = String(aqiCategory || "").toLowerCase();
@@ -1395,9 +1375,9 @@
       return color === AQI_INDEX_COLORS.moderate ? "#d4a900" : color;
     }
 
-    function airqoPmIcon(aqiCategory) {
-      return '<span class="forecast-icon" role="img" aria-label="' +
-        (aqiCategory || "Air quality") + '">' + getAqiEmoji(aqiCategory) + "</span>";
+    function aqiColorDot(aqiCategory) {
+      return '<span class="forecast-icon" aria-label="' +
+        (aqiCategory || "Air quality") + '"></span>';
     }
 
     function legendItem(label) {
@@ -1405,8 +1385,7 @@
       var borderColor = getAqiCategoryBorderColor(label);
 
       return '<li title="' + label + '"><span class="legend-icon-wrap" style="background:' + color +
-        '; border-color:' + borderColor + ';"><span class="legend-icon" role="img" aria-label="' +
-        label + '">' + getAqiEmoji(label) + '</span></span><span class="legend-label">' + label + "</span></li>";
+        '; border-color:' + borderColor + ';" aria-label="' + label + '"></span><span class="legend-label">' + label + "</span></li>";
     }
     function addLegend() {
       var legend = L.control({ position: "bottomleft" });
