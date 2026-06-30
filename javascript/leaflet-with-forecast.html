@@ -362,13 +362,22 @@
     .forecast-subtitle {
       margin: 4px 0 0;
       font-size: 15px;
-      font-weight: 700;
+      font-weight: 400;
       line-height: 1.5;
       color: #344054;
     }
 
     .forecast-subtitle sub {
       font-size: 70%;
+    }
+
+    .live-pm25-value {
+      color: #101828;
+      font-weight: 800;
+    }
+
+    .live-pm25-unit {
+      font-weight: 400;
     }
 
     .live-aqi {
@@ -389,8 +398,8 @@
       padding: 3px 8px;
       border-radius: 999px;
       font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
+      font-weight: 400;
+      text-transform: none;
     }
 
     @keyframes aqi-pulse {
@@ -1348,7 +1357,11 @@
       $("#forecast-site-name").text(siteName || "FORECAST");
       $("#forecast-subtitle").html(
         "Current PM<sub>2.5</sub>: " +
-        (isNaN(livePm25) ? "N/A" : livePm25 + " µg/m³") +
+        '<span class="live-pm25-value">' +
+        (isNaN(livePm25) ? "N/A" : livePm25) +
+        '</span><span class="live-pm25-unit">' +
+        (isNaN(livePm25) ? "" : " µg/m³") +
+        "</span>" +
         ' <span class="live-aqi" style="color:' + categoryColor + ';">' +
         '<span class="live-aqi-dot" style="background:' + categoryColor + ';"></span>' +
         '<span class="live-aqi-category" style="background:' + categoryColor + '; color:' +
