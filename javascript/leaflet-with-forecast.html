@@ -499,6 +499,44 @@
       font-weight: 800;
       margin-left: 6px;
     }
+    .forecast-date-header {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 10px;
+    }
+
+    .forecast-calendar-date {
+      display: inline-grid;
+      width: 42px;
+      overflow: hidden;
+      border: 1px solid #dbe3ee;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 2px 5px rgba(15, 23, 42, 0.08);
+      text-align: center;
+      flex: 0 0 42px;
+    }
+
+    .forecast-calendar-month {
+      padding: 2px 0;
+      background: #3478f6;
+      color: #ffffff;
+      font-size: 9px;
+      font-weight: 900;
+      line-height: 1.1;
+      text-transform: uppercase;
+    }
+
+    .forecast-calendar-day {
+      padding: 3px 0 2px;
+      color: #101828;
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
 
     .forecast-detail-grid {
       display: grid;
@@ -1233,9 +1271,9 @@
       var category = aqi.aqi_category || "AQI";
 
       var html =
-        '<div><strong>' +
-        formatDate(day.date) +
-        '</strong><span class="aqi-pill" style="background:' +
+        '<div class="forecast-date-header">' +
+        forecastCalendarDate(day.date) +
+        '<span class="aqi-pill" style="background:' +
         aqiColor +
         "; color:" +
         readableTextColor(aqiColor) +
@@ -1312,6 +1350,21 @@
         day: "numeric",
         year: "numeric",
       });
+    }
+
+    function forecastCalendarDate(dateString) {
+      var dateObj = new Date(dateString + "T00:00:00");
+      if (isNaN(dateObj.getTime())) {
+        return '<span class="forecast-calendar-date"><span class="forecast-calendar-month">DATE</span>' +
+          '<span class="forecast-calendar-day">--</span></span>';
+      }
+
+      var month = dateObj.toLocaleDateString("en-US", { month: "short" });
+      var day = dateObj.getDate();
+
+      return '<span class="forecast-calendar-date" aria-label="' + formatDate(dateString) + '">' +
+        '<span class="forecast-calendar-month">' + month + "</span>" +
+        '<span class="forecast-calendar-day">' + day + "</span></span>";
     }
 
     function getSiteId(measurement) {
