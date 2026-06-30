@@ -700,6 +700,62 @@
       background: #f8fafc;
       border-color: #d8dee8;
     }
+    .map-loading-screen {
+      position: absolute;
+      inset: 0;
+      z-index: 1200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(248, 250, 252, 0.82);
+      backdrop-filter: blur(4px);
+    }
+
+    .map-loading-screen[hidden] {
+      display: none;
+    }
+
+    .map-loading-panel {
+      display: grid;
+      min-width: 210px;
+      justify-items: center;
+      gap: 10px;
+      padding: 18px 20px;
+      border: 1px solid #dbe3ee;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+      color: #101828;
+      text-align: center;
+    }
+
+    .map-loading-spinner {
+      width: 30px;
+      height: 30px;
+      border: 3px solid #dbeafe;
+      border-top-color: #3478f6;
+      border-radius: 50%;
+      animation: map-loading-spin 800ms linear infinite;
+    }
+
+    .map-loading-title {
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+
+    .map-loading-screen.is-error .map-loading-spinner {
+      display: none;
+    }
+
+    .map-loading-screen.is-error .map-loading-title {
+      color: #be123c;
+    }
+
+    @keyframes map-loading-spin {
+      to { transform: rotate(360deg); }
+    }
 
     @media (max-width: 700px) {
       .search-bar {
@@ -802,6 +858,13 @@
 <body>
   <div id="map"></div>
 
+  <div id="map-loading-screen" class="map-loading-screen" role="status" aria-live="polite">
+    <div class="map-loading-panel">
+      <span class="map-loading-spinner" aria-hidden="true"></span>
+      <span id="map-loading-title" class="map-loading-title">Loading map</span>
+    </div>
+  </div>
+
   <div class="search-bar">
     <input type="text" id="search-input" placeholder="Search for a place..." />
     <button id="search-button">Search</button>
@@ -844,6 +907,7 @@
     var forecastEndpoint = apiBaseUrl + "/predict/daily-forecasting/{GRID_ID}";
     var heatmapEndpoint = apiBaseUrl + "/spatial/heatmaps/{GRID_ID}";
     var gridMeasurementsPageLimit = 1000;
+    var mapDataCacheTtlMs = 60 * 60 * 1000;
 
     var accessToken = "your-access-token";  // Replace with your actual access token
     var gridId =  "your-grid-id";           // Replace with your actual grid ID
@@ -859,6 +923,7 @@
     var heatmapControlElement = null;
     var heatmapRequest = null;
     var legendAdded = false;
+    var mapDataCacheKey = "airqo:leaflet-map:measurements:" + gridId;
 
     var AQI_INDEX_COLORS = {
       good: "#00e400",
@@ -999,6 +1064,17 @@
     }
 
     function fetchLiveMeasurements() {
+      var cachedResponse = getCachedMapData();
+      var hasCachedMeasurements = cachedResponse && getGridMeasurements(cachedResponse).length > 0;
+
+      if (hasCachedMeasurements) {
+        apiResponse = cachedResponse;
+        renderLiveMeasurements(getGridMeasurements(cachedResponse));
+        hideMapLoadingScreen();
+      } else {
+        setMapLoadingState("loading", "Loading map");
+      }
+
       $.ajax({
         url: getGridMeasurementsUrl(1),
         method: "GET",
@@ -1007,19 +1083,68 @@
             .then(function (pages) {
               var measurements = mergeGridMeasurementPages(pages);
               apiResponse = buildMergedGridMeasurementResponse(response, measurements);
+              saveCachedMapData(apiResponse);
               renderLiveMeasurements(measurements);
+              hideMapLoadingScreen();
             })
             .catch(function (error) {
               console.error("Error fetching paginated live measurements:", error);
               var measurements = getGridMeasurements(response);
               apiResponse = buildMergedGridMeasurementResponse(response, measurements);
+              saveCachedMapData(apiResponse);
               renderLiveMeasurements(measurements);
+              hideMapLoadingScreen();
             });
         },
         error: function (error) {
           console.error("Error fetching live measurements:", error);
+          if (!hasCachedMeasurements) setMapLoadingState("error", "Map data unavailable");
         },
       });
+    }
+
+    function getCachedMapData() {
+      try {
+        var cached = JSON.parse(localStorage.getItem(mapDataCacheKey) || "null");
+        if (!cached || !cached.timestamp || !cached.response) return null;
+
+        if (Date.now() - cached.timestamp > mapDataCacheTtlMs) {
+          localStorage.removeItem(mapDataCacheKey);
+          return null;
+        }
+
+        return cached.response;
+      } catch (error) {
+        localStorage.removeItem(mapDataCacheKey);
+        return null;
+      }
+    }
+
+    function saveCachedMapData(response) {
+      try {
+        localStorage.setItem(mapDataCacheKey, JSON.stringify({
+          timestamp: Date.now(),
+          response: response,
+        }));
+      } catch (error) {
+        console.warn("Unable to cache map data:", error);
+      }
+    }
+
+    function setMapLoadingState(state, title) {
+      var screen = document.getElementById("map-loading-screen");
+      var titleElement = document.getElementById("map-loading-title");
+
+      if (!screen) return;
+
+      screen.hidden = false;
+      screen.classList.toggle("is-error", state === "error");
+      if (titleElement) titleElement.textContent = title || "Loading map";
+    }
+
+    function hideMapLoadingScreen() {
+      var screen = document.getElementById("map-loading-screen");
+      if (screen) screen.hidden = true;
     }
 
     function getGridMeasurementsUrl(page) {
@@ -1107,6 +1232,7 @@
     }
 
     function renderLiveMeasurements(measurements) {
+      clearSiteMarkers();
       var siteCoordinates = [];
 
       measurements.forEach(function (measurement) {
@@ -1131,6 +1257,15 @@
         addLegend();
         legendAdded = true;
       }
+    }
+
+
+    function clearSiteMarkers() {
+      siteMarkers.forEach(function (marker) {
+        if (map.hasLayer(marker)) map.removeLayer(marker);
+      });
+      siteMarkers = [];
+      markersBySiteId = {};
     }
 
     function fetchDailyForecast() {
