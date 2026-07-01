@@ -19,7 +19,38 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+@keyframes forecast-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.forecast-ticker-track {
+  animation: forecast-ticker-scroll 140s linear infinite;
+}
+
+.forecast-ticker:hover .forecast-ticker-track {
+  animation-play-state: paused;
+}
+
+.forecast-ticker-track.forecast-ticker-paused {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forecast-ticker {
+    overflow-x: auto;
+  }
+
+  .forecast-ticker-track {
+    animation: none;
+  }
 }
 
 /* Map styles */

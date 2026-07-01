@@ -892,9 +892,9 @@ function ReportContent() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-3 py-5 sm:px-4 sm:py-8">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Air Quality Reports</h1>
+        <h1 className="mb-2 text-2xl font-bold text-gray-800 sm:text-3xl">Air Quality Reports</h1>
         <p className="text-gray-600">
           Real-time insights and analytics on air quality across different site categories
         </p>
@@ -911,7 +911,7 @@ function ReportContent() {
       </div>
 
       {/* Filters */}
-      <div className="mb-8 rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 p-5 shadow-sm">
+      <div className="mb-8 rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-sm sm:p-5">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-950">Filter report visuals</h2>
@@ -1002,7 +1002,7 @@ function ReportContent() {
       {/* Selected Devices Counter */}
       {selectedDevices.length > 0 && (
         <div className="mb-8 transform rounded-2xl bg-blue-600 p-4 text-white shadow-lg transition-all duration-300 hover:scale-105">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center">
               <div className="bg-white text-blue-600 rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mr-4">
                 {selectedDevices.length}
@@ -1020,7 +1020,7 @@ function ReportContent() {
               <Button
                 variant="outline"
                 onClick={clearDeviceSelection}
-                className="rounded-xl border-white bg-transparent text-white hover:bg-blue-700"
+                className="w-full rounded-xl border-white bg-transparent text-white hover:bg-blue-700 sm:w-auto"
               >
                 Clear All
               </Button>
@@ -1045,7 +1045,7 @@ function ReportContent() {
           )}
 
           <div className="mt-4 pt-4 border-t border-blue-500">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-blue-100">Generate a report with your selected devices</p>
               <Button
                 onClick={() => {
@@ -1076,7 +1076,7 @@ function ReportContent() {
                   }, 800)
                 }}
                 disabled={reportGenerating}
-                className="rounded-xl bg-white text-blue-600 hover:bg-blue-50"
+                className="w-full rounded-xl bg-white text-blue-600 hover:bg-blue-50 sm:w-auto"
               >
                 {reportGenerating ? (
                   <>
@@ -1093,10 +1093,10 @@ function ReportContent() {
       )}
 
       {/* Device Search and Selection */}
-      <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col md:flex-row justify-between items-center mb-4">
           <h2 className="text-lg font-semibold mb-2 md:mb-0">Device Selection</h2>
-          <div className="flex gap-2">
+          <div className="flex w-full gap-2 md:w-auto">
             <Button variant="outline" onClick={selectAllDevices} size="sm" 
             className="rounded-xl border-blue-700 bg-blue-500 text-white hover:bg-blue-600">
               Select All
@@ -1108,7 +1108,7 @@ function ReportContent() {
         </div>
 
         <div className="space-y-4">
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               placeholder="Search devices by name, city, or country"
               value={deviceSearch}
@@ -1140,7 +1140,7 @@ function ReportContent() {
                 }
               }}
               disabled={selectedDevices.length === 0 || reportGenerating}
-              className="rounded-xl bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap"
+              className="w-full whitespace-nowrap rounded-xl bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
             >
               {reportGenerating ? (
                 <>
@@ -1253,7 +1253,7 @@ function ReportContent() {
           <div ref={reportRef} className="space-y-6">
             {/* Report Header */}
             <div className="text-center mb-6 border-b pb-6">
-              <h2 className="text-2xl font-bold text-gray-800">{getReportTitle()}</h2>
+              <h2 className="text-xl font-bold text-gray-800 sm:text-2xl">{getReportTitle()}</h2>
               <p className="text-gray-600 mt-2">
                 {getLocationInfo().city}, {getLocationInfo().country}
               </p>
@@ -1290,7 +1290,7 @@ function ReportContent() {
                 </CardContent>
               </Card>
 
-              <div className="md:col-span-2 h-[320px] rounded-xl overflow-hidden border border-blue-100 shadow">
+              <div className="h-[260px] overflow-hidden rounded-xl border border-blue-100 shadow sm:h-[320px] md:col-span-2">
                 {mapSites.length > 0 ? (
                   <MapContainer
                     key={mapSites.length}

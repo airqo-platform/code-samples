@@ -41,7 +41,7 @@ interface SiteDetails {
 }
 
 // Interface for map node measurement
-interface MapNode {
+export interface MapNode {
   _id: string
   site_id: string
   time: string

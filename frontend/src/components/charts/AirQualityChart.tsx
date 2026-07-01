@@ -125,13 +125,13 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
 
   return (
     <Card className="w-full shadow-lg border-gray-200">
-      <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
+      <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:p-6">
         <CardTitle className="text-lg md:text-xl flex items-center gap-2 text-gray-800">
           <BarChart3 className="h-5 w-5 text-blue-600" />
           PM<sub>2.5</sub> Levels by Site
         </CardTitle>
         <div className="flex flex-col space-y-3 md:flex-row md:space-y-0 md:space-x-4 pt-4">
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Sites:</span>
             <Select onValueChange={handleSiteLimitChange} defaultValue="7">
               <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[140px]">
@@ -147,7 +147,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Type:</span>
             <Select onValueChange={(v: string) => setChartType(v as "bar" | "line")} defaultValue="bar">
               <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[120px]">
@@ -170,7 +170,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Sort:</span>
             <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
               <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[140px]">
@@ -199,7 +199,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Export:</span>
             <Select value={downloadValue} onValueChange={handleDownloadChange}>
               <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[120px]">
@@ -220,7 +220,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-6">
+      <CardContent className="p-3 sm:p-6">
         {siteLimit > 7 && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <p className="text-amber-700 text-sm flex items-center gap-2">
@@ -355,13 +355,13 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
 
   return (
     <Card className="w-full shadow-lg border-gray-200">
-      <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-gray-100">
+      <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50 p-4 sm:p-6">
         <CardTitle className="text-lg md:text-xl flex items-center gap-2 text-gray-800">
           <PieChartIcon className="h-5 w-5 text-green-600" />
           AQI Category Distribution
         </CardTitle>
         <div className="flex flex-col space-y-3 md:flex-row md:space-y-0 md:space-x-4 pt-4">
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Type:</span>
             <Select onValueChange={(v: string) => setChartType(v as "pie" | "bar")} defaultValue="pie">
               <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-green-500 md:w-[120px]">
@@ -384,7 +384,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Export:</span>
             <Select value={downloadValue} onValueChange={handleDownloadChange}>
               <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-green-500 md:w-[120px]">
@@ -405,7 +405,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-6">
+      <CardContent className="p-3 sm:p-6">
         <div className="h-[300px] md:h-[350px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "pie" ? (

@@ -1168,7 +1168,7 @@ function SiteCategoryContent() {
           </Card>
         </div>
       )}
-      {loading && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="flex items-center space-x-2 rounded-2xl bg-white p-4 shadow-xl"><Loader2 className="h-4 w-4 animate-spin" /><span className="font-bold text-slate-700">{includeSatellite ? "Processing satellite-enriched source metadata..." : "Processing OSM site categorization..."}</span></div></div>}
+      {loading && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="flex max-w-sm items-center space-x-2 rounded-2xl bg-white p-4 shadow-xl"><Loader2 className="h-4 w-4 shrink-0 animate-spin" /><span className="text-sm font-bold text-slate-700 sm:text-base">{includeSatellite ? "Processing satellite-enriched source metadata..." : "Processing OSM site categorization..."}</span></div></div>}
     </div>
   )
 }

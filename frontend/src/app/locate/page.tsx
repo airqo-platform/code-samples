@@ -203,15 +203,15 @@ export default function Index() {
                 </p>
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Boundary</p>
                     <p className="mt-1 text-sm font-bold text-slate-900">{boundaryReady ? "Ready" : "Required"}</p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Priority</p>
                     <p className="mt-1 text-sm font-bold text-slate-900">{mustHaveLocations.length}</p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Suggested</p>
                     <p className="mt-1 text-sm font-bold text-blue-700">{suggestedLocations.length}</p>
                   </div>
@@ -236,7 +236,7 @@ export default function Index() {
           </div>
 
           <div className="border-t border-slate-200 bg-slate-50 p-4">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Button
                 onClick={handleExportCSV}
                 disabled={!hasResults && mustHaveLocations.length === 0}
@@ -268,7 +268,7 @@ export default function Index() {
           </div>
         </aside>
 
-        <section className="relative min-h-[560px] overflow-hidden bg-slate-200">
+        <section className="relative min-h-[70vh] overflow-hidden bg-slate-200 sm:min-h-[560px]">
           <MapComponent
             polygon={polygon}
             mustHaveLocations={mustHaveLocations}
@@ -279,7 +279,7 @@ export default function Index() {
             isSelectingPriority={isSelectingPriority}
           />
 
-          <div className="pointer-events-none absolute left-16 right-4 top-4 z-[1000] flex items-start justify-between gap-3 sm:left-20">
+          <div className="pointer-events-none absolute left-3 right-3 top-3 z-[1000] flex flex-col items-stretch gap-3 sm:left-20 sm:right-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="pointer-events-auto max-w-lg rounded-2xl border border-white/70 bg-white/95 p-3 shadow-lg backdrop-blur">
               <div className="flex items-center gap-3">
                 <div className={`rounded-xl p-2 ${isDrawing ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
@@ -295,7 +295,7 @@ export default function Index() {
                           ? "Boundary ready for analysis"
                           : "Choose or draw a boundary"}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="hidden text-xs text-slate-500 sm:block">
                     {isDrawing
                       ? `${polygon.length} points added. Use at least three points.`
                       : isSelectingPriority
@@ -311,7 +311,7 @@ export default function Index() {
             <Button
               onClick={toggleDrawing}
               aria-label={isDrawing ? "Finish drawing polygon" : "Start drawing polygon"}
-              className={`pointer-events-auto gap-2 rounded-xl px-4 shadow-lg ${
+              className={`pointer-events-auto w-full gap-2 rounded-xl px-4 shadow-lg sm:w-auto ${
                 isDrawing ? "bg-amber-500 text-slate-950 hover:bg-amber-400" : "bg-slate-950 text-white hover:bg-slate-800"
               }`}
             >
@@ -320,7 +320,7 @@ export default function Index() {
             </Button>
           </div>
 
-          <div className="absolute bottom-5 left-5 z-[1000] rounded-2xl border border-white/70 bg-white/95 p-3 shadow-lg backdrop-blur">
+          <div className="absolute bottom-5 left-5 z-[1000] hidden rounded-2xl border border-white/70 bg-white/95 p-3 shadow-lg backdrop-blur sm:block">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Map legend</p>
             <div className="space-y-2 text-xs font-medium text-slate-700">
               <div className="flex items-center gap-2">
@@ -339,7 +339,7 @@ export default function Index() {
           </div>
 
           {hasResults && showResultsNotice ? (
-            <div className="absolute bottom-5 right-5 z-[1000] max-w-xs rounded-2xl border border-blue-200 bg-blue-950 p-4 text-white shadow-xl">
+            <div className="absolute bottom-3 left-3 right-3 z-[1000] max-w-none rounded-2xl border border-blue-200 bg-blue-950 p-4 text-white shadow-xl sm:bottom-5 sm:left-auto sm:right-5 sm:max-w-xs">
               <div className="flex items-start gap-3">
                 <div className="rounded-xl bg-blue-500/20 p-2">
                   <Sparkles className="h-5 w-5 text-blue-200" />
