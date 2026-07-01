@@ -1114,17 +1114,22 @@
 
     function getCachedMapData() {
       try {
-        var cached = JSON.parse(localStorage.getItem(mapDataCacheKey) || "null");
+        var cachedRaw = localStorage.getItem(mapDataCacheKey);
+        var cached = JSON.parse((cachedRaw || "null"));
         if (!cached || !cached.timestamp || !cached.response) return null;
 
         if (Date.now() - cached.timestamp > mapDataCacheTtlMs) {
-          localStorage.removeItem(mapDataCacheKey);
+          try {
+            localStorage.removeItem(mapDataCacheKey);
+          } catch (error) {
+            console.warn("Unable to remove expired cached map data:", error);
+          }
           return null;
         }
 
         return cached.response;
       } catch (error) {
-        localStorage.removeItem(mapDataCacheKey);
+        console.warn("Unable to parse cached map data:", error);
         return null;
       }
     }
