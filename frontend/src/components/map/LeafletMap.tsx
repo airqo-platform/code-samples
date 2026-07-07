@@ -166,6 +166,24 @@ interface SatelliteData {
   timestamp: string
   aqi_category?: string
   aqi_color?: string
+  data_source?: string
+  disclaimer?: string
+  requested_date?: string
+  place_name?: string
+}
+
+const unwrapSatelliteData = (data: any): any => {
+  let current = data
+
+  for (let i = 0; i < 4; i += 1) {
+    if (Array.isArray(current) && current.length === 1) {
+      current = current[0]
+      continue
+    }
+    break
+  }
+
+  return current
 }
 
 // Add type guard for API response
@@ -235,6 +253,7 @@ const PopupContent: React.FC<{
 }> = ({ label, data, onClose }) => {
   const { level, image, color } = getAirQualityInfo(data.pm2_5_prediction ?? null)
   const aqiCategory = data.aqi_category || level
+  const isSatelliteEstimate = Boolean(data.data_source || data.disclaimer)
 
   // Safely format timestamp
   const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : "Unknown"
@@ -264,6 +283,11 @@ const PopupContent: React.FC<{
         color={data.aqi_color}
         className="mt-1"
       />
+      {isSatelliteEstimate && (
+        <div className="mt-2 rounded-md bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-600">
+          Source: Satellite-based PM2.5 estimate
+        </div>
+      )}
       <div className="text-xs text-gray-500 mt-2">Updated {timestamp}</div>
     </div>
   )
@@ -446,14 +470,21 @@ const SearchControl: React.FC<{
             latitude: y,
             longitude: x,
           })
+          const prediction = unwrapSatelliteData(response)
 
           // Validate API response
-          if (!response || !isSatelliteData(response)) {
+          if (!prediction || !isSatelliteData(prediction)) {
             throw new Error("Invalid API response format")
           }
 
           // Update with actual data
-          root.render(<PopupContent label={label} data={response} onClose={() => marker.closePopup()} />)
+          root.render(
+            <PopupContent
+              label={prediction.place_name || label}
+              data={prediction}
+              onClose={() => marker.closePopup()}
+            />,
+          )
         } catch (error) {
           console.error("Error fetching air quality data:", error)
           // Show error state with specific error message
