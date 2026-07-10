@@ -1,4 +1,4 @@
-import axios from "axios"
+import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios"
 
 // Remove the incorrect import and add the utility function directly
 const removeTrailingSlash = (url: string): string => {
@@ -6,6 +6,10 @@ const removeTrailingSlash = (url: string): string => {
 }
 
 const BASE_URL = "/api/airqo"
+const RETRYABLE_API_STATUSES = new Set([401, 403, 429, 500, 502, 503, 504])
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+type RetryableRequestConfig = InternalAxiosRequestConfig & { _airqoRetryCount?: number }
 // Axios instance with a base URL and default headers
 const apiService = axios.create({
   baseURL: removeTrailingSlash(BASE_URL),
@@ -13,6 +17,23 @@ const apiService = axios.create({
     "Content-Type": "application/json",
   },
 })
+
+apiService.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const status = error.response?.status
+    const config = error.config as RetryableRequestConfig | undefined
+    const method = config?.method?.toUpperCase() || "GET"
+
+    if (config && method === "GET" && status && RETRYABLE_API_STATUSES.has(status) && !config._airqoRetryCount) {
+      config._airqoRetryCount = 1
+      await delay(500)
+      return apiService.request(config)
+    }
+
+    return Promise.reject(error)
+  },
+)
 
 // Interface for health tip
 interface HealthTip {
@@ -243,8 +264,6 @@ export const getReportData = async (): Promise<MapNode[] | null> => {
 
 let heatmapDataRequest: Promise<HeatmapData[] | null> | null = null
 let heatmapRetryBlockedUntil = 0
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Get heatmap data from the spatial heatmaps endpoint with a hard retry cap.
 export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
