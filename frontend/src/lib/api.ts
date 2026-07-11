@@ -8,6 +8,19 @@ import type {
   Grid,
 } from "./types"
 
+class ApiRequestError extends Error {
+  status: number
+
+  constructor(status: number, statusText: string, body: string) {
+    super(`API request failed: ${status} ${statusText}${body ? ` - ${body}` : ""}`)
+    this.name = "ApiRequestError"
+    this.status = status
+  }
+}
+
+const RETRYABLE_API_STATUSES = new Set([429, 500, 502, 503, 504])
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 async function baseFetch<T>(
   endpoint: string,
   options: {
@@ -42,19 +55,33 @@ async function baseFetch<T>(
   //console.log("Making API request to:", url.toString());
   if (options.json) console.log("Request payload:", options.json)
 
-  const response = await fetch(url.toString(), {
-    method: options.method || "GET",
-    headers,
-    body,
-  })
+  const method = options.method || "GET"
+  const maxAttempts = method === "GET" ? 2 : 1
 
-  if (!response.ok) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetch(url.toString(), {
+      method,
+      headers,
+      body,
+      cache: "no-store",
+    })
+
+    if (response.ok) {
+      return response.json() as Promise<T>
+    }
+
     const errorData = await response.text()
     console.error("API Error Response:", errorData)
-    throw new Error(`API request failed: ${response.status} ${response.statusText}`)
+
+    if (attempt < maxAttempts && RETRYABLE_API_STATUSES.has(response.status)) {
+      await delay(500)
+      continue
+    }
+
+    throw new ApiRequestError(response.status, response.statusText, errorData)
   }
 
-  return response.json() as Promise<T>
+  throw new Error("API request failed after retry.")
 }
 
 export async function submitLocations(payload: SiteLocatorPayload): Promise<SiteLocatorResponse> {
@@ -76,10 +103,15 @@ export async function getSiteCategory(
 ): Promise<SourceMetadataResponse> {
   try {
     if (includeSatellite) {
-      const response = await baseFetch<unknown>("spatial/source_metadata", {
-        queryParams: { latitude, longitude, include_satellite: true },
-      })
-      return unwrapSourceMetadataResponse(response)
+      try {
+        const response = await baseFetch<unknown>("spatial/source_metadata", {
+          queryParams: { latitude, longitude, include_satellite: true },
+        })
+        return unwrapSourceMetadataResponse(response)
+      } catch (error) {
+        if (!(error instanceof ApiRequestError) || error.status !== 401) throw error
+        console.warn("Source metadata returned 401. Falling back to OSM-only site categorization.")
+      }
     }
 
     const response = await baseFetch<unknown>("spatial/categorize_site", {

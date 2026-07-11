@@ -20,6 +20,9 @@ const ALLOWED_ROUTES = [
 ]
 
 const AIRQO_API_URL = "https://platform.airqo.net/api/v2/"
+const RETRYABLE_UPSTREAM_STATUSES = new Set([429, 500, 502, 503, 504])
+const ACTIVE_FIRES_PATH = "spatial/active_fires/africa"
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function isAllowed(method: string, path: string) {
   return ALLOWED_ROUTES.some((route) => route.method === method && route.pattern.test(path))
@@ -50,16 +53,31 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
   if (contentType) headers.set("Content-Type", contentType)
 
   try {
-    const upstreamResponse = await fetch(upstreamUrl, {
-      method: request.method,
-      headers,
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
-      cache: "no-store",
-    })
+    let requestBody: ArrayBuffer | undefined
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      requestBody = await request.arrayBuffer()
+    }
+
+    const fetchUpstream = () =>
+      fetch(upstreamUrl, {
+        method: request.method,
+        headers,
+        body: requestBody,
+        cache: "no-store",
+      })
+
+    let upstreamResponse = await fetchUpstream()
+
+    if (request.method === "GET" && path !== ACTIVE_FIRES_PATH && RETRYABLE_UPSTREAM_STATUSES.has(upstreamResponse.status)) {
+      await upstreamResponse.body?.cancel().catch(() => undefined)
+      await delay(450)
+      upstreamResponse = await fetchUpstream()
+    }
 
     const responseHeaders = new Headers()
     const upstreamContentType = upstreamResponse.headers.get("content-type")
     if (upstreamContentType) responseHeaders.set("Content-Type", upstreamContentType)
+    responseHeaders.set("Cache-Control", "no-store, max-age=0")
 
     return new Response(upstreamResponse.body, {
       status: upstreamResponse.status,

@@ -56,6 +56,18 @@ const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLa
 const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false })
 const Circle = dynamic(() => import("react-leaflet").then((mod) => mod.Circle), { ssr: false })
 const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false })
+const getSiteSelectionId = (site: SiteData) =>
+  site._id ||
+  site.site_id ||
+  [
+    site.siteDetails?.name || site.siteDetails?.formatted_name || "unknown-site",
+    site.siteDetails?.city || "unknown-city",
+    site.siteDetails?.country || "unknown-country",
+    site.siteDetails?.approximate_latitude ?? "unknown-lat",
+    site.siteDetails?.approximate_longitude ?? "unknown-lng",
+  ].join(":")
+
+const getSiteCheckboxId = (site: SiteData) => `main-device-${encodeURIComponent(getSiteSelectionId(site))}`
 
 export default function ReportPage() {
   return (
@@ -435,7 +447,7 @@ function ReportContent() {
 
     setFilteredData(result)
     // Reset selected site if it's no longer in filtered data
-    if (selectedSite && !result.some((site) => site._id === selectedSite._id)) {
+    if (selectedSite && !result.some((site) => getSiteSelectionId(site) === getSiteSelectionId(selectedSite))) {
       setSelectedSite(null)
     }
   }, [filters, siteData, selectedSite])
@@ -479,7 +491,7 @@ function ReportContent() {
   }
 
   const selectAllDevices = () => {
-    const allDeviceIds = filteredData.map((site) => site._id)
+    const allDeviceIds = filteredData.map(getSiteSelectionId)
     setSelectedDevices(allDeviceIds)
   }
 
@@ -1031,7 +1043,7 @@ function ReportContent() {
           {selectedDevices.length > 1 && (
             <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
               {Object.entries(sitesByCategory).map(([category, sites]) => {
-                const selectedCount = sites.filter((site) => selectedDevices.includes(site._id)).length
+                const selectedCount = sites.filter((site) => selectedDevices.includes(getSiteSelectionId(site))).length
                 if (selectedCount === 0) return null
 
                 return (
@@ -1052,7 +1064,7 @@ function ReportContent() {
                   setReportGenerating(true)
 
                   // Filter data to only include selected devices
-                  const selectedSitesData = filteredData.filter((site) => selectedDevices.includes(site._id))
+                  const selectedSitesData = filteredData.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
 
                   // Update filtered data to only show selected devices in the report
                   setFilteredData(selectedSitesData)
@@ -1121,7 +1133,7 @@ function ReportContent() {
                   setReportGenerating(true)
 
                   // Filter data to only include selected devices
-                  const selectedSitesData = filteredData.filter((site) => selectedDevices.includes(site._id))
+                  const selectedSitesData = filteredData.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
 
                   // Update filtered data to only show selected devices in the report
                   setFilteredData(selectedSitesData)
@@ -1136,6 +1148,12 @@ function ReportContent() {
                   setTimeout(() => {
                     setShowReportOnPage(true)
                     setReportGenerating(false)
+
+                    // Scroll to the report
+                    const reportElement = document.getElementById("report-section")
+                    if (reportElement) {
+                      reportElement.scrollIntoView({ behavior: "smooth" })
+                    }
                   }, 800)
                 }
               }}
@@ -1157,13 +1175,13 @@ function ReportContent() {
             {getFilteredDevices()
               .slice(0, 9)
               .map((site) => (
-                <div key={site._id} className="flex items-center space-x-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                <div key={getSiteSelectionId(site)} className="flex items-center space-x-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
                   <Checkbox
-                    id={`main-device-${site._id}`}
-                    checked={selectedDevices.includes(site._id)}
-                    onCheckedChange={() => toggleDeviceSelection(site._id)}
+                    id={getSiteCheckboxId(site)}
+                    checked={selectedDevices.includes(getSiteSelectionId(site))}
+                    onCheckedChange={() => toggleDeviceSelection(getSiteSelectionId(site))}
                   />
-                  <label htmlFor={`main-device-${site._id}`} className="text-sm flex-1 cursor-pointer truncate">
+                  <label htmlFor={getSiteCheckboxId(site)} className="text-sm flex-1 cursor-pointer truncate">
                     {site.siteDetails.name || site.siteDetails.formatted_name || "Unknown Site"}
                     <span className="text-xs text-gray-500 ml-1">({site.siteDetails.city || "Unknown"})</span>
                   </label>
@@ -1310,7 +1328,7 @@ function ReportContent() {
                       const icon = getMarkerIcon(site.aqi_category)
                       return (
                         <Marker
-                          key={site._id}
+                          key={getSiteSelectionId(site)}
                           position={[site.siteDetails.approximate_latitude, site.siteDetails.approximate_longitude]}
                           icon={icon}
                         >
@@ -1465,7 +1483,7 @@ function ReportContent() {
                     <li>
                       <strong>Pollution Hotspots:</strong>{" "}
                       {getHotspotSites(filteredData).map((site, index, arr) => (
-                        <span key={site._id}>
+                        <span key={getSiteSelectionId(site)}>
                           {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(2)} µg/m³)
                           {index < arr.length - 1 ? ", " : ""}
                         </span>
@@ -1478,7 +1496,7 @@ function ReportContent() {
                     <li>
                       <strong>Lower-Pollution sites:</strong>{" "}
                       {getColdspotSites(filteredData).map((site, index, arr) => (
-                        <span key={site._id}>
+                        <span key={getSiteSelectionId(site)}>
                           {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(2)} µg/m³)
                           {index < arr.length - 1 ? ", " : ""}
                         </span>
@@ -1632,7 +1650,7 @@ function ReportContent() {
                   {sites.length} {sites.length === 1 ? "device" : "devices"}
                 </div>
                 <div className="ml-3 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                  {sites.filter((site) => selectedDevices.includes(site._id)).length} selected
+                  {sites.filter((site) => selectedDevices.includes(getSiteSelectionId(site))).length} selected
                 </div>
               </div>
             </div>
@@ -1643,7 +1661,7 @@ function ReportContent() {
                 onClick={(e) => {
                   e.stopPropagation()
                   // Get all site IDs in this category
-                  const categoryDeviceIds = sites.map((site) => site._id)
+                  const categoryDeviceIds = sites.map(getSiteSelectionId)
 
                   // Check if all devices in this category are already selected
                   const allSelected = categoryDeviceIds.every((id) => selectedDevices.includes(id))
@@ -1664,7 +1682,7 @@ function ReportContent() {
                 }}
                 className="mr-2 text-blue-600 border-blue-200 hover:bg-blue-50"
               >
-                {sites.every((site) => selectedDevices.includes(site._id)) ? "Deselect All" : "Select All"}
+                {sites.every((site) => selectedDevices.includes(getSiteSelectionId(site))) ? "Deselect All" : "Select All"}
               </Button>
               <div
                 onClick={() => toggleCategoryCollapse(category)}
@@ -1695,10 +1713,10 @@ function ReportContent() {
           >
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {sites.map((site) => {
-                const isSiteSelected = selectedDevices.includes(site._id)
+                const isSiteSelected = selectedDevices.includes(getSiteSelectionId(site))
                 return (
                   <SiteCard
-                    key={site._id}
+                    key={getSiteSelectionId(site)}
                     site={site}
                     onSelect={() => {
                       setSelectedSite(site)
@@ -1724,9 +1742,9 @@ function ReportContent() {
                         }
                       }, 800)
                     }}
-                    isSelected={selectedSite?._id === site._id}
+                    isSelected={selectedSite ? getSiteSelectionId(selectedSite) === getSiteSelectionId(site) : false}
                     isCheckboxSelected={isSiteSelected}
-                    onCheckboxChange={() => toggleDeviceSelection(site._id)}
+                    onCheckboxChange={() => toggleDeviceSelection(getSiteSelectionId(site))}
                     lastSelectedId={lastSelectedId}
                   />
                 )
@@ -1987,7 +2005,7 @@ function SiteCard({
       className={`w-full shadow-md hover:shadow-lg transition-all duration-300 ${getColorByCategory(aqiCategory)} ${
         isSelected ? "ring-2 ring-blue-500" : ""
       } ${isCheckboxSelected ? "relative overflow-hidden" : ""} ${isCheckboxSelected ? "animate-pulse-subtle" : ""} ${
-        site._id === lastSelectedId ? "scale-105 shadow-xl z-10" : ""
+        getSiteSelectionId(site) === lastSelectedId ? "scale-105 shadow-xl z-10" : ""
       }`}
     >
       {isCheckboxSelected && (
