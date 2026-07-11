@@ -18,7 +18,7 @@ class ApiRequestError extends Error {
   }
 }
 
-const RETRYABLE_API_STATUSES = new Set([401, 403, 429, 500, 502, 503, 504])
+const RETRYABLE_API_STATUSES = new Set([429, 500, 502, 503, 504])
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function baseFetch<T>(

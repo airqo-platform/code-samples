@@ -6,10 +6,11 @@ const removeTrailingSlash = (url: string): string => {
 }
 
 const BASE_URL = "/api/airqo"
-const RETRYABLE_API_STATUSES = new Set([401, 403, 429, 500, 502, 503, 504])
+const RETRYABLE_API_STATUSES = new Set([429, 500, 502, 503, 504])
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & { _airqoRetryCount?: number }
+const ACTIVE_FIRES_PATH = "/spatial/active_fires/africa"
 // Axios instance with a base URL and default headers
 const apiService = axios.create({
   baseURL: removeTrailingSlash(BASE_URL),
@@ -24,8 +25,9 @@ apiService.interceptors.response.use(
     const status = error.response?.status
     const config = error.config as RetryableRequestConfig | undefined
     const method = config?.method?.toUpperCase() || "GET"
+    const isActiveFiresRequest = config?.url?.includes(ACTIVE_FIRES_PATH)
 
-    if (config && method === "GET" && status && RETRYABLE_API_STATUSES.has(status) && !config._airqoRetryCount) {
+    if (config && method === "GET" && !isActiveFiresRequest && status && RETRYABLE_API_STATUSES.has(status) && !config._airqoRetryCount) {
       config._airqoRetryCount = 1
       await delay(500)
       return apiService.request(config)
@@ -341,34 +343,47 @@ const deduplicateActiveFires = (fires: ActiveFire[]) => {
   return Array.from(uniqueFires.values())
 }
 
+let activeFiresRequest: Promise<ActiveFire[] | null> | null = null
+let activeFiresBlockedUntil = 0
+
 export const getActiveFires = async (): Promise<ActiveFire[] | null> => {
-  try {
-    const response = await apiService.get("/spatial/active_fires/africa", {
-      params: { hours: 24 },
-    })
-    const fires = response.data?.data?.fires
+  if (Date.now() < activeFiresBlockedUntil) return null
+  if (activeFiresRequest) return activeFiresRequest
 
-    if (!Array.isArray(fires)) {
-      console.warn("Active-fire response did not include a fires array.")
-      return []
+  activeFiresRequest = (async () => {
+    try {
+      const response = await apiService.get(ACTIVE_FIRES_PATH, {
+        params: { hours: 24 },
+      })
+      const fires = response.data?.data?.fires
+
+      if (!Array.isArray(fires)) {
+        console.warn("Active-fire response did not include a fires array.")
+        return []
+      }
+
+      const validFires = fires
+        .filter(
+          (fire): fire is ActiveFire =>
+            fire &&
+            typeof fire.latitude === "number" &&
+            Number.isFinite(fire.latitude) &&
+            typeof fire.longitude === "number" &&
+            Number.isFinite(fire.longitude),
+        )
+        .map((fire) => ({ ...fire, product: fire.product || "NASA FIRMS" }))
+
+      return deduplicateActiveFires(validFires)
+    } catch (error) {
+      activeFiresBlockedUntil = Date.now() + 5 * 60 * 1000
+      console.error("Active-fire request failed. Skipping retries for 5 minutes:", error)
+      return null
+    } finally {
+      activeFiresRequest = null
     }
+  })()
 
-    const validFires = fires
-      .filter(
-        (fire): fire is ActiveFire =>
-          fire &&
-          typeof fire.latitude === "number" &&
-          Number.isFinite(fire.latitude) &&
-          typeof fire.longitude === "number" &&
-          Number.isFinite(fire.longitude),
-      )
-      .map((fire) => ({ ...fire, product: fire.product || "NASA FIRMS" }))
-
-    return deduplicateActiveFires(validFires)
-  } catch (error) {
-    console.error("Active-fire request failed:", error)
-    return null
-  }
+  return activeFiresRequest
 }
 
 const unwrapForecastPayload = (value: any): any => {

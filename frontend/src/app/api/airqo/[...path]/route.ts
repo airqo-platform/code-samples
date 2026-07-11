@@ -20,7 +20,8 @@ const ALLOWED_ROUTES = [
 ]
 
 const AIRQO_API_URL = "https://platform.airqo.net/api/v2/"
-const RETRYABLE_UPSTREAM_STATUSES = new Set([401, 403, 429, 500, 502, 503, 504])
+const RETRYABLE_UPSTREAM_STATUSES = new Set([429, 500, 502, 503, 504])
+const ACTIVE_FIRES_PATH = "spatial/active_fires/africa"
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function isAllowed(method: string, path: string) {
@@ -67,7 +68,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
 
     let upstreamResponse = await fetchUpstream()
 
-    if (request.method === "GET" && RETRYABLE_UPSTREAM_STATUSES.has(upstreamResponse.status)) {
+    if (request.method === "GET" && path !== ACTIVE_FIRES_PATH && RETRYABLE_UPSTREAM_STATUSES.has(upstreamResponse.status)) {
       await upstreamResponse.body?.cancel().catch(() => undefined)
       await delay(450)
       upstreamResponse = await fetchUpstream()

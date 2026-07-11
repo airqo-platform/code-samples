@@ -482,7 +482,10 @@ const SearchControl: React.FC<{
             <PopupContent
               label={prediction.place_name || label}
               data={prediction}
-              onClose={() => marker.closePopup()}
+              onClose={() => {
+                marker.closePopup()
+                root.unmount()
+              }}
             />,
           )
         } catch (error) {
