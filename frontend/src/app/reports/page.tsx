@@ -823,7 +823,13 @@ function ReportContent() {
   const leafletInstance = useMemo(() => {
     if (typeof window === "undefined") return null
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require("leaflet") as typeof import("leaflet")
+    const leaflet = require("leaflet") as typeof import("leaflet")
+    leaflet.Icon.Default.mergeOptions({
+      iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+      iconUrl: "/leaflet/marker-icon.png",
+      shadowUrl: "/leaflet/marker-shadow.png",
+    })
+    return leaflet
   }, [])
 
   const getMarkerIcon = useMemo(() => {

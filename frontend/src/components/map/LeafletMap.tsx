@@ -28,9 +28,9 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-// Use direct URLs for Leaflet marker icons
-const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
-const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
+const markerIconUrl = "/leaflet/marker-icon.png"
+const markerIconRetinaUrl = "/leaflet/marker-icon-2x.png"
+const markerShadowUrl = "/leaflet/marker-shadow.png"
 import {
   getSatelliteData,
   getMapNodes,
@@ -151,6 +151,7 @@ const getAqiImageByCategory = (aqiCategory?: string) => {
 // Set default icon for markers
 const DefaultIcon = L.icon({
   iconUrl: markerIconUrl,
+  iconRetinaUrl: markerIconRetinaUrl,
   shadowUrl: markerShadowUrl,
   iconSize: [25, 41],
   iconAnchor: [12, 41],

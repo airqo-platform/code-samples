@@ -9,8 +9,13 @@ import { NavigationControls } from "./NavigationControls"
 import { MapLayerControl } from "./MapLayerControl"
 import { InitialCountryView } from "./InitialCountryView"
 
-// Fix for default markers
+// Keep Leaflet's default marker assets local so Next.js never requests /marker-icon.png.
 delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+  iconUrl: "/leaflet/marker-icon.png",
+  shadowUrl: "/leaflet/marker-shadow.png",
+})
 
 // Create custom icons for different marker types
 const blueIcon = new L.Icon({
