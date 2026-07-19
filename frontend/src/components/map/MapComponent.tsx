@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css"
 import type { Location } from "@/lib/types"
 import { NavigationControls } from "./NavigationControls"
 import { MapLayerControl } from "./MapLayerControl"
+import { InitialCountryView } from "./InitialCountryView"
 
 // Fix for default markers
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -203,6 +204,9 @@ export default function MapComponent({
         className="h-full w-full"
       >
         <MapController />
+        <InitialCountryView
+          disabled={polygon.length > 0 || mustHaveLocations.length > 0 || suggestedLocations.length > 0}
+        />
         <FitMapToData
           polygon={polygon}
           mustHaveLocations={mustHaveLocations}

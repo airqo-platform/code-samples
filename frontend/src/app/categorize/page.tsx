@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 
 import { FileUpload } from "@/components/Controls/FileUpload"
+import { InitialCountryView } from "@/components/map/InitialCountryView"
 import Navigation from "@/components/navigation/navigation"
 import { getSiteCategory } from "@/lib/api"
 import type {
@@ -663,6 +664,7 @@ function SiteCategoryContent() {
               <SearchControl />
               <MapEvents />
               <MapController center={mapCenter} />
+              <InitialCountryView disabled={sites.length > 0} />
               {sites.map((site) => (
                 <Marker key={siteKey(site)} position={[site.lat, site.lng]} eventHandlers={{ click: () => { setSelectedSite(site); setMapCenter([site.lat, site.lng]) } }}>
                   <Popup>

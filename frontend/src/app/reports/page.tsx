@@ -21,7 +21,6 @@ import {
 import Navigation from "@/components/navigation/navigation"
 import type { ReactNode } from "react"
 import { getReportData } from "@/services/apiService"
-import { Skeleton } from "@/ui/skeleton"
 import { Button } from "@/ui/button"
 import type { SiteData, Filters } from "@/lib/types"
 import { jsPDF } from "jspdf"
@@ -83,8 +82,6 @@ function ReportContent() {
   const [activeTab, setActiveTab] = useState("moran")
   const [siteData, setSiteData] = useState<SiteData[]>([])
   const [filteredData, setFilteredData] = useState<SiteData[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [selectedSite, setSelectedSite] = useState<SiteData | null>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
@@ -343,47 +340,40 @@ function ReportContent() {
   }
 
   useEffect(() => {
+    let isActive = true
+
     async function fetchData() {
       try {
-        setLoading(true)
         const data = await getReportData()
-        if (data) {
-          const typedData = data as SiteData[]
-          setSiteData(typedData)
-          setFilteredData(typedData)
+        if (!isActive) return
 
-          // Extract filter options
-          const countries = Array.from(new Set(typedData.map((site) => site.siteDetails?.country || "Unknown"))).sort()
-          const cities = Array.from(new Set(typedData.map((site) => site.siteDetails?.city || "Unknown"))).sort()
-          const districts = Array.from(new Set(typedData.map((site) => site.siteDetails?.district || "Unknown"))).sort()
-          const categories = Array.from(
-            new Set(
-              typedData.map((site) => {
-                const category = site.siteDetails?.site_category?.category || "Uncategorized"
-                // Replace "Water Body Sites" with "Urban Background Sites"
-                return category === "Water Body" ? "Urban Background" : category
-              }),
-            ),
-          ).sort()
+        const typedData = data as SiteData[]
+        setSiteData(typedData)
+        setFilteredData(typedData)
 
-          setFilterOptions({
-            countries,
-            cities,
-            districts,
-            categories,
-          })
-        } else {
-          setError("No data available")
-        }
+        const countries = Array.from(new Set(typedData.map((site) => site.siteDetails?.country || "Unknown"))).sort()
+        const cities = Array.from(new Set(typedData.map((site) => site.siteDetails?.city || "Unknown"))).sort()
+        const districts = Array.from(new Set(typedData.map((site) => site.siteDetails?.district || "Unknown"))).sort()
+        const categories = Array.from(
+          new Set(
+            typedData.map((site) => {
+              const category = site.siteDetails?.site_category?.category || "Uncategorized"
+              return category === "Water Body" ? "Urban Background" : category
+            }),
+          ),
+        ).sort()
+
+        setFilterOptions({ countries, cities, districts, categories })
       } catch (err) {
-        setError("Failed to load report data")
-        console.error(err)
-      } finally {
-        setLoading(false)
+        console.error("Error fetching report data after retries:", err)
       }
     }
 
     fetchData()
+
+    return () => {
+      isActive = false
+    }
   }, [])
 
   // Update cities and districts when country changes
@@ -888,21 +878,6 @@ function ReportContent() {
     }
   }
 
-  if (loading) {
-    return <LoadingState />
-  }
-
-  if (error || siteData.length === 0) {
-    return (
-      <div className="flex flex-1 flex-col items-center px-4 py-12 space-y-10 text-center">
-        <div className="text-3xl font-bold text-gray-800">{error || "No report data available"}</div>
-        <p className="text-xl text-gray-600 max-w-2xl">
-          We couldn&apos;t load the air quality report data. Please try again later.
-        </p>
-      </div>
-    )
-  }
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="text-center mb-8">
@@ -931,7 +906,7 @@ function ReportContent() {
               Refine every chart, map, summary, and recommendation using the same geographic selection.
             </p>
           </div>
-          <Button variant="outline" onClick={resetFilters} className="w-full rounded-xl border-slate-300 bg-white md:w-auto">
+          <Button variant="outline" onClick={resetFilters} disabled={!siteData.length} className="w-full rounded-xl border-slate-300 bg-white md:w-auto">
             Reset Filters
           </Button>
         </div>
@@ -944,6 +919,7 @@ function ReportContent() {
             values={filters.country}
             onChange={(values) => handleFilterChange("country", values)}
             helperText="Choose one or more countries to focus the report."
+            disabled={!siteData.length}
           />
 
           <FilterMultiSelect
@@ -973,10 +949,13 @@ function ReportContent() {
             values={filters.category}
             onChange={(values) => handleFilterChange("category", values)}
             helperText="Mix categories to compare background vs traffic-heavy sites."
+            disabled={!siteData.length}
           />
         </div>
       </div>
 
+      {siteData.length > 0 ? (
+        <>
       {/* Filter summary */}
       <div className="mb-8 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1781,6 +1760,8 @@ function ReportContent() {
         </CardContent>
       </Card>
       )}
+        </>
+      ) : null}
     </div>
   )
 }
@@ -1913,44 +1894,6 @@ function FilterMultiSelect({
         </PopoverContent>
       </Popover>
       {helperText && <p className="mt-2 min-h-8 text-xs leading-4 text-slate-500">{helperText}</p>}
-    </div>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="text-center mb-8">
-        <Skeleton className="h-10 w-64 mx-auto mb-2" />
-        <Skeleton className="h-6 w-96 mx-auto" />
-      </div>
-
-      <Skeleton className="h-24 w-full mb-8" />
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="w-full shadow-md">
-            <CardContent className="p-6">
-              <Skeleton className="h-8 w-40 mb-2" />
-              <Skeleton className="h-10 w-20" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <Skeleton className="h-8 w-48 mb-4" />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <Card key={i} className="w-full shadow-md">
-            <CardContent className="p-6">
-              <Skeleton className="h-6 w-full mb-2" />
-              <Skeleton className="h-4 w-3/4 mb-2" />
-              <Skeleton className="h-4 w-1/2 mb-2" />
-              <Skeleton className="h-20 w-full mt-4" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
     </div>
   )
 }
