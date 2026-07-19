@@ -44,6 +44,9 @@ const Unhealthy = "/images/Unhealthy.png"
 const VeryUnhealthy = "/images/VeryUnhealthy.png"
 const Hazardous = "/images/Hazardous.png"
 const Invalid = "/images/Invalid.png"
+const REPORT_EMPTY_RETRY_MS = 60_000
+const REPORT_FAILURE_RETRY_BASE_MS = 30_000
+const REPORT_FAILURE_RETRY_MAX_MS = 5 * 60_000
 
 import { Switch } from "@/ui/switch"
 import { Label } from "@/ui/label"
@@ -341,6 +344,17 @@ function ReportContent() {
 
   useEffect(() => {
     let isActive = true
+    let failureCount = 0
+    let retryTimer: number | null = null
+
+    const scheduleRetry = (delayMs: number) => {
+      if (!isActive) return
+      if (retryTimer !== null) window.clearTimeout(retryTimer)
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null
+        void fetchData()
+      }, delayMs)
+    }
 
     async function fetchData() {
       try {
@@ -348,6 +362,13 @@ function ReportContent() {
         if (!isActive) return
 
         const typedData = data as SiteData[]
+        if (typedData.length === 0) {
+          failureCount = 0
+          scheduleRetry(REPORT_EMPTY_RETRY_MS)
+          return
+        }
+
+        failureCount = 0
         setSiteData(typedData)
         setFilteredData(typedData)
 
@@ -365,14 +386,22 @@ function ReportContent() {
 
         setFilterOptions({ countries, cities, districts, categories })
       } catch (err) {
-        console.error("Error fetching report data after retries:", err)
+        if (!isActive) return
+        failureCount += 1
+        const backoffMultiplier = 2 ** Math.min(failureCount - 1, 4)
+        scheduleRetry(Math.min(REPORT_FAILURE_RETRY_BASE_MS * backoffMultiplier, REPORT_FAILURE_RETRY_MAX_MS))
+
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("Report data fetch failed; retrying in the background.", err)
+        }
       }
     }
 
-    fetchData()
+    void fetchData()
 
     return () => {
       isActive = false
+      if (retryTimer !== null) window.clearTimeout(retryTimer)
     }
   }, [])
 
