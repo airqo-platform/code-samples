@@ -85,6 +85,9 @@ function ReportContent() {
   const [activeTab, setActiveTab] = useState("moran")
   const [siteData, setSiteData] = useState<SiteData[]>([])
   const [filteredData, setFilteredData] = useState<SiteData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+  const [fetchAttempt, setFetchAttempt] = useState(0)
   const [selectedSite, setSelectedSite] = useState<SiteData | null>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
@@ -357,20 +360,25 @@ function ReportContent() {
     }
 
     async function fetchData() {
+      setLoading(true)
+      setError(null)
+
       try {
         const data = await getReportData()
         if (!isActive) return
 
         const typedData = data as SiteData[]
+        setSiteData(typedData)
+        setFilteredData(typedData)
+
         if (typedData.length === 0) {
           failureCount = 0
+          setFilterOptions({ countries: [], cities: [], districts: [], categories: [] })
           scheduleRetry(REPORT_EMPTY_RETRY_MS)
           return
         }
 
         failureCount = 0
-        setSiteData(typedData)
-        setFilteredData(typedData)
 
         const countries = Array.from(new Set(typedData.map((site) => site.siteDetails?.country || "Unknown"))).sort()
         const cities = Array.from(new Set(typedData.map((site) => site.siteDetails?.city || "Unknown"))).sort()
@@ -387,6 +395,7 @@ function ReportContent() {
         setFilterOptions({ countries, cities, districts, categories })
       } catch (err) {
         if (!isActive) return
+        setError(err instanceof Error ? err : new Error('Failed to load report data.'))
         failureCount += 1
         const backoffMultiplier = 2 ** Math.min(failureCount - 1, 4)
         scheduleRetry(Math.min(REPORT_FAILURE_RETRY_BASE_MS * backoffMultiplier, REPORT_FAILURE_RETRY_MAX_MS))
@@ -394,6 +403,8 @@ function ReportContent() {
         if (process.env.NODE_ENV !== "production") {
           console.warn("Report data fetch failed; retrying in the background.", err)
         }
+      } finally {
+        if (isActive) setLoading(false)
       }
     }
 
@@ -403,7 +414,7 @@ function ReportContent() {
       isActive = false
       if (retryTimer !== null) window.clearTimeout(retryTimer)
     }
-  }, [])
+  }, [fetchAttempt])
 
   // Update cities and districts when country changes
   useEffect(() => {
@@ -932,6 +943,21 @@ function ReportContent() {
 
       </div>
 
+      {loading ? (
+        <div className='rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm' role='status'>
+          <div className='mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent' />
+          <p className='font-semibold text-slate-800'>Loading report data...</p>
+        </div>
+      ) : error ? (
+        <div className='rounded-2xl border border-red-200 bg-red-50 p-8 text-center shadow-sm' role='alert'>
+          <h2 className='text-lg font-bold text-red-900'>Unable to load report data</h2>
+          <p className='mt-2 text-sm text-red-700'>{error.message}</p>
+          <Button className='mt-4' onClick={() => setFetchAttempt((attempt) => attempt + 1)}>
+            Retry
+          </Button>
+        </div>
+      ) : (
+        <>
       {/* Filters */}
       <div className="mb-8 rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 p-5 shadow-sm">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1796,7 +1822,14 @@ function ReportContent() {
       </Card>
       )}
         </>
-      ) : null}
+      ) : (
+        <div className='rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm'>
+          <h2 className='text-lg font-bold text-slate-900'>No report data available</h2>
+          <p className='mt-2 text-sm text-slate-600'>There is currently no air-quality report data to display.</p>
+        </div>
+      )}
+        </>
+      )}
     </div>
   )
 }
