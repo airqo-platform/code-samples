@@ -28,9 +28,9 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-// Use direct URLs for Leaflet marker icons
-const markerIconUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png"
-const markerShadowUrl = "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png"
+const markerIconUrl = "/leaflet/marker-icon.png"
+const markerIconRetinaUrl = "/leaflet/marker-icon-2x.png"
+const markerShadowUrl = "/leaflet/marker-shadow.png"
 import {
   getSatelliteData,
   getMapNodes,
@@ -151,6 +151,7 @@ const getAqiImageByCategory = (aqiCategory?: string) => {
 // Set default icon for markers
 const DefaultIcon = L.icon({
   iconUrl: markerIconUrl,
+  iconRetinaUrl: markerIconRetinaUrl,
   shadowUrl: markerShadowUrl,
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -2418,29 +2419,6 @@ function ForecastContent({
   )
 }
 
-// Add delay utility function
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-// Create a function to fetch with retries
-const fetchWithRetry = async (fetchFn: () => Promise<any>, retries = 3, initialDelay = 2000, backoffFactor = 1.5) => {
-  let currentDelay = initialDelay
-
-  for (let attempt = 0; attempt < retries; attempt++) {
-    try {
-      if (attempt > 0) {
-        await delay(currentDelay)
-      }
-      const result = await fetchFn()
-      if (result) return result
-    } catch (error) {
-      console.log(`Attempt ${attempt + 1} failed, retrying...`)
-      currentDelay *= backoffFactor
-      if (attempt === retries - 1) throw error
-    }
-  }
-  return null
-}
-
 // Create a component for the map nodes
 const MapNodes: React.FC<{
   onLoadingChange: (state: LoadingState) => void
@@ -2482,7 +2460,7 @@ const MapNodes: React.FC<{
           }
         }
 
-        const data = await fetchWithRetry(getMapNodes, 3, 2000, 1.5)
+        const data = (await getMapNodes()) as MapNode[] | null
         if (!isActive) return
 
         if (data) {
@@ -2775,7 +2753,6 @@ const ActiveFireMarkers: React.FC<{ showFires: boolean }> = ({ showFires }) => {
         cachedFires.length
       ) {
         setFires(cachedFires)
-        return
       }
 
       const data = await getActiveFires()
@@ -3138,7 +3115,6 @@ const HeatmapOverlays: React.FC<{
           hasUsableCachedHeatmaps = true
           setHeatmaps(cached.data)
           onLoadingChange({ isLoading: false, error: null })
-          return
         }
 
         const data = await getHeatmapData()
@@ -3420,7 +3396,6 @@ const LeafletMap: React.FC = () => {
       if (isActive && isDailyForecastCacheCurrent(cached) && cached.data.forecasts?.length) {
         hasUsableCachedForecast = true
         setForecastState({ isLoading: false, error: null, collection: cached.data })
-        return
       }
 
       try {
@@ -3516,7 +3491,6 @@ const LeafletMap: React.FC = () => {
       ) {
         hasUsableCachedForecast = true
         setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: siteId, site: cached.data })
-        return
       }
 
       try {

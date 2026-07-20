@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 
 import { FileUpload } from "@/components/Controls/FileUpload"
+import { InitialCountryView } from "@/components/map/InitialCountryView"
 import Navigation from "@/components/navigation/navigation"
 import { getSiteCategory } from "@/lib/api"
 import type {
@@ -287,6 +288,7 @@ function SiteCategoryContent() {
   const [showInfo, setShowInfo] = useState(false)
   const [loading, setLoading] = useState(false)
   const [mapCenter, setMapCenter] = useState<[number, number]>([1.3733, 32.2903])
+  const [defaultMarkerIcon, setDefaultMarkerIcon] = useState<import("leaflet").Icon | null>(null)
   const { toast } = useToast()
   const sitesRef = useRef<SiteCategoryInfo[]>([])
   const includeSatelliteRef = useRef(includeSatellite)
@@ -297,6 +299,29 @@ function SiteCategoryContent() {
   useEffect(() => {
     sitesRef.current = sites
   }, [sites])
+
+  useEffect(() => {
+    let active = true
+
+    void import("leaflet").then((leaflet) => {
+      if (!active) return
+      setDefaultMarkerIcon(
+        leaflet.default.icon({
+          iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+          iconUrl: "/leaflet/marker-icon.png",
+          shadowUrl: "/leaflet/marker-shadow.png",
+          iconSize: [25, 41],
+          iconAnchor: [12, 41],
+          popupAnchor: [1, -34],
+          shadowSize: [41, 41],
+        }),
+      )
+    })
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     includeSatelliteRef.current = includeSatellite
@@ -663,8 +688,9 @@ function SiteCategoryContent() {
               <SearchControl />
               <MapEvents />
               <MapController center={mapCenter} />
-              {sites.map((site) => (
-                <Marker key={siteKey(site)} position={[site.lat, site.lng]} eventHandlers={{ click: () => { setSelectedSite(site); setMapCenter([site.lat, site.lng]) } }}>
+              <InitialCountryView disabled={sites.length > 0} />
+              {defaultMarkerIcon && sites.map((site) => (
+                <Marker icon={defaultMarkerIcon} key={siteKey(site)} position={[site.lat, site.lng]} eventHandlers={{ click: () => { setSelectedSite(site); setMapCenter([site.lat, site.lng]) } }}>
                   <Popup>
                     <div className="space-y-1 p-1 text-sm">
                       <p><strong>Location:</strong> {resultTitle(site)}</p>

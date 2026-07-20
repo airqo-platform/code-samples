@@ -7,6 +7,7 @@ const removeTrailingSlash = (url: string): string => {
 
 const BASE_URL = "/api/airqo"
 const RETRYABLE_API_STATUSES = new Set([429, 500, 502, 503, 504])
+const MAX_API_ATTEMPTS = 3
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & { _airqoRetryCount?: number }
@@ -25,11 +26,17 @@ apiService.interceptors.response.use(
     const status = error.response?.status
     const config = error.config as RetryableRequestConfig | undefined
     const method = config?.method?.toUpperCase() || "GET"
-    const isActiveFiresRequest = config?.url?.includes(ACTIVE_FIRES_PATH)
+    const retryCount = config?._airqoRetryCount || 0
+    const isRetryableFailure = !status || RETRYABLE_API_STATUSES.has(status)
 
-    if (config && method === "GET" && !isActiveFiresRequest && status && RETRYABLE_API_STATUSES.has(status) && !config._airqoRetryCount) {
-      config._airqoRetryCount = 1
-      await delay(500)
+    if (
+      config &&
+      method === "GET" &&
+      isRetryableFailure &&
+      retryCount < MAX_API_ATTEMPTS - 1
+    ) {
+      config._airqoRetryCount = retryCount + 1
+      await delay(500 * config._airqoRetryCount)
       return apiService.request(config)
     }
 
@@ -228,39 +235,43 @@ export const getSatelliteData = async (body = {}) => {
   }
 }
 
-// Get map nodes with air quality readings
-export const getMapNodes = async (): Promise<MapNode[] | null> => {
-  try {
-    const response = await apiService.get("/devices/readings/map")
+// Get map nodes with air quality readings.
+let mapNodesRequest: Promise<MapNode[] | null> | null = null
 
-    // Only check if measurements array exists and has data
-    if (!response.data?.measurements?.length) {
-      console.error("No measurements found in response")
+export const getMapNodes = async (): Promise<MapNode[] | null> => {
+  if (mapNodesRequest) return mapNodesRequest
+
+  mapNodesRequest = (async () => {
+    try {
+      const response = await apiService.get("/devices/readings/map")
+      return Array.isArray(response.data?.measurements) ? response.data.measurements : []
+    } catch (error) {
+      console.error("Error fetching map nodes after retries:", error)
       return null
     }
+  })()
 
-    return response.data.measurements
-  } catch (error) {
-    console.error("Error fetching map nodes:", error)
-    return null
+  try {
+    return await mapNodesRequest
+  } finally {
+    mapNodesRequest = null
   }
 }
 
-// Add this function to fetch report data
-export const getReportData = async (): Promise<MapNode[] | null> => {
+// Fetch report data and let callers distinguish request failures from empty results.
+let reportDataRequest: Promise<MapNode[]> | null = null
+
+export const getReportData = async (): Promise<MapNode[]> => {
+  if (reportDataRequest) return reportDataRequest
+
+  reportDataRequest = apiService.get("/devices/readings/map").then((response) =>
+    Array.isArray(response.data?.measurements) ? response.data.measurements : [],
+  )
+
   try {
-    const response = await apiService.get("/devices/readings/map")
-
-    // Only check if measurements array exists and has data
-    if (!response.data?.measurements?.length) {
-      console.error("No measurements found in response")
-      return null
-    }
-
-    return response.data.measurements
-  } catch (error) {
-    console.error("Error fetching report data:", error)
-    return null
+    return await reportDataRequest
+  } finally {
+    reportDataRequest = null
   }
 }
 
@@ -273,30 +284,19 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
   if (heatmapDataRequest) return heatmapDataRequest
 
   heatmapDataRequest = (async () => {
-    const maxAttempts = 3
-    const retryDelayMs = 1000
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      try {
-        const response = await apiService.get("/spatial/heatmaps")
-
-        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-          return response.data
-        }
-
-        console.warn(`Heatmap attempt ${attempt}/${maxAttempts}: no heatmap data returned.`)
-      } catch (error) {
-        console.error(`Heatmap attempt ${attempt}/${maxAttempts} failed:`, error)
+    try {
+      const response = await apiService.get("/spatial/heatmaps")
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        return response.data
       }
 
-      if (attempt < maxAttempts) {
-        await delay(retryDelayMs * attempt)
-      }
+      console.warn("No heatmap data was returned.")
+      return null
+    } catch (error) {
+      heatmapRetryBlockedUntil = Date.now() + 5 * 60 * 1000
+      console.error("Heatmap fetch failed after 3 attempts. Skipping retries for 5 minutes:", error)
+      return null
     }
-
-    heatmapRetryBlockedUntil = Date.now() + 5 * 60 * 1000
-    console.error("Heatmap fetch failed after 3 attempts. Skipping retries for 5 minutes.")
-    return null
   })()
 
   try {
@@ -400,21 +400,32 @@ const unwrapForecastPayload = (value: any): any => {
   return current
 }
 
+let dailyForecastRequest: Promise<DailyForecastResponse | null> | null = null
+
 export const getDailyForecastCollection = async (): Promise<DailyForecastResponse | null> => {
-  try {
-    const response = await apiService.get("/predict/daily-forecasting")
+  if (dailyForecastRequest) return dailyForecastRequest
 
-    const payload = unwrapForecastPayload(response.data)
-    const data = payload?.data ? unwrapForecastPayload(payload.data) : payload
+  dailyForecastRequest = (async () => {
+    try {
+      const response = await apiService.get("/predict/daily-forecasting")
+      const payload = unwrapForecastPayload(response.data)
+      const data = payload?.data ? unwrapForecastPayload(payload.data) : payload
 
-    if (data && typeof data === "object" && Array.isArray((data as DailyForecastResponse).forecasts)) {
-      return data as DailyForecastResponse
+      if (data && typeof data === "object" && Array.isArray((data as DailyForecastResponse).forecasts)) {
+        return data as DailyForecastResponse
+      }
+
+      return null
+    } catch (error) {
+      console.error("Error fetching daily forecast collection after retries:", error)
+      return null
     }
+  })()
 
-    return null
-  } catch (error) {
-    console.error("Error fetching daily forecast collection:", error)
-    return null
+  try {
+    return await dailyForecastRequest
+  } finally {
+    dailyForecastRequest = null
   }
 }
 
