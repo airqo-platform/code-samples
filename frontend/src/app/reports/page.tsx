@@ -12,6 +12,7 @@ import {
   Globe,
   HeartPulse,
   Layers,
+  LoaderCircle,
   Minus,
   Printer,
   BarChart3,
@@ -44,9 +45,8 @@ const Unhealthy = "/images/Unhealthy.png"
 const VeryUnhealthy = "/images/VeryUnhealthy.png"
 const Hazardous = "/images/Hazardous.png"
 const Invalid = "/images/Invalid.png"
-const REPORT_EMPTY_RETRY_MS = 60_000
-const REPORT_FAILURE_RETRY_BASE_MS = 30_000
-const REPORT_FAILURE_RETRY_MAX_MS = 5 * 60_000
+const REPORT_RETRY_DELAY_MS = 5_000
+const REPORT_LOAD_MAX_ATTEMPTS = 2
 
 import { Switch } from "@/ui/switch"
 import { Label } from "@/ui/label"
@@ -84,6 +84,9 @@ function ReportContent() {
   // Add this state at the top of the ReportContent function, near the other state declarations
   const [activeTab, setActiveTab] = useState("moran")
   const [siteData, setSiteData] = useState<SiteData[]>([])
+  const [isReportDataLoading, setIsReportDataLoading] = useState(true)
+  const [reportLoadError, setReportLoadError] = useState<string | null>(null)
+  const [reportLoadRequest, setReportLoadRequest] = useState(0)
   const [filteredData, setFilteredData] = useState<SiteData[]>([])
   const [selectedSite, setSelectedSite] = useState<SiteData | null>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
@@ -344,33 +347,48 @@ function ReportContent() {
 
   useEffect(() => {
     let isActive = true
-    let failureCount = 0
+    let attemptCount = 0
     let retryTimer: number | null = null
 
-    const scheduleRetry = (delayMs: number) => {
+    setIsReportDataLoading(true)
+    setReportLoadError(null)
+
+    const finishWithError = (message: string) => {
+      if (!isActive) return
+      setIsReportDataLoading(false)
+      setReportLoadError(message)
+    }
+
+    const scheduleRetry = () => {
       if (!isActive) return
       if (retryTimer !== null) window.clearTimeout(retryTimer)
       retryTimer = window.setTimeout(() => {
         retryTimer = null
         void fetchData()
-      }, delayMs)
+      }, REPORT_RETRY_DELAY_MS)
     }
 
     async function fetchData() {
+      attemptCount += 1
+
       try {
         const data = await getReportData()
         if (!isActive) return
 
         const typedData = data as SiteData[]
         if (typedData.length === 0) {
-          failureCount = 0
-          scheduleRetry(REPORT_EMPTY_RETRY_MS)
+          if (attemptCount < REPORT_LOAD_MAX_ATTEMPTS) {
+            scheduleRetry()
+          } else {
+            finishWithError("No report data is available right now. Please try again.")
+          }
           return
         }
 
-        failureCount = 0
         setSiteData(typedData)
         setFilteredData(typedData)
+        setIsReportDataLoading(false)
+        setReportLoadError(null)
 
         const countries = Array.from(new Set(typedData.map((site) => site.siteDetails?.country || "Unknown"))).sort()
         const cities = Array.from(new Set(typedData.map((site) => site.siteDetails?.city || "Unknown"))).sort()
@@ -387,12 +405,15 @@ function ReportContent() {
         setFilterOptions({ countries, cities, districts, categories })
       } catch (err) {
         if (!isActive) return
-        failureCount += 1
-        const backoffMultiplier = 2 ** Math.min(failureCount - 1, 4)
-        scheduleRetry(Math.min(REPORT_FAILURE_RETRY_BASE_MS * backoffMultiplier, REPORT_FAILURE_RETRY_MAX_MS))
+
+        if (attemptCount < REPORT_LOAD_MAX_ATTEMPTS) {
+          scheduleRetry()
+        } else {
+          finishWithError("We couldn't load the report data. Check your connection and try again.")
+        }
 
         if (process.env.NODE_ENV !== "production") {
-          console.warn("Report data fetch failed; retrying in the background.", err)
+          console.warn("Report data fetch failed.", err)
         }
       }
     }
@@ -403,7 +424,7 @@ function ReportContent() {
       isActive = false
       if (retryTimer !== null) window.clearTimeout(retryTimer)
     }
-  }, [])
+  }, [reportLoadRequest])
 
   // Update cities and districts when country changes
   useEffect(() => {
@@ -988,6 +1009,30 @@ function ReportContent() {
           />
         </div>
       </div>
+
+      {isReportDataLoading && (
+        <div
+          className="mb-8 flex items-center justify-center gap-3 text-sm font-medium text-slate-600"
+          role="status"
+          aria-live="polite"
+        >
+          <LoaderCircle className="h-6 w-6 animate-spin text-blue-600" aria-hidden="true" />
+          <span>Loading report data...</span>
+        </div>
+      )}
+      {reportLoadError && (
+        <div className="mb-8 flex flex-col items-center justify-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-center" role="alert">
+          <p className="text-sm font-medium text-red-800">{reportLoadError}</p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setReportLoadRequest((request) => request + 1)}
+            className="rounded-xl border-red-300 bg-white text-red-700 hover:bg-red-100"
+          >
+            Try again
+          </Button>
+        </div>
+      )}
 
       {siteData.length > 0 ? (
         <>

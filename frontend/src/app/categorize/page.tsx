@@ -276,6 +276,21 @@ const toSiteInfo = (response: SourceMetadataResponse, lat: number, lng: number, 
   }
 }
 
+function ProfiledLocationMapController({ center }: { center: [number, number] | null }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (center) {
+      map.flyTo(center, Math.max(map.getZoom(), 3), { duration: 0.75 })
+      return
+    }
+
+    map.fitWorld({ animate: false })
+  }, [center, map])
+
+  return null
+}
+
 function SiteCategoryContent() {
   const [sites, setSites] = useState<SiteCategoryInfo[]>([])
   const [selectedSite, setSelectedSite] = useState<SiteCategoryInfo | null>(null)
@@ -287,7 +302,7 @@ function SiteCategoryContent() {
   const [isManualSectionOpen, setIsManualSectionOpen] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [mapCenter, setMapCenter] = useState<[number, number]>([1.3733, 32.2903])
+  const [mapCenter, setMapCenter] = useState<[number, number] | null>(null)
   const [defaultMarkerIcon, setDefaultMarkerIcon] = useState<import("leaflet").Icon | null>(null)
   const { toast } = useToast()
   const sitesRef = useRef<SiteCategoryInfo[]>([])
@@ -372,6 +387,7 @@ function SiteCategoryContent() {
     setLoading(true)
     try {
       for (const location of locations) {
+        setMapCenter([location.lat, location.lng])
         const locationKey = siteKey({ ...location, satellite_enabled: satelliteEnabled })
 
         if (seenKeys.has(locationKey)) {
@@ -409,6 +425,7 @@ function SiteCategoryContent() {
 
   const selectOrFetchLocation = async (lat: number, lng: number) => {
     const satelliteEnabled = includeSatelliteRef.current
+    setMapCenter([lat, lng])
 
     if (sitesRef.current.some((site) => site.lat === lat && site.lng === lng && site.satellite_enabled === satelliteEnabled)) {
       const match = sitesRef.current.find(
@@ -607,13 +624,6 @@ function SiteCategoryContent() {
     return null
   }
 
-  const MapController = ({ center }: { center: [number, number] }) => {
-    const map = useMap()
-    useEffect(() => {
-      map.flyTo(center, Math.max(map.getZoom(), 3), { duration: 0.75 })
-    }, [center, map])
-    return null
-  }
 
   const selectedKey = selectedSite ? siteKey(selectedSite) : null
   const pollutantEntries = selectedSite
@@ -683,12 +693,12 @@ function SiteCategoryContent() {
       <div>
         <div className="flex min-h-[calc(100vh-4rem)] flex-col lg:h-[calc(100vh-4rem)] lg:flex-row lg:overflow-hidden">
           <div className="relative h-[52vh] min-h-[360px] w-full shrink-0 sm:h-[58vh] lg:h-full lg:min-h-0 lg:flex-1">
-            <MapContainer center={mapCenter} zoom={7} className="h-full w-full">
+            <MapContainer className="h-full w-full">
               <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <SearchControl />
               <MapEvents />
-              <MapController center={mapCenter} />
-              <InitialCountryView disabled={sites.length > 0} />
+              <ProfiledLocationMapController center={mapCenter} />
+              <InitialCountryView disabled={loading || mapCenter !== null || sites.length > 0} />
               {defaultMarkerIcon && sites.map((site) => (
                 <Marker icon={defaultMarkerIcon} key={siteKey(site)} position={[site.lat, site.lng]} eventHandlers={{ click: () => { setSelectedSite(site); setMapCenter([site.lat, site.lng]) } }}>
                   <Popup>
