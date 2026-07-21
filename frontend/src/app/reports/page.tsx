@@ -882,43 +882,14 @@ function ReportContent() {
     }
   }
 
-  const overviewAqi = getAQIMeta(mostCommonCategory)
-
   return (
     <div className="container mx-auto max-w-[1440px] px-4 py-6 sm:py-8">
-      <section className="relative mb-8 overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-blue-950 to-blue-800 px-6 py-8 text-white shadow-xl shadow-blue-950/15 sm:px-8 lg:px-10 lg:py-10">
-        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-cyan-400/15 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-blue-400/20 blur-3xl" />
-        <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] lg:items-end">
-          <div>
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-blue-100 backdrop-blur">
-              <Zap className="h-3.5 w-3.5 text-cyan-300" />
-              Network intelligence
-            </div>
-            <h1 className="max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">Air Quality Reports</h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-blue-100 sm:text-base">
-              Compare recent air quality conditions across monitoring sites, uncover geographic patterns, and build a focused report for the locations that matter.
-            </p>
-          </div>
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur sm:p-4">
-              <Globe className="mb-3 h-5 w-5 text-cyan-300" />
-              <p className="text-2xl font-bold">{siteData.length || "—"}</p>
-              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Network sites</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur sm:p-4">
-              <BarChart3 className="mb-3 h-5 w-5 text-emerald-300" />
-              <p className="text-2xl font-bold">{siteData.length ? filteredData.length : "—"}</p>
-              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Sites in view</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur sm:p-4">
-              <span className="mb-3 block h-5 w-5 rounded-full border-4 border-white/30" style={{ backgroundColor: overviewAqi.color }} />
-              <p className="truncate text-lg font-bold sm:text-xl">{mostCommonCategory || "—"}</p>
-              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Common AQI</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <header className="mb-8 border-b border-slate-200 px-1 pb-6 text-center">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">Air Quality Reports</h1>
+        <p className="mx-auto mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
+          Compare recent air quality conditions across monitoring sites and build a focused report for the locations that matter.
+        </p>
+      </header>
 
       {/* Filters */}
       <div className="mb-8 rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-blue-50/50 p-5 shadow-lg shadow-slate-200/50 sm:p-6">
