@@ -537,97 +537,111 @@ function ReportContent() {
         allowTaint: true,
       })
 
-      const imgData = canvas.toDataURL("image/png", 0.7) // Added compression quality parameter (0.7)
-
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a4",
-        compress: true, // Enable compression
+        compress: true,
       })
 
-      // Define margins
-      const pageWidth = 210 // A4 width in mm
-      const pageHeight = 297 // A4 height in mm
-      const marginLeft = 15 // Left margin in mm
-      const marginRight = 15 // Right margin in mm
-      const marginTop = 20 // Top margin in mm
-      const marginBottom = 15 // Bottom margin in mm
-
+      // Keep report content inside a dedicated printable area on every page.
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const marginLeft = 15
+      const marginRight = 15
+      const marginTop = 18
+      const marginBottom = 18
       const contentWidth = pageWidth - marginLeft - marginRight
       const contentHeight = pageHeight - marginTop - marginBottom
+      const maxSliceHeight = Math.floor((contentHeight * canvas.width) / contentWidth)
+      const reportRect = reportElement.getBoundingClientRect()
+      const canvasScale = canvas.height / reportRect.height
+      const breakPadding = Math.max(6, Math.round(4 * canvasScale))
 
-      const imgWidth = contentWidth
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      // Text and visual blocks should move to the next page instead of being cut
+      // across the reserved header or footer area.
+      const protectedBlocks = Array.from(
+        reportElement.querySelectorAll<HTMLElement>(
+          "p, li, h1, h2, h3, h4, table, .pdf-keep-together, .recharts-wrapper, .leaflet-container",
+        ),
+      )
+        .map((element) => {
+          const rect = element.getBoundingClientRect()
+          return {
+            top: Math.max(0, Math.floor((rect.top - reportRect.top) * canvasScale)),
+            bottom: Math.min(canvas.height, Math.ceil((rect.bottom - reportRect.top) * canvasScale)),
+          }
+        })
+        .filter((block) => block.bottom > block.top && block.bottom - block.top < maxSliceHeight * 0.9)
+        .sort((a, b) => a.top - b.top)
 
-      // Find sections in the report to create page breaks
-      const sections = []
-      const footerSection = reportElement.querySelector(".text-xs.text-gray-500.border-t")
-      if (footerSection) {
-        const footerRect = footerSection.getBoundingClientRect()
-        const reportRect = reportElement.getBoundingClientRect()
-        const footerPosition = (footerRect.top - reportRect.top) / reportRect.height
-        sections.push(footerPosition)
-      }
+      const pageSlices: Array<{ startY: number; endY: number }> = []
+      let startY = 0
 
-      // Add advanced analysis section break if it exists
-      if (showAdvancedAnalysis) {
-        const advancedSection = reportElement.querySelector(".pt-8.border-t.border-gray-200")
-        if (advancedSection) {
-          const advancedRect = advancedSection.getBoundingClientRect()
-          const reportRect = reportElement.getBoundingClientRect()
-          const advancedPosition = (advancedRect.top - reportRect.top) / reportRect.height
-          sections.push(advancedPosition)
-        }
-      }
+      while (startY < canvas.height) {
+        const idealEnd = Math.min(canvas.height, startY + maxSliceHeight)
+        let safeEnd = idealEnd
 
-      // Sort sections by position
-      sections.sort((a, b) => a - b)
+        if (idealEnd < canvas.height) {
+          let adjusted = true
+          while (adjusted) {
+            adjusted = false
+            const crossingBlock = protectedBlocks.find(
+              (block) => block.top + breakPadding < safeEnd && block.bottom - breakPadding > safeEnd,
+            )
 
-      // If the report is longer than a page, create multiple pages
-      let heightLeft = imgHeight
-      let position = marginTop // Start with top margin
-      let currentPage = 0
-      let lastSection = 0
+            if (crossingBlock && crossingBlock.top - breakPadding > startY) {
+              safeEnd = crossingBlock.top - breakPadding
+              adjusted = true
+            }
+          }
 
-      // Add first page with margins
-      pdf.addImage(imgData, "PNG", marginLeft, position, imgWidth, imgHeight)
-
-      heightLeft -= contentHeight
-      currentPage += contentHeight / imgHeight
-
-      let pageNumber = 0
-      // Add additional pages if content is longer than one page
-      while (heightLeft > 0) {
-        // Check if we need to force a page break at a section
-        let forceSectionBreak = false
-        for (const section of sections) {
-          if (section > lastSection && section <= currentPage) {
-            // This section falls on the current page, force a break
-            forceSectionBreak = true
-            lastSection = section
-            break
+          // Avoid creating a nearly empty page when an unusually tall block is encountered.
+          if (safeEnd - startY < maxSliceHeight * 0.35) {
+            safeEnd = idealEnd
           }
         }
 
-        // Add a new page
-        pdf.addPage()
-
-        // Calculate position for next page
-        // If we're forcing a section break, align to the section
-        if (forceSectionBreak) {
-          position = marginTop - lastSection * canvas.height * (imgWidth / canvas.width)
-        } else {
-          position = marginTop - pageHeight * (currentPage + 1)
-          position = marginTop - pageHeight * pageNumber 
-        }
-
-        pdf.addImage(imgData, "PNG", marginLeft, position, imgWidth, imgHeight)
-
-        heightLeft -= contentHeight
-        currentPage += contentHeight / imgHeight
+        pageSlices.push({ startY, endY: safeEnd })
+        startY = safeEnd
       }
 
+      pageSlices.forEach((slice, pageIndex) => {
+        if (pageIndex > 0) pdf.addPage()
+
+        const sliceHeight = slice.endY - slice.startY
+        const pageCanvas = document.createElement("canvas")
+        pageCanvas.width = canvas.width
+        pageCanvas.height = sliceHeight
+        const pageContext = pageCanvas.getContext("2d")
+
+        if (!pageContext) {
+          throw new Error("Unable to prepare a PDF page")
+        }
+
+        pageContext.fillStyle = "#ffffff"
+        pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+        pageContext.drawImage(
+          canvas,
+          0,
+          slice.startY,
+          canvas.width,
+          sliceHeight,
+          0,
+          0,
+          canvas.width,
+          sliceHeight,
+        )
+
+        const renderedHeight = (sliceHeight * contentWidth) / canvas.width
+        pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", marginLeft, marginTop, contentWidth, renderedHeight)
+
+        pdf.setFontSize(8)
+        pdf.setTextColor(100, 116, 139)
+        pdf.text(`Page ${pageIndex + 1} of ${pageSlices.length}`, pageWidth / 2, pageHeight - 8, {
+          align: "center",
+        })
+      })
       // Generate filename based on filters or selected site
       let filename = "air-quality-report"
       if (selectedSite) {
@@ -739,6 +753,33 @@ function ReportContent() {
       country: formatSelectionList(filters.country, "All Countries"),
       name: filters.category.length ? `${formatSelectionList(filters.category, "All")} Sites` : "All Sites",
     }
+  }
+
+  const getReportScopeDescription = () => {
+    if (selectedSite) {
+      const siteName = selectedSite.siteDetails.name || selectedSite.siteDetails.formatted_name || "the selected site"
+      const location = [selectedSite.siteDetails.city, selectedSite.siteDetails.country].filter(Boolean).join(", ")
+      return location ? `${siteName} in ${location}` : siteName
+    }
+
+    const filteredLocations = [
+      filters.district.length ? formatSelectionList(filters.district, "") : null,
+      filters.city.length ? formatSelectionList(filters.city, "") : null,
+      filters.country.length ? formatSelectionList(filters.country, "") : null,
+    ].filter(Boolean)
+    const categoryScope = filters.category.length
+      ? ` for ${formatSelectionList(filters.category, "")} site categories`
+      : ""
+
+    if (filteredLocations.length > 0) {
+      return `${filteredLocations.join(", ")}${categoryScope}`
+    }
+
+    if (selectedDevices.length > 0 && selectedDevices.length < siteData.length) {
+      return `${filteredData.length} selected monitoring site${filteredData.length === 1 ? "" : "s"}`
+    }
+
+    return `the AirQo monitoring network${categoryScope}`
   }
 
   // Calculate average PM2.5 for AQI index visualization
@@ -1379,29 +1420,24 @@ function ReportContent() {
             </div>
 
             {/* Introduction */}
-            <div className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Introduction</h3>
-              <p className="text-gray-700">
-                This report provides a comprehensive analysis of air quality data for
-                {selectedSite
-                  ? ` ${selectedSite.siteDetails.name} in ${selectedSite.siteDetails.city || "Unknown City"}, ${selectedSite.siteDetails.country || "Unknown Country"}.`
-                  : hasActiveFilters
-                    ? ` the selected region (${[
-                        filters.country.length ? formatSelectionList(filters.country, "") : null,
-                        filters.city.length ? formatSelectionList(filters.city, "") : null,
-                        filters.district.length ? formatSelectionList(filters.district, "") : null,
-                        filters.category.length ? formatSelectionList(filters.category, "") : null,
-                      ]
-                        .filter(Boolean)
-                        .join(", ")}).`
-                    : " all monitored sites in the AirQo network."}{" "}
-                The data was collected using AirQo&apos;s network of low-cost air quality sensors, which measure
-                particulate matter (PM<sub>2.5</sub>) and other pollutants in real-time. This report analyzes the current air
-                quality status, compares it with previous periods, and provides health recommendations based on the
-                findings.
-              </p>
-            </div>
+            <section className="pdf-keep-together mb-8 overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/80 via-white to-cyan-50/60">
+              <div className="border-b border-blue-100 px-5 py-4 sm:px-6">
+                <h3 className="mt-1 text-xl font-semibold text-slate-900">Introduction</h3>
+              </div>
 
+              <div className="space-y-4 px-5 py-5 text-sm leading-7 text-slate-700 sm:px-6 sm:py-6 sm:text-base">
+                <p>
+                  This report assesses recent air quality conditions across {getReportScopeDescription()}. It brings
+                  together the latest available readings from {filteredData.length} AirQo monitoring
+                  {filteredData.length === 1 ? " site" : " sites"}, with a primary focus on PM<sub>2.5</sub>, a fine
+                  particulate pollutant used to describe health-relevant air quality conditions.
+                  The analysis combines current PM<sub>2.5</sub> readings, Air Quality Index categories, week-over-week
+                  averages, and geographic patterns. It highlights higher- and lower-pollution locations, summarizes
+                  short-term changes, and provides practical health guidance; conditions may still vary with weather,
+                  traffic, local emissions, and sensor availability.
+                </p>
+              </div>
+            </section>
             {/* AQI Index Visualization */}
             <div className="mb-8">
               <h3 className="text-xl font-semibold text-gray-800 mb-3">Current Air Quality Status</h3>
@@ -1548,7 +1584,16 @@ function ReportContent() {
 
             {/* Jump to Categories Button */}
             {!pdfMode && (
-              <div className="mt-8 text-center">
+              <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-cyan-50 p-4 text-left sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-200">
+                    <Layers className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-900">Explore individual monitoring sites</p>
+                    <p className="mt-0.5 text-sm text-slate-500">Browse devices grouped by their surrounding environment.</p>
+                  </div>
+                </div>
                 <Button
                   onClick={() => {
                     const categoriesElement = document.getElementById("categories-section")
@@ -1556,9 +1601,10 @@ function ReportContent() {
                       categoriesElement.scrollIntoView({ behavior: "smooth" })
                     }
                   }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="h-11 shrink-0 rounded-xl bg-blue-600 px-5 text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg"
                 >
-                  Jump to Device Categories
+                  View device categories
+                  <ArrowDown className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             )}
@@ -1567,25 +1613,33 @@ function ReportContent() {
       )}
 
       {/* Summary Cards */}
-      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <SummaryCard
-          title="Total Monitoring Sites"
-          value={filteredData.length.toString()}
-          icon={<Globe className="text-blue-500 w-8 h-8" />}
-        />
-        <SummaryCard
-          title="Average PM2.5"
-          value={`${calculateAveragePM25(filteredData).toFixed(2)} µg/m³`}
-          icon={<BarChart3 className="text-green-500 w-8 h-8" />}
-        />
-        <SummaryCard
-          title="Weekly Change"
-          value={`${calculateAveragePercentageChange(filteredData).toFixed(2)}%`}
-          icon={getChangeIcon(calculateAveragePercentageChange(filteredData))}
-          trend={calculateAveragePercentageChange(filteredData)}
-        />
-      </div>
-
+      <section className="mb-8 rounded-[2rem] border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-blue-50/70 p-4 shadow-sm sm:p-6">
+        <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">At a glance</p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Network snapshot</h2>
+          </div>
+          <p className="text-sm text-slate-500">Based on your current report filters</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <SummaryCard
+            title="Total Monitoring Sites"
+            value={filteredData.length.toString()}
+            icon={<Globe className="h-7 w-7 text-blue-500" />}
+          />
+          <SummaryCard
+            title="Average PM2.5"
+            value={`${calculateAveragePM25(filteredData).toFixed(2)} \u00B5g/m\u00B3`}
+            icon={<BarChart3 className="h-7 w-7 text-emerald-500" />}
+          />
+          <SummaryCard
+            title="Weekly Change"
+            value={`${calculateAveragePercentageChange(filteredData).toFixed(2)}%`}
+            icon={getChangeIcon(calculateAveragePercentageChange(filteredData))}
+            trend={calculateAveragePercentageChange(filteredData)}
+          />
+        </div>
+      </section>
       {/* No results message */}
       {filteredData.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-6 text-center mb-8">
@@ -1601,8 +1655,17 @@ function ReportContent() {
       )}
 
       {/* Categories Controls */}
-      <div id="categories-section" className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">Explore the network</p><h2 className="mt-1 text-2xl font-bold text-slate-900">Device Categories</h2><p className="mt-1 text-sm text-slate-500">Review monitoring sites grouped by their surrounding environment.</p></div>
+      <div id="categories-section" className="mb-5 flex scroll-mt-6 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-200">
+            <Layers className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">Explore the network</p>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Device Categories</h2>
+            <p className="mt-1 text-sm text-slate-500">Review monitoring sites grouped by their surrounding environment.</p>
+          </div>
+        </div>
         <Button
           variant="outline"
           onClick={() => {
@@ -1624,7 +1687,7 @@ function ReportContent() {
               setCollapsedCategories(collapsed)
             }
           }}
-          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+          className="h-10 shrink-0 rounded-xl border-blue-200 bg-blue-50/60 px-4 font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-100"
         >
           {Object.keys(sitesByCategory).every((category) => collapsedCategories[category])
             ? "Expand All Categories"
