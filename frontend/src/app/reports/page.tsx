@@ -12,6 +12,8 @@ import {
   Globe,
   HeartPulse,
   Layers,
+  LoaderCircle,
+  MapPin,
   Minus,
   Printer,
   BarChart3,
@@ -44,9 +46,8 @@ const Unhealthy = "/images/Unhealthy.png"
 const VeryUnhealthy = "/images/VeryUnhealthy.png"
 const Hazardous = "/images/Hazardous.png"
 const Invalid = "/images/Invalid.png"
-const REPORT_EMPTY_RETRY_MS = 60_000
-const REPORT_FAILURE_RETRY_BASE_MS = 30_000
-const REPORT_FAILURE_RETRY_MAX_MS = 5 * 60_000
+const REPORT_RETRY_DELAY_MS = 5_000
+const REPORT_LOAD_MAX_ATTEMPTS = 2
 
 import { Switch } from "@/ui/switch"
 import { Label } from "@/ui/label"
@@ -84,6 +85,9 @@ function ReportContent() {
   // Add this state at the top of the ReportContent function, near the other state declarations
   const [activeTab, setActiveTab] = useState("moran")
   const [siteData, setSiteData] = useState<SiteData[]>([])
+  const [isReportDataLoading, setIsReportDataLoading] = useState(true)
+  const [reportLoadError, setReportLoadError] = useState<string | null>(null)
+  const [reportLoadRequest, setReportLoadRequest] = useState(0)
   const [filteredData, setFilteredData] = useState<SiteData[]>([])
   const [selectedSite, setSelectedSite] = useState<SiteData | null>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
@@ -278,59 +282,6 @@ function ReportContent() {
     }
   }
 
-  const getPolicyRecommendations = (aqiCategory: string, filters: Filters): string[] => {
-    const recommendations: string[] = []
-
-    const countrySummary = summarizeSelection(filters.country, "countries")
-    const citySummary = summarizeSelection(filters.city, "cities")
-    const districtSummary = summarizeSelection(filters.district, "districts")
-    const categorySummary = summarizeSelection(filters.category, "categories")
-
-    if (countrySummary) {
-      recommendations.push(`Implement stricter emission standards for vehicles and industries in ${countrySummary}.`)
-    }
-
-    if (citySummary) {
-      recommendations.push(`Invest in public transportation and promote cycling and walking in ${citySummary}.`)
-    }
-
-    if (districtSummary) {
-      recommendations.push(`Deploy community-level monitoring and enforcement in ${districtSummary} to tackle localized pollution sources.`)
-    }
-
-    if (categorySummary) {
-      recommendations.push(
-        `Implement targeted measures to reduce pollution within the selected site categories (${categorySummary}).`,
-      )
-    }
-
-    switch (aqiCategory.toLowerCase()) {
-      case "good":
-        recommendations.push("Maintain current air quality standards.")
-        break
-      case "moderate":
-        recommendations.push("Monitor air quality closely and take action if pollution levels rise.")
-        break
-      case "unhealthy for sensitive groups":
-        recommendations.push("Issue health advisories and take steps to reduce pollution levels.")
-        break
-      case "unhealthy":
-        recommendations.push("Implement emergency measures to reduce pollution levels and protect public health.")
-        break
-      case "very unhealthy":
-        recommendations.push("Declare a public health emergency and take immediate action to reduce pollution levels.")
-        break
-      case "hazardous":
-        recommendations.push(
-          "Evacuate vulnerable populations and take all possible measures to reduce pollution levels.",
-        )
-        break
-      default:
-        recommendations.push("Air quality data is unavailable. Please check later.")
-    }
-
-    return recommendations
-  }
 
   const getChangeIcon = (trend: number): ReactNode => {
     if (trend < 0) {
@@ -344,33 +295,48 @@ function ReportContent() {
 
   useEffect(() => {
     let isActive = true
-    let failureCount = 0
+    let attemptCount = 0
     let retryTimer: number | null = null
 
-    const scheduleRetry = (delayMs: number) => {
+    setIsReportDataLoading(true)
+    setReportLoadError(null)
+
+    const finishWithError = (message: string) => {
+      if (!isActive) return
+      setIsReportDataLoading(false)
+      setReportLoadError(message)
+    }
+
+    const scheduleRetry = () => {
       if (!isActive) return
       if (retryTimer !== null) window.clearTimeout(retryTimer)
       retryTimer = window.setTimeout(() => {
         retryTimer = null
         void fetchData()
-      }, delayMs)
+      }, REPORT_RETRY_DELAY_MS)
     }
 
     async function fetchData() {
+      attemptCount += 1
+
       try {
         const data = await getReportData()
         if (!isActive) return
 
         const typedData = data as SiteData[]
         if (typedData.length === 0) {
-          failureCount = 0
-          scheduleRetry(REPORT_EMPTY_RETRY_MS)
+          if (attemptCount < REPORT_LOAD_MAX_ATTEMPTS) {
+            scheduleRetry()
+          } else {
+            finishWithError("No report data is available right now. Please try again.")
+          }
           return
         }
 
-        failureCount = 0
         setSiteData(typedData)
         setFilteredData(typedData)
+        setIsReportDataLoading(false)
+        setReportLoadError(null)
 
         const countries = Array.from(new Set(typedData.map((site) => site.siteDetails?.country || "Unknown"))).sort()
         const cities = Array.from(new Set(typedData.map((site) => site.siteDetails?.city || "Unknown"))).sort()
@@ -387,12 +353,15 @@ function ReportContent() {
         setFilterOptions({ countries, cities, districts, categories })
       } catch (err) {
         if (!isActive) return
-        failureCount += 1
-        const backoffMultiplier = 2 ** Math.min(failureCount - 1, 4)
-        scheduleRetry(Math.min(REPORT_FAILURE_RETRY_BASE_MS * backoffMultiplier, REPORT_FAILURE_RETRY_MAX_MS))
+
+        if (attemptCount < REPORT_LOAD_MAX_ATTEMPTS) {
+          scheduleRetry()
+        } else {
+          finishWithError("We couldn't load the report data. Check your connection and try again.")
+        }
 
         if (process.env.NODE_ENV !== "production") {
-          console.warn("Report data fetch failed; retrying in the background.", err)
+          console.warn("Report data fetch failed.", err)
         }
       }
     }
@@ -403,7 +372,7 @@ function ReportContent() {
       isActive = false
       if (retryTimer !== null) window.clearTimeout(retryTimer)
     }
-  }, [])
+  }, [reportLoadRequest])
 
   // Update cities and districts when country changes
   useEffect(() => {
@@ -568,97 +537,111 @@ function ReportContent() {
         allowTaint: true,
       })
 
-      const imgData = canvas.toDataURL("image/png", 0.7) // Added compression quality parameter (0.7)
-
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a4",
-        compress: true, // Enable compression
+        compress: true,
       })
 
-      // Define margins
-      const pageWidth = 210 // A4 width in mm
-      const pageHeight = 297 // A4 height in mm
-      const marginLeft = 15 // Left margin in mm
-      const marginRight = 15 // Right margin in mm
-      const marginTop = 20 // Top margin in mm
-      const marginBottom = 15 // Bottom margin in mm
-
+      // Keep report content inside a dedicated printable area on every page.
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const marginLeft = 15
+      const marginRight = 15
+      const marginTop = 18
+      const marginBottom = 18
       const contentWidth = pageWidth - marginLeft - marginRight
       const contentHeight = pageHeight - marginTop - marginBottom
+      const maxSliceHeight = Math.floor((contentHeight * canvas.width) / contentWidth)
+      const reportRect = reportElement.getBoundingClientRect()
+      const canvasScale = canvas.height / reportRect.height
+      const breakPadding = Math.max(6, Math.round(4 * canvasScale))
 
-      const imgWidth = contentWidth
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      // Text and visual blocks should move to the next page instead of being cut
+      // across the reserved header or footer area.
+      const protectedBlocks = Array.from(
+        reportElement.querySelectorAll<HTMLElement>(
+          "p, li, h1, h2, h3, h4, table, .pdf-keep-together, .recharts-wrapper, .leaflet-container",
+        ),
+      )
+        .map((element) => {
+          const rect = element.getBoundingClientRect()
+          return {
+            top: Math.max(0, Math.floor((rect.top - reportRect.top) * canvasScale)),
+            bottom: Math.min(canvas.height, Math.ceil((rect.bottom - reportRect.top) * canvasScale)),
+          }
+        })
+        .filter((block) => block.bottom > block.top && block.bottom - block.top < maxSliceHeight * 0.9)
+        .sort((a, b) => a.top - b.top)
 
-      // Find sections in the report to create page breaks
-      const sections = []
-      const footerSection = reportElement.querySelector(".text-xs.text-gray-500.border-t")
-      if (footerSection) {
-        const footerRect = footerSection.getBoundingClientRect()
-        const reportRect = reportElement.getBoundingClientRect()
-        const footerPosition = (footerRect.top - reportRect.top) / reportRect.height
-        sections.push(footerPosition)
-      }
+      const pageSlices: Array<{ startY: number; endY: number }> = []
+      let startY = 0
 
-      // Add advanced analysis section break if it exists
-      if (showAdvancedAnalysis) {
-        const advancedSection = reportElement.querySelector(".pt-8.border-t.border-gray-200")
-        if (advancedSection) {
-          const advancedRect = advancedSection.getBoundingClientRect()
-          const reportRect = reportElement.getBoundingClientRect()
-          const advancedPosition = (advancedRect.top - reportRect.top) / reportRect.height
-          sections.push(advancedPosition)
-        }
-      }
+      while (startY < canvas.height) {
+        const idealEnd = Math.min(canvas.height, startY + maxSliceHeight)
+        let safeEnd = idealEnd
 
-      // Sort sections by position
-      sections.sort((a, b) => a - b)
+        if (idealEnd < canvas.height) {
+          let adjusted = true
+          while (adjusted) {
+            adjusted = false
+            const crossingBlock = protectedBlocks.find(
+              (block) => block.top + breakPadding < safeEnd && block.bottom - breakPadding > safeEnd,
+            )
 
-      // If the report is longer than a page, create multiple pages
-      let heightLeft = imgHeight
-      let position = marginTop // Start with top margin
-      let currentPage = 0
-      let lastSection = 0
+            if (crossingBlock && crossingBlock.top - breakPadding > startY) {
+              safeEnd = crossingBlock.top - breakPadding
+              adjusted = true
+            }
+          }
 
-      // Add first page with margins
-      pdf.addImage(imgData, "PNG", marginLeft, position, imgWidth, imgHeight)
-
-      heightLeft -= contentHeight
-      currentPage += contentHeight / imgHeight
-
-      let pageNumber = 0
-      // Add additional pages if content is longer than one page
-      while (heightLeft > 0) {
-        // Check if we need to force a page break at a section
-        let forceSectionBreak = false
-        for (const section of sections) {
-          if (section > lastSection && section <= currentPage) {
-            // This section falls on the current page, force a break
-            forceSectionBreak = true
-            lastSection = section
-            break
+          // Avoid creating a nearly empty page when an unusually tall block is encountered.
+          if (safeEnd - startY < maxSliceHeight * 0.35) {
+            safeEnd = idealEnd
           }
         }
 
-        // Add a new page
-        pdf.addPage()
-
-        // Calculate position for next page
-        // If we're forcing a section break, align to the section
-        if (forceSectionBreak) {
-          position = marginTop - lastSection * canvas.height * (imgWidth / canvas.width)
-        } else {
-          position = marginTop - pageHeight * (currentPage + 1)
-          position = marginTop - pageHeight * pageNumber 
-        }
-
-        pdf.addImage(imgData, "PNG", marginLeft, position, imgWidth, imgHeight)
-
-        heightLeft -= contentHeight
-        currentPage += contentHeight / imgHeight
+        pageSlices.push({ startY, endY: safeEnd })
+        startY = safeEnd
       }
 
+      pageSlices.forEach((slice, pageIndex) => {
+        if (pageIndex > 0) pdf.addPage()
+
+        const sliceHeight = slice.endY - slice.startY
+        const pageCanvas = document.createElement("canvas")
+        pageCanvas.width = canvas.width
+        pageCanvas.height = sliceHeight
+        const pageContext = pageCanvas.getContext("2d")
+
+        if (!pageContext) {
+          throw new Error("Unable to prepare a PDF page")
+        }
+
+        pageContext.fillStyle = "#ffffff"
+        pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+        pageContext.drawImage(
+          canvas,
+          0,
+          slice.startY,
+          canvas.width,
+          sliceHeight,
+          0,
+          0,
+          canvas.width,
+          sliceHeight,
+        )
+
+        const renderedHeight = (sliceHeight * contentWidth) / canvas.width
+        pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", marginLeft, marginTop, contentWidth, renderedHeight)
+
+        pdf.setFontSize(8)
+        pdf.setTextColor(100, 116, 139)
+        pdf.text(`Page ${pageIndex + 1} of ${pageSlices.length}`, pageWidth / 2, pageHeight - 8, {
+          align: "center",
+        })
+      })
       // Generate filename based on filters or selected site
       let filename = "air-quality-report"
       if (selectedSite) {
@@ -770,6 +753,33 @@ function ReportContent() {
       country: formatSelectionList(filters.country, "All Countries"),
       name: filters.category.length ? `${formatSelectionList(filters.category, "All")} Sites` : "All Sites",
     }
+  }
+
+  const getReportScopeDescription = () => {
+    if (selectedSite) {
+      const siteName = selectedSite.siteDetails.name || selectedSite.siteDetails.formatted_name || "the selected site"
+      const location = [selectedSite.siteDetails.city, selectedSite.siteDetails.country].filter(Boolean).join(", ")
+      return location ? `${siteName} in ${location}` : siteName
+    }
+
+    const filteredLocations = [
+      filters.district.length ? formatSelectionList(filters.district, "") : null,
+      filters.city.length ? formatSelectionList(filters.city, "") : null,
+      filters.country.length ? formatSelectionList(filters.country, "") : null,
+    ].filter(Boolean)
+    const categoryScope = filters.category.length
+      ? ` for ${formatSelectionList(filters.category, "")} site categories`
+      : ""
+
+    if (filteredLocations.length > 0) {
+      return `${filteredLocations.join(", ")}${categoryScope}`
+    }
+
+    if (selectedDevices.length > 0 && selectedDevices.length < siteData.length) {
+      return `${filteredData.length} selected monitoring site${filteredData.length === 1 ? "" : "s"}`
+    }
+
+    return `the AirQo monitoring network${categoryScope}`
   }
 
   // Calculate average PM2.5 for AQI index visualization
@@ -914,26 +924,16 @@ function ReportContent() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Air Quality Reports</h1>
-        <p className="text-gray-600">
-          Real-time insights and analytics on air quality across different site categories
+    <div className="container mx-auto max-w-[1440px] px-4 py-6 sm:py-8">
+      <header className="mb-8 border-b border-slate-200 px-1 pb-6 text-center">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">Air Quality Reports</h1>
+        <p className="mx-auto mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
+          Compare recent air quality conditions across monitoring sites and build a focused report for the locations that matter.
         </p>
-          <p className="text-gray-600">
-              Looking for more insights? Explore detailed reports on our{' '}
-              <a href="https://platform.airqo.net/reports" 
-              className="text-blue-600 underline hover:text-blue-800" 
-              target="_blank" 
-              rel="noopener noreferrer">reports page</a>{" "}
-              includes detailed historical air quality data, not just from the last two weeks.
-
-        </p>
-
-      </div>
+      </header>
 
       {/* Filters */}
-      <div className="mb-8 rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 p-5 shadow-sm">
+      <div className="mb-8 rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-blue-50/50 p-5 shadow-lg shadow-slate-200/50 sm:p-6">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-950">Filter report visuals</h2>
@@ -989,10 +989,44 @@ function ReportContent() {
         </div>
       </div>
 
+      {isReportDataLoading && (
+        <div
+          className="mb-8 overflow-hidden rounded-3xl border border-blue-100 bg-white p-6 shadow-lg shadow-blue-100/50"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 ring-8 ring-blue-50/60">
+              <LoaderCircle className="h-7 w-7 animate-spin text-blue-600" aria-hidden="true" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-slate-900">Preparing your air quality overview</p>
+              <p className="mt-1 text-sm text-slate-500">Loading monitoring sites, recent readings, and report filters.</p>
+              <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-blue-600 to-cyan-400" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {reportLoadError && (
+        <div className="mb-8 flex flex-col items-center justify-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-center" role="alert">
+          <p className="text-sm font-medium text-red-800">{reportLoadError}</p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setReportLoadRequest((request) => request + 1)}
+            className="rounded-xl border-red-300 bg-white text-red-700 hover:bg-red-100"
+          >
+            Try again
+          </Button>
+        </div>
+      )}
+
       {siteData.length > 0 ? (
         <>
       {/* Filter summary */}
-      <div className="mb-8 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+      <div className="mb-8 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-cyan-50/60 p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
           <span className="mr-1 text-xs font-bold uppercase tracking-[0.14em] text-blue-700">Active filters</span>
@@ -1027,7 +1061,7 @@ function ReportContent() {
 
       {/* Selected Devices Counter */}
       {selectedDevices.length > 0 && (
-        <div className="mb-8 transform rounded-2xl bg-blue-600 p-4 text-white shadow-lg transition-all duration-300 hover:scale-105">
+        <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-600 p-5 text-white shadow-lg shadow-blue-900/15">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
               <div className="bg-white text-blue-600 rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mr-4">
@@ -1386,29 +1420,24 @@ function ReportContent() {
             </div>
 
             {/* Introduction */}
-            <div className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Introduction</h3>
-              <p className="text-gray-700">
-                This report provides a comprehensive analysis of air quality data for
-                {selectedSite
-                  ? ` ${selectedSite.siteDetails.name} in ${selectedSite.siteDetails.city || "Unknown City"}, ${selectedSite.siteDetails.country || "Unknown Country"}.`
-                  : hasActiveFilters
-                    ? ` the selected region (${[
-                        filters.country.length ? formatSelectionList(filters.country, "") : null,
-                        filters.city.length ? formatSelectionList(filters.city, "") : null,
-                        filters.district.length ? formatSelectionList(filters.district, "") : null,
-                        filters.category.length ? formatSelectionList(filters.category, "") : null,
-                      ]
-                        .filter(Boolean)
-                        .join(", ")}).`
-                    : " all monitored sites in the AirQo network."}{" "}
-                The data was collected using AirQo&apos;s network of low-cost air quality sensors, which measure
-                particulate matter (PM<sub>2.5</sub>) and other pollutants in real-time. This report analyzes the current air
-                quality status, compares it with previous periods, and provides health recommendations based on the
-                findings.
-              </p>
-            </div>
+            <section className="pdf-keep-together mb-8 overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/80 via-white to-cyan-50/60">
+              <div className="border-b border-blue-100 px-5 py-4 sm:px-6">
+                <h3 className="mt-1 text-xl font-semibold text-slate-900">Introduction</h3>
+              </div>
 
+              <div className="space-y-4 px-5 py-5 text-sm leading-7 text-slate-700 sm:px-6 sm:py-6 sm:text-base">
+                <p>
+                  This report assesses recent air quality conditions across {getReportScopeDescription()}. It brings
+                  together the latest available readings from {filteredData.length} AirQo monitoring
+                  {filteredData.length === 1 ? " site" : " sites"}, with a primary focus on PM<sub>2.5</sub>, a fine
+                  particulate pollutant used to describe health-relevant air quality conditions.
+                  The analysis combines current PM<sub>2.5</sub> readings, Air Quality Index categories, week-over-week
+                  averages, and geographic patterns. It highlights higher- and lower-pollution locations, summarizes
+                  short-term changes, and provides practical health guidance; conditions may still vary with weather,
+                  traffic, local emissions, and sensor availability.
+                </p>
+              </div>
+            </section>
             {/* AQI Index Visualization */}
             <div className="mb-8">
               <h3 className="text-xl font-semibold text-gray-800 mb-3">Current Air Quality Status</h3>
@@ -1551,22 +1580,20 @@ function ReportContent() {
                 </ul>
               </div>
 
-              <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h4 className="font-semibold text-blue-800 mb-2">Policy Recommendations</h4>
-                <ul className="list-disc list-inside text-blue-700 space-y-2">
-                  {getPolicyRecommendations(
-                    selectedSite ? selectedSite.aqi_category : getAverageAQICategory(filteredData),
-                    filters,
-                  ).map((rec, index) => (
-                    <li key={index}>{rec}</li>
-                  ))}
-                </ul>
-              </div>
             </div>
 
             {/* Jump to Categories Button */}
             {!pdfMode && (
-              <div className="mt-8 text-center">
+              <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-cyan-50 p-4 text-left sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-200">
+                    <Layers className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-900">Explore individual monitoring sites</p>
+                    <p className="mt-0.5 text-sm text-slate-500">Browse devices grouped by their surrounding environment.</p>
+                  </div>
+                </div>
                 <Button
                   onClick={() => {
                     const categoriesElement = document.getElementById("categories-section")
@@ -1574,9 +1601,10 @@ function ReportContent() {
                       categoriesElement.scrollIntoView({ behavior: "smooth" })
                     }
                   }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="h-11 shrink-0 rounded-xl bg-blue-600 px-5 text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg"
                 >
-                  Jump to Device Categories
+                  View device categories
+                  <ArrowDown className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             )}
@@ -1585,25 +1613,33 @@ function ReportContent() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <SummaryCard
-          title="Total Monitoring Sites"
-          value={filteredData.length.toString()}
-          icon={<Globe className="text-blue-500 w-8 h-8" />}
-        />
-        <SummaryCard
-          title="Average PM2.5"
-          value={`${calculateAveragePM25(filteredData).toFixed(2)} µg/m³`}
-          icon={<BarChart3 className="text-green-500 w-8 h-8" />}
-        />
-        <SummaryCard
-          title="Weekly Change"
-          value={`${calculateAveragePercentageChange(filteredData).toFixed(2)}%`}
-          icon={getChangeIcon(calculateAveragePercentageChange(filteredData))}
-          trend={calculateAveragePercentageChange(filteredData)}
-        />
-      </div>
-
+      <section className="mb-8 rounded-[2rem] border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-blue-50/70 p-4 shadow-sm sm:p-6">
+        <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">At a glance</p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Network snapshot</h2>
+          </div>
+          <p className="text-sm text-slate-500">Based on your current report filters</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <SummaryCard
+            title="Total Monitoring Sites"
+            value={filteredData.length.toString()}
+            icon={<Globe className="h-7 w-7 text-blue-500" />}
+          />
+          <SummaryCard
+            title="Average PM2.5"
+            value={`${calculateAveragePM25(filteredData).toFixed(2)} \u00B5g/m\u00B3`}
+            icon={<BarChart3 className="h-7 w-7 text-emerald-500" />}
+          />
+          <SummaryCard
+            title="Weekly Change"
+            value={`${calculateAveragePercentageChange(filteredData).toFixed(2)}%`}
+            icon={getChangeIcon(calculateAveragePercentageChange(filteredData))}
+            trend={calculateAveragePercentageChange(filteredData)}
+          />
+        </div>
+      </section>
       {/* No results message */}
       {filteredData.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-6 text-center mb-8">
@@ -1619,8 +1655,17 @@ function ReportContent() {
       )}
 
       {/* Categories Controls */}
-      <div id="categories-section" className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-gray-800">Device Categories</h2>
+      <div id="categories-section" className="mb-5 flex scroll-mt-6 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-200">
+            <Layers className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">Explore the network</p>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Device Categories</h2>
+            <p className="mt-1 text-sm text-slate-500">Review monitoring sites grouped by their surrounding environment.</p>
+          </div>
+        </div>
         <Button
           variant="outline"
           onClick={() => {
@@ -1642,7 +1687,7 @@ function ReportContent() {
               setCollapsedCategories(collapsed)
             }
           }}
-          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+          className="h-10 shrink-0 rounded-xl border-blue-200 bg-blue-50/60 px-4 font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-100"
         >
           {Object.keys(sitesByCategory).every((category) => collapsedCategories[category])
             ? "Expand All Categories"
@@ -1654,9 +1699,9 @@ function ReportContent() {
       {Object.entries(sitesByCategory).map(([category, sites]) => (
         <div
           key={category}
-          className="mb-6 bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 ease-in-out"
+          className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-300 ease-in-out hover:shadow-md"
         >
-          <div className="p-4 flex justify-between items-center cursor-pointer bg-gradient-to-r from-blue-50 to-white hover:from-blue-100">
+          <div className="flex cursor-pointer flex-col gap-3 bg-gradient-to-r from-blue-50 via-white to-cyan-50/50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div className="flex items-center">
               <div onClick={() => toggleCategoryCollapse(category)} className="flex items-center cursor-pointer">
                 <h2 className="text-2xl font-bold text-gray-800">{category} Sites</h2>
@@ -1725,7 +1770,7 @@ function ReportContent() {
               collapsedCategories[category] ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
             }`}
           >
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-4 p-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {sites.map((site) => {
                 const isSiteSelected = selectedDevices.includes(getSiteSelectionId(site))
                 return (
@@ -1954,123 +1999,182 @@ function SiteCard({
   const areaName = site.siteDetails?.site_category?.area_name || "Unknown Area"
   const percentChange = site.averages?.percentageDifference ?? 0
   const currentWeek = site.averages?.weeklyAverages?.currentWeek ?? 0
-  const previousWeek = site.averages?.weeklyAverages?.currentWeek ?? 0
+  const previousWeek = site.averages?.weeklyAverages?.previousWeek ?? 0
   const country = site.siteDetails?.country || "Unknown"
   const city = site.siteDetails?.city || "Unknown"
 
-  // Get color based on AQI category
-  const getColorByCategory = (category: string): string => {
+  const getCategoryTheme = (category: string) => {
     switch (category.toLowerCase()) {
       case "good":
-        return "bg-green-100 border-green-300 text-green-800"
+        return {
+          accent: "bg-emerald-500",
+          badge: "border-emerald-200 bg-emerald-100 text-emerald-800",
+          card: "border-emerald-200 bg-gradient-to-br from-white via-white to-emerald-50/80",
+          metric: "text-emerald-700",
+          soft: "bg-emerald-50 text-emerald-700",
+        }
       case "moderate":
-        return "bg-yellow-100 border-yellow-300 text-yellow-800"
+        return {
+          accent: "bg-amber-400",
+          badge: "border-amber-200 bg-amber-100 text-amber-800",
+          card: "border-amber-200 bg-gradient-to-br from-white via-white to-amber-50/90",
+          metric: "text-amber-700",
+          soft: "bg-amber-50 text-amber-700",
+        }
       case "unhealthy for sensitive groups":
-        return "bg-orange-100 border-orange-300 text-orange-800"
+        return {
+          accent: "bg-orange-500",
+          badge: "border-orange-200 bg-orange-100 text-orange-800",
+          card: "border-orange-200 bg-gradient-to-br from-white via-white to-orange-50/90",
+          metric: "text-orange-700",
+          soft: "bg-orange-50 text-orange-700",
+        }
       case "unhealthy":
-        return "bg-red-100 border-red-300 text-red-800"
+        return {
+          accent: "bg-red-500",
+          badge: "border-red-200 bg-red-100 text-red-800",
+          card: "border-red-200 bg-gradient-to-br from-white via-white to-red-50/90",
+          metric: "text-red-700",
+          soft: "bg-red-50 text-red-700",
+        }
       case "very unhealthy":
-        return "bg-purple-100 border-purple-300 text-purple-800"
+        return {
+          accent: "bg-purple-500",
+          badge: "border-purple-200 bg-purple-100 text-purple-800",
+          card: "border-purple-200 bg-gradient-to-br from-white via-white to-purple-50/90",
+          metric: "text-purple-700",
+          soft: "bg-purple-50 text-purple-700",
+        }
       case "hazardous":
-        return "bg-red-200 border-red-400 text-red-900"
+        return {
+          accent: "bg-rose-800",
+          badge: "border-rose-300 bg-rose-100 text-rose-900",
+          card: "border-rose-300 bg-gradient-to-br from-white via-white to-rose-100/80",
+          metric: "text-rose-900",
+          soft: "bg-rose-100 text-rose-900",
+        }
       default:
-        return "bg-gray-100 border-gray-300 text-gray-800"
+        return {
+          accent: "bg-slate-400",
+          badge: "border-slate-200 bg-slate-100 text-slate-700",
+          card: "border-slate-200 bg-gradient-to-br from-white via-white to-slate-50",
+          metric: "text-slate-800",
+          soft: "bg-slate-100 text-slate-700",
+        }
     }
   }
 
+  const theme = getCategoryTheme(aqiCategory)
+  const trendTone = percentChange < 0
+    ? "bg-emerald-50 text-emerald-700"
+    : percentChange > 0
+      ? "bg-red-50 text-red-700"
+      : "bg-slate-100 text-slate-600"
+  const wasJustSelected = getSiteSelectionId(site) === lastSelectedId
+
   return (
     <Card
-      className={`w-full shadow-md hover:shadow-lg transition-all duration-300 ${getColorByCategory(aqiCategory)} ${
-        isSelected ? "ring-2 ring-blue-500" : ""
-      } ${isCheckboxSelected ? "relative overflow-hidden" : ""} ${isCheckboxSelected ? "animate-pulse-subtle" : ""} ${
-        getSiteSelectionId(site) === lastSelectedId ? "scale-105 shadow-xl z-10" : ""
+      className={`group relative w-full overflow-hidden rounded-2xl border shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${theme.card} ${
+        isSelected ? "ring-2 ring-blue-500 ring-offset-2" : ""
+      } ${isCheckboxSelected ? "shadow-blue-200/60 ring-2 ring-blue-400/70" : ""} ${
+        wasJustSelected ? "-translate-y-1 shadow-xl" : ""
       }`}
     >
-      {isCheckboxSelected && (
-        <div className="absolute -top-1 -right-1 transform rotate-45 bg-blue-500 text-white px-8 py-1 shadow-md">
-          Selected
-        </div>
-      )}
-      <CardContent className="p-6">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-            <h3 className="text-lg font-bold mb-1">{siteName}</h3>
-            <p className="text-sm mb-1">{areaName}</p>
-            <p className="text-xs text-gray-600 mb-3">
-              {city}, {country}
+      <div className={`absolute inset-x-0 top-0 h-1.5 ${theme.accent}`} />
+      <CardContent className="p-4 pt-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="truncate text-base font-bold text-slate-950">{siteName}</h3>
+              {isCheckboxSelected && (
+                <span className="rounded-full bg-blue-600 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                  Selected
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-xs font-medium text-slate-600">{areaName}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{city}, {country}</span>
             </p>
           </div>
           {onCheckboxChange && (
-            <Checkbox
-              checked={isCheckboxSelected}
-              onCheckedChange={() => {
-                if (onCheckboxChange) onCheckboxChange()
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="mt-1"
-            />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white/90 shadow-sm">
+              <Checkbox
+                checked={isCheckboxSelected}
+                aria-label={`Select ${siteName} for reporting`}
+                onCheckedChange={() => onCheckboxChange()}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
           )}
         </div>
 
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <span className="text-xs font-medium">Current PM2.5</span>
-            <div className="text-2xl font-bold">{pm25Value.toFixed(2)} µg/m³</div>
+        <div className="mt-3 grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)] gap-2">
+          <div className="rounded-xl border border-white/80 bg-white/80 p-3 shadow-sm backdrop-blur">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Current PM2.5</p>
+            <p className={`mt-0.5 text-2xl font-bold tracking-tight ${theme.metric}`}>
+              {pm25Value.toFixed(2)} <span className="text-sm font-semibold">µg/m³</span>
+            </p>
           </div>
-          <div className="text-right">
-            <span className="text-xs font-medium">AQI Category</span>
-            <div className="text-lg font-semibold">{aqiCategory}</div>
+          <div className="flex flex-col justify-between rounded-xl border border-white/80 bg-white/70 p-3 shadow-sm backdrop-blur">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">AQI status</p>
+            <span className={`mt-1.5 w-fit rounded-full border px-2 py-0.5 text-[11px] font-bold ${theme.badge}`}>
+              {aqiCategory}
+            </span>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-3 shadow-inner">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">Weekly Comparison</span>
-            <div
-              className={`flex items-center ${percentChange < 0 ? "text-green-600" : percentChange > 0 ? "text-red-600" : "text-gray-600"}`}
-            >
+        <div className="mt-2 rounded-xl border border-slate-200/80 bg-white/90 p-3 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-slate-800">Weekly comparison</p>
+              <p className="text-[10px] text-slate-500">Weekly average · µg/m³</p>
+            </div>
+            <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${trendTone}`}>
               {percentChange < 0 ? (
-                <ArrowDown className="w-4 h-4 mr-1" />
+                <ArrowDown className="h-3.5 w-3.5" />
               ) : percentChange > 0 ? (
-                <ArrowUp className="w-4 h-4 mr-1" />
+                <ArrowUp className="h-3.5 w-3.5" />
               ) : (
-                <Minus className="w-4 h-4 mr-1" />
+                <Minus className="h-3.5 w-3.5" />
               )}
-              <span className="text-sm font-bold">{Math.abs(percentChange).toFixed(2)}%</span>
+              {Math.abs(percentChange).toFixed(2)}%
             </div>
           </div>
 
-          <div className="flex justify-between text-sm">
+          <div className="mt-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             <div>
-              <div className="text-gray-500">Previous</div>
-              <div className="font-medium">{previousWeek.toFixed(2)}</div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Previous</p>
+              <p className="text-sm font-bold text-slate-700">{previousWeek.toFixed(2)}</p>
+              <p className="hidden">µg/m³</p>
             </div>
-            <div className="text-center">
-              <div className="text-gray-500">Change</div>
-              <div
-                className={`font-medium ${percentChange < 0 ? "text-green-600" : percentChange > 0 ? "text-red-600" : "text-gray-600"}`}
-              >
-                {percentChange < 0 ? "↓" : percentChange > 0 ? "↑" : "−"}
-              </div>
+            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${theme.soft}`}>
+              {percentChange < 0 ? <ArrowDown className="h-4 w-4" /> : percentChange > 0 ? <ArrowUp className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
             </div>
             <div className="text-right">
-              <div className="text-gray-500">Current</div>
-              <div className="font-medium">{currentWeek.toFixed(2)}</div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Current</p>
+              <p className="text-sm font-bold text-slate-900">{currentWeek.toFixed(2)}</p>
+              <p className="hidden">µg/m³</p>
             </div>
           </div>
         </div>
 
         {onSelect && (
           <Button
-            variant="outline"
+            variant={isSelected ? "default" : "outline"}
             size="sm"
             onClick={(e) => {
               e.stopPropagation()
-              if (onSelect) onSelect()
+              onSelect()
             }}
-            className="w-full mt-4 text-blue-600 border-blue-200 hover:bg-blue-50"
+            className={`mt-3 h-9 w-full rounded-lg text-xs font-semibold transition ${
+              isSelected
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "border-blue-200 bg-white/80 text-blue-700 hover:border-blue-300 hover:bg-blue-50"
+            }`}
           >
-            {isSelected ? "Selected for Report" : "Select for Detailed Report"}
+            {isSelected ? "Selected for report" : "View detailed report"}
           </Button>
         )}
       </CardContent>
@@ -2090,17 +2194,18 @@ function SummaryCard({
   trend?: number
 }) {
   return (
-    <Card className="w-full shadow-md hover:shadow-lg transition-shadow">
-      <CardContent className="p-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-lg font-medium text-gray-600">{title}</h3>
-            <div className="text-3xl font-bold mt-1 flex items-center">
+    <Card className="group relative w-full overflow-hidden rounded-2xl border-slate-200 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-400" />
+      <CardContent className="p-5 sm:p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{title}</h3>
+            <div className="mt-2 flex items-center text-3xl font-bold tracking-tight text-slate-950">
               {value}
               {trend !== undefined && (
                 <span
-                  className={`ml-2 text-sm font-medium ${
-                    trend < 0 ? "text-green-600" : trend > 0 ? "text-red-600" : "text-gray-600"
+                  className={`ml-2 rounded-full px-2 py-1 text-xs font-bold ${
+                    trend < 0 ? "bg-emerald-50 text-emerald-700" : trend > 0 ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"
                   }`}
                 >
                   {trend < 0 ? "↓" : trend > 0 ? "↑" : "−"}
@@ -2108,7 +2213,7 @@ function SummaryCard({
               )}
             </div>
           </div>
-          <div className="bg-blue-50 p-3 rounded-full">{icon}</div>
+          <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 p-3.5 ring-1 ring-blue-100 transition-transform group-hover:scale-105">{icon}</div>
         </div>
       </CardContent>
     </Card>
