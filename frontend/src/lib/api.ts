@@ -56,15 +56,24 @@ async function baseFetch<T>(
   if (options.json) console.log("Request payload:", options.json)
 
   const method = options.method || "GET"
-  const maxAttempts = method === "GET" ? 2 : 1
+  const maxAttempts = method === "GET" ? 3 : 1
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const response = await fetch(url.toString(), {
-      method,
-      headers,
-      body,
-      cache: "no-store",
-    })
+    let response: Response
+    try {
+      response = await fetch(url.toString(), {
+        method,
+        headers,
+        body,
+        cache: "no-store",
+      })
+    } catch (error) {
+      if (method === "GET" && attempt < maxAttempts) {
+        await delay(500 * attempt)
+        continue
+      }
+      throw error
+    }
 
     if (response.ok) {
       return response.json() as Promise<T>
@@ -74,7 +83,7 @@ async function baseFetch<T>(
     console.error("API Error Response:", errorData)
 
     if (attempt < maxAttempts && RETRYABLE_API_STATUSES.has(response.status)) {
-      await delay(500)
+      await delay(500 * attempt)
       continue
     }
 
