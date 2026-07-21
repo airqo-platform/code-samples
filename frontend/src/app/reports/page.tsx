@@ -13,6 +13,7 @@ import {
   HeartPulse,
   Layers,
   LoaderCircle,
+  MapPin,
   Minus,
   Printer,
   BarChart3,
@@ -281,59 +282,6 @@ function ReportContent() {
     }
   }
 
-  const getPolicyRecommendations = (aqiCategory: string, filters: Filters): string[] => {
-    const recommendations: string[] = []
-
-    const countrySummary = summarizeSelection(filters.country, "countries")
-    const citySummary = summarizeSelection(filters.city, "cities")
-    const districtSummary = summarizeSelection(filters.district, "districts")
-    const categorySummary = summarizeSelection(filters.category, "categories")
-
-    if (countrySummary) {
-      recommendations.push(`Implement stricter emission standards for vehicles and industries in ${countrySummary}.`)
-    }
-
-    if (citySummary) {
-      recommendations.push(`Invest in public transportation and promote cycling and walking in ${citySummary}.`)
-    }
-
-    if (districtSummary) {
-      recommendations.push(`Deploy community-level monitoring and enforcement in ${districtSummary} to tackle localized pollution sources.`)
-    }
-
-    if (categorySummary) {
-      recommendations.push(
-        `Implement targeted measures to reduce pollution within the selected site categories (${categorySummary}).`,
-      )
-    }
-
-    switch (aqiCategory.toLowerCase()) {
-      case "good":
-        recommendations.push("Maintain current air quality standards.")
-        break
-      case "moderate":
-        recommendations.push("Monitor air quality closely and take action if pollution levels rise.")
-        break
-      case "unhealthy for sensitive groups":
-        recommendations.push("Issue health advisories and take steps to reduce pollution levels.")
-        break
-      case "unhealthy":
-        recommendations.push("Implement emergency measures to reduce pollution levels and protect public health.")
-        break
-      case "very unhealthy":
-        recommendations.push("Declare a public health emergency and take immediate action to reduce pollution levels.")
-        break
-      case "hazardous":
-        recommendations.push(
-          "Evacuate vulnerable populations and take all possible measures to reduce pollution levels.",
-        )
-        break
-      default:
-        recommendations.push("Air quality data is unavailable. Please check later.")
-    }
-
-    return recommendations
-  }
 
   const getChangeIcon = (trend: number): ReactNode => {
     if (trend < 0) {
@@ -934,27 +882,46 @@ function ReportContent() {
     }
   }
 
+  const overviewAqi = getAQIMeta(mostCommonCategory)
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Air Quality Reports</h1>
-        <p className="text-gray-600">
-          Real-time insights and analytics on air quality across different site categories
-        </p>
-          <p className="text-gray-600">
-              Looking for more insights? Explore detailed reports on our{' '}
-              <a href="https://platform.airqo.net/reports" 
-              className="text-blue-600 underline hover:text-blue-800" 
-              target="_blank" 
-              rel="noopener noreferrer">reports page</a>{" "}
-              includes detailed historical air quality data, not just from the last two weeks.
-
-        </p>
-
-      </div>
+    <div className="container mx-auto max-w-[1440px] px-4 py-6 sm:py-8">
+      <section className="relative mb-8 overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-blue-950 to-blue-800 px-6 py-8 text-white shadow-xl shadow-blue-950/15 sm:px-8 lg:px-10 lg:py-10">
+        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-cyan-400/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-blue-400/20 blur-3xl" />
+        <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)] lg:items-end">
+          <div>
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-blue-100 backdrop-blur">
+              <Zap className="h-3.5 w-3.5 text-cyan-300" />
+              Network intelligence
+            </div>
+            <h1 className="max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">Air Quality Reports</h1>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-blue-100 sm:text-base">
+              Compare recent air quality conditions across monitoring sites, uncover geographic patterns, and build a focused report for the locations that matter.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur sm:p-4">
+              <Globe className="mb-3 h-5 w-5 text-cyan-300" />
+              <p className="text-2xl font-bold">{siteData.length || "—"}</p>
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Network sites</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur sm:p-4">
+              <BarChart3 className="mb-3 h-5 w-5 text-emerald-300" />
+              <p className="text-2xl font-bold">{siteData.length ? filteredData.length : "—"}</p>
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Sites in view</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur sm:p-4">
+              <span className="mb-3 block h-5 w-5 rounded-full border-4 border-white/30" style={{ backgroundColor: overviewAqi.color }} />
+              <p className="truncate text-lg font-bold sm:text-xl">{mostCommonCategory || "—"}</p>
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-blue-200">Common AQI</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Filters */}
-      <div className="mb-8 rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 p-5 shadow-sm">
+      <div className="mb-8 rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-blue-50/50 p-5 shadow-lg shadow-slate-200/50 sm:p-6">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-950">Filter report visuals</h2>
@@ -1012,12 +979,22 @@ function ReportContent() {
 
       {isReportDataLoading && (
         <div
-          className="mb-8 flex items-center justify-center gap-3 text-sm font-medium text-slate-600"
+          className="mb-8 overflow-hidden rounded-3xl border border-blue-100 bg-white p-6 shadow-lg shadow-blue-100/50"
           role="status"
           aria-live="polite"
         >
-          <LoaderCircle className="h-6 w-6 animate-spin text-blue-600" aria-hidden="true" />
-          <span>Loading report data...</span>
+          <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 ring-8 ring-blue-50/60">
+              <LoaderCircle className="h-7 w-7 animate-spin text-blue-600" aria-hidden="true" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-slate-900">Preparing your air quality overview</p>
+              <p className="mt-1 text-sm text-slate-500">Loading monitoring sites, recent readings, and report filters.</p>
+              <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-blue-600 to-cyan-400" />
+              </div>
+            </div>
+          </div>
         </div>
       )}
       {reportLoadError && (
@@ -1037,7 +1014,7 @@ function ReportContent() {
       {siteData.length > 0 ? (
         <>
       {/* Filter summary */}
-      <div className="mb-8 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+      <div className="mb-8 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-cyan-50/60 p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
           <span className="mr-1 text-xs font-bold uppercase tracking-[0.14em] text-blue-700">Active filters</span>
@@ -1072,7 +1049,7 @@ function ReportContent() {
 
       {/* Selected Devices Counter */}
       {selectedDevices.length > 0 && (
-        <div className="mb-8 transform rounded-2xl bg-blue-600 p-4 text-white shadow-lg transition-all duration-300 hover:scale-105">
+        <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-600 p-5 text-white shadow-lg shadow-blue-900/15">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
               <div className="bg-white text-blue-600 rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mr-4">
@@ -1596,17 +1573,6 @@ function ReportContent() {
                 </ul>
               </div>
 
-              <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h4 className="font-semibold text-blue-800 mb-2">Policy Recommendations</h4>
-                <ul className="list-disc list-inside text-blue-700 space-y-2">
-                  {getPolicyRecommendations(
-                    selectedSite ? selectedSite.aqi_category : getAverageAQICategory(filteredData),
-                    filters,
-                  ).map((rec, index) => (
-                    <li key={index}>{rec}</li>
-                  ))}
-                </ul>
-              </div>
             </div>
 
             {/* Jump to Categories Button */}
@@ -1630,7 +1596,7 @@ function ReportContent() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
         <SummaryCard
           title="Total Monitoring Sites"
           value={filteredData.length.toString()}
@@ -1664,8 +1630,8 @@ function ReportContent() {
       )}
 
       {/* Categories Controls */}
-      <div id="categories-section" className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-gray-800">Device Categories</h2>
+      <div id="categories-section" className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">Explore the network</p><h2 className="mt-1 text-2xl font-bold text-slate-900">Device Categories</h2><p className="mt-1 text-sm text-slate-500">Review monitoring sites grouped by their surrounding environment.</p></div>
         <Button
           variant="outline"
           onClick={() => {
@@ -1699,9 +1665,9 @@ function ReportContent() {
       {Object.entries(sitesByCategory).map(([category, sites]) => (
         <div
           key={category}
-          className="mb-6 bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 ease-in-out"
+          className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-300 ease-in-out hover:shadow-md"
         >
-          <div className="p-4 flex justify-between items-center cursor-pointer bg-gradient-to-r from-blue-50 to-white hover:from-blue-100">
+          <div className="flex cursor-pointer flex-col gap-3 bg-gradient-to-r from-blue-50 via-white to-cyan-50/50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div className="flex items-center">
               <div onClick={() => toggleCategoryCollapse(category)} className="flex items-center cursor-pointer">
                 <h2 className="text-2xl font-bold text-gray-800">{category} Sites</h2>
@@ -1770,7 +1736,7 @@ function ReportContent() {
               collapsedCategories[category] ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
             }`}
           >
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-4 p-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {sites.map((site) => {
                 const isSiteSelected = selectedDevices.includes(getSiteSelectionId(site))
                 return (
@@ -1999,123 +1965,182 @@ function SiteCard({
   const areaName = site.siteDetails?.site_category?.area_name || "Unknown Area"
   const percentChange = site.averages?.percentageDifference ?? 0
   const currentWeek = site.averages?.weeklyAverages?.currentWeek ?? 0
-  const previousWeek = site.averages?.weeklyAverages?.currentWeek ?? 0
+  const previousWeek = site.averages?.weeklyAverages?.previousWeek ?? 0
   const country = site.siteDetails?.country || "Unknown"
   const city = site.siteDetails?.city || "Unknown"
 
-  // Get color based on AQI category
-  const getColorByCategory = (category: string): string => {
+  const getCategoryTheme = (category: string) => {
     switch (category.toLowerCase()) {
       case "good":
-        return "bg-green-100 border-green-300 text-green-800"
+        return {
+          accent: "bg-emerald-500",
+          badge: "border-emerald-200 bg-emerald-100 text-emerald-800",
+          card: "border-emerald-200 bg-gradient-to-br from-white via-white to-emerald-50/80",
+          metric: "text-emerald-700",
+          soft: "bg-emerald-50 text-emerald-700",
+        }
       case "moderate":
-        return "bg-yellow-100 border-yellow-300 text-yellow-800"
+        return {
+          accent: "bg-amber-400",
+          badge: "border-amber-200 bg-amber-100 text-amber-800",
+          card: "border-amber-200 bg-gradient-to-br from-white via-white to-amber-50/90",
+          metric: "text-amber-700",
+          soft: "bg-amber-50 text-amber-700",
+        }
       case "unhealthy for sensitive groups":
-        return "bg-orange-100 border-orange-300 text-orange-800"
+        return {
+          accent: "bg-orange-500",
+          badge: "border-orange-200 bg-orange-100 text-orange-800",
+          card: "border-orange-200 bg-gradient-to-br from-white via-white to-orange-50/90",
+          metric: "text-orange-700",
+          soft: "bg-orange-50 text-orange-700",
+        }
       case "unhealthy":
-        return "bg-red-100 border-red-300 text-red-800"
+        return {
+          accent: "bg-red-500",
+          badge: "border-red-200 bg-red-100 text-red-800",
+          card: "border-red-200 bg-gradient-to-br from-white via-white to-red-50/90",
+          metric: "text-red-700",
+          soft: "bg-red-50 text-red-700",
+        }
       case "very unhealthy":
-        return "bg-purple-100 border-purple-300 text-purple-800"
+        return {
+          accent: "bg-purple-500",
+          badge: "border-purple-200 bg-purple-100 text-purple-800",
+          card: "border-purple-200 bg-gradient-to-br from-white via-white to-purple-50/90",
+          metric: "text-purple-700",
+          soft: "bg-purple-50 text-purple-700",
+        }
       case "hazardous":
-        return "bg-red-200 border-red-400 text-red-900"
+        return {
+          accent: "bg-rose-800",
+          badge: "border-rose-300 bg-rose-100 text-rose-900",
+          card: "border-rose-300 bg-gradient-to-br from-white via-white to-rose-100/80",
+          metric: "text-rose-900",
+          soft: "bg-rose-100 text-rose-900",
+        }
       default:
-        return "bg-gray-100 border-gray-300 text-gray-800"
+        return {
+          accent: "bg-slate-400",
+          badge: "border-slate-200 bg-slate-100 text-slate-700",
+          card: "border-slate-200 bg-gradient-to-br from-white via-white to-slate-50",
+          metric: "text-slate-800",
+          soft: "bg-slate-100 text-slate-700",
+        }
     }
   }
 
+  const theme = getCategoryTheme(aqiCategory)
+  const trendTone = percentChange < 0
+    ? "bg-emerald-50 text-emerald-700"
+    : percentChange > 0
+      ? "bg-red-50 text-red-700"
+      : "bg-slate-100 text-slate-600"
+  const wasJustSelected = getSiteSelectionId(site) === lastSelectedId
+
   return (
     <Card
-      className={`w-full shadow-md hover:shadow-lg transition-all duration-300 ${getColorByCategory(aqiCategory)} ${
-        isSelected ? "ring-2 ring-blue-500" : ""
-      } ${isCheckboxSelected ? "relative overflow-hidden" : ""} ${isCheckboxSelected ? "animate-pulse-subtle" : ""} ${
-        getSiteSelectionId(site) === lastSelectedId ? "scale-105 shadow-xl z-10" : ""
+      className={`group relative w-full overflow-hidden rounded-2xl border shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${theme.card} ${
+        isSelected ? "ring-2 ring-blue-500 ring-offset-2" : ""
+      } ${isCheckboxSelected ? "shadow-blue-200/60 ring-2 ring-blue-400/70" : ""} ${
+        wasJustSelected ? "-translate-y-1 shadow-xl" : ""
       }`}
     >
-      {isCheckboxSelected && (
-        <div className="absolute -top-1 -right-1 transform rotate-45 bg-blue-500 text-white px-8 py-1 shadow-md">
-          Selected
-        </div>
-      )}
-      <CardContent className="p-6">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-            <h3 className="text-lg font-bold mb-1">{siteName}</h3>
-            <p className="text-sm mb-1">{areaName}</p>
-            <p className="text-xs text-gray-600 mb-3">
-              {city}, {country}
+      <div className={`absolute inset-x-0 top-0 h-1.5 ${theme.accent}`} />
+      <CardContent className="p-4 pt-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="truncate text-base font-bold text-slate-950">{siteName}</h3>
+              {isCheckboxSelected && (
+                <span className="rounded-full bg-blue-600 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                  Selected
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-xs font-medium text-slate-600">{areaName}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{city}, {country}</span>
             </p>
           </div>
           {onCheckboxChange && (
-            <Checkbox
-              checked={isCheckboxSelected}
-              onCheckedChange={() => {
-                if (onCheckboxChange) onCheckboxChange()
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="mt-1"
-            />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white/90 shadow-sm">
+              <Checkbox
+                checked={isCheckboxSelected}
+                aria-label={`Select ${siteName} for reporting`}
+                onCheckedChange={() => onCheckboxChange()}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
           )}
         </div>
 
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <span className="text-xs font-medium">Current PM2.5</span>
-            <div className="text-2xl font-bold">{pm25Value.toFixed(2)} µg/m³</div>
+        <div className="mt-3 grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)] gap-2">
+          <div className="rounded-xl border border-white/80 bg-white/80 p-3 shadow-sm backdrop-blur">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Current PM2.5</p>
+            <p className={`mt-0.5 text-2xl font-bold tracking-tight ${theme.metric}`}>
+              {pm25Value.toFixed(2)} <span className="text-sm font-semibold">µg/m³</span>
+            </p>
           </div>
-          <div className="text-right">
-            <span className="text-xs font-medium">AQI Category</span>
-            <div className="text-lg font-semibold">{aqiCategory}</div>
+          <div className="flex flex-col justify-between rounded-xl border border-white/80 bg-white/70 p-3 shadow-sm backdrop-blur">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">AQI status</p>
+            <span className={`mt-1.5 w-fit rounded-full border px-2 py-0.5 text-[11px] font-bold ${theme.badge}`}>
+              {aqiCategory}
+            </span>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-3 shadow-inner">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">Weekly Comparison</span>
-            <div
-              className={`flex items-center ${percentChange < 0 ? "text-green-600" : percentChange > 0 ? "text-red-600" : "text-gray-600"}`}
-            >
+        <div className="mt-2 rounded-xl border border-slate-200/80 bg-white/90 p-3 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-slate-800">Weekly comparison</p>
+              <p className="text-[10px] text-slate-500">Weekly average · µg/m³</p>
+            </div>
+            <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${trendTone}`}>
               {percentChange < 0 ? (
-                <ArrowDown className="w-4 h-4 mr-1" />
+                <ArrowDown className="h-3.5 w-3.5" />
               ) : percentChange > 0 ? (
-                <ArrowUp className="w-4 h-4 mr-1" />
+                <ArrowUp className="h-3.5 w-3.5" />
               ) : (
-                <Minus className="w-4 h-4 mr-1" />
+                <Minus className="h-3.5 w-3.5" />
               )}
-              <span className="text-sm font-bold">{Math.abs(percentChange).toFixed(2)}%</span>
+              {Math.abs(percentChange).toFixed(2)}%
             </div>
           </div>
 
-          <div className="flex justify-between text-sm">
+          <div className="mt-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             <div>
-              <div className="text-gray-500">Previous</div>
-              <div className="font-medium">{previousWeek.toFixed(2)}</div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Previous</p>
+              <p className="text-sm font-bold text-slate-700">{previousWeek.toFixed(2)}</p>
+              <p className="hidden">µg/m³</p>
             </div>
-            <div className="text-center">
-              <div className="text-gray-500">Change</div>
-              <div
-                className={`font-medium ${percentChange < 0 ? "text-green-600" : percentChange > 0 ? "text-red-600" : "text-gray-600"}`}
-              >
-                {percentChange < 0 ? "↓" : percentChange > 0 ? "↑" : "−"}
-              </div>
+            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${theme.soft}`}>
+              {percentChange < 0 ? <ArrowDown className="h-4 w-4" /> : percentChange > 0 ? <ArrowUp className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
             </div>
             <div className="text-right">
-              <div className="text-gray-500">Current</div>
-              <div className="font-medium">{currentWeek.toFixed(2)}</div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Current</p>
+              <p className="text-sm font-bold text-slate-900">{currentWeek.toFixed(2)}</p>
+              <p className="hidden">µg/m³</p>
             </div>
           </div>
         </div>
 
         {onSelect && (
           <Button
-            variant="outline"
+            variant={isSelected ? "default" : "outline"}
             size="sm"
             onClick={(e) => {
               e.stopPropagation()
-              if (onSelect) onSelect()
+              onSelect()
             }}
-            className="w-full mt-4 text-blue-600 border-blue-200 hover:bg-blue-50"
+            className={`mt-3 h-9 w-full rounded-lg text-xs font-semibold transition ${
+              isSelected
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "border-blue-200 bg-white/80 text-blue-700 hover:border-blue-300 hover:bg-blue-50"
+            }`}
           >
-            {isSelected ? "Selected for Report" : "Select for Detailed Report"}
+            {isSelected ? "Selected for report" : "View detailed report"}
           </Button>
         )}
       </CardContent>
@@ -2135,17 +2160,18 @@ function SummaryCard({
   trend?: number
 }) {
   return (
-    <Card className="w-full shadow-md hover:shadow-lg transition-shadow">
-      <CardContent className="p-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-lg font-medium text-gray-600">{title}</h3>
-            <div className="text-3xl font-bold mt-1 flex items-center">
+    <Card className="group relative w-full overflow-hidden rounded-2xl border-slate-200 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-400" />
+      <CardContent className="p-5 sm:p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{title}</h3>
+            <div className="mt-2 flex items-center text-3xl font-bold tracking-tight text-slate-950">
               {value}
               {trend !== undefined && (
                 <span
-                  className={`ml-2 text-sm font-medium ${
-                    trend < 0 ? "text-green-600" : trend > 0 ? "text-red-600" : "text-gray-600"
+                  className={`ml-2 rounded-full px-2 py-1 text-xs font-bold ${
+                    trend < 0 ? "bg-emerald-50 text-emerald-700" : trend > 0 ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"
                   }`}
                 >
                   {trend < 0 ? "↓" : trend > 0 ? "↑" : "−"}
@@ -2153,7 +2179,7 @@ function SummaryCard({
               )}
             </div>
           </div>
-          <div className="bg-blue-50 p-3 rounded-full">{icon}</div>
+          <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 p-3.5 ring-1 ring-blue-100 transition-transform group-hover:scale-105">{icon}</div>
         </div>
       </CardContent>
     </Card>
