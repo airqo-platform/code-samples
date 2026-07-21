@@ -281,7 +281,7 @@ function ProfiledLocationMapController({ center }: { center: [number, number] | 
 
   useEffect(() => {
     if (center) {
-      map.flyTo(center, Math.max(map.getZoom(), 3), { duration: 0.75 })
+      map.flyTo(center, Math.max(map.getZoom() || 3, 3), { duration: 0.75 })
       return
     }
 
@@ -387,7 +387,6 @@ function SiteCategoryContent() {
     setLoading(true)
     try {
       for (const location of locations) {
-        setMapCenter([location.lat, location.lng])
         const locationKey = siteKey({ ...location, satellite_enabled: satelliteEnabled })
 
         if (seenKeys.has(locationKey)) {
