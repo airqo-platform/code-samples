@@ -281,7 +281,16 @@ function ProfiledLocationMapController({ center }: { center: [number, number] | 
 
   useEffect(() => {
     if (center) {
-      map.flyTo(center, Math.max(map.getZoom() || 3, 3), { duration: 0.75 })
+      const distanceKm = map.distance(map.getCenter(), center) / 1_000
+      const duration = Math.min(2.4, Math.max(1.1, 0.9 + Math.log10(distanceKm + 1) * 0.45))
+      const destinationZoom = Math.min(16, Math.max(map.getZoom() || 3, 13))
+
+      map.stop()
+      map.flyTo(center, destinationZoom, {
+        animate: true,
+        duration,
+        easeLinearity: 0.2,
+      })
       return
     }
 
@@ -560,7 +569,9 @@ function SiteCategoryContent() {
           autoComplete: true,
           autoCompleteDelay: 250,
           position: "topright",
-        })
+          showMarker: false,
+          updateMap: false,
+        } as any)
 
         map.addControl(searchControl)
 
