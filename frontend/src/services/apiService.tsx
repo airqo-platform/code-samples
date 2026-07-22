@@ -823,7 +823,15 @@ export const buildSiteReportData = (
       .filter((measurement): measurement is { value: number; timestamp: number | null } => measurement.value !== null)
     if (measurements.length === 0) return []
 
-    const periodAverage = average(measurements.map((measurement) => measurement.value))
+    const selectedStartTimestamp = Date.parse(options.startDate)
+    const periodMeasurements = measurements.filter(
+      (measurement) =>
+        measurement.timestamp === null ||
+        (measurement.timestamp >= selectedStartTimestamp && measurement.timestamp <= endTimestamp),
+    )
+    if (periodMeasurements.length === 0) return []
+
+    const periodAverage = average(periodMeasurements.map((measurement) => measurement.value))
     const currentValues = measurements
       .filter((measurement) => measurement.timestamp !== null && measurement.timestamp >= currentWeekStart)
       .map((measurement) => measurement.value)
@@ -858,7 +866,7 @@ export const buildSiteReportData = (
     const previousMonth = previousMonthValues.length > 0 ? average(previousMonthValues) : currentMonth
     const monthlyPercentageDifference =
       previousMonth > 0 ? ((currentMonth - previousMonth) / previousMonth) * 100 : 0
-    const latestTimestamp = Math.max(...measurements.map((measurement) => measurement.timestamp || 0))
+    const latestTimestamp = Math.max(...periodMeasurements.map((measurement) => measurement.timestamp || 0))
     const representativeRecord = group.records[0]
     const source = group.source
     const siteId = source?.site_id || source?.siteDetails?._id || getRecordString(representativeRecord, ["site_id", "siteId"]) || groupKey

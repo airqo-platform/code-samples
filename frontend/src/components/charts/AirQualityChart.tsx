@@ -457,9 +457,11 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
 export function WeeklyComparisonChart({
   sites,
   comparisonPeriod = "weekly",
+  rangeDays,
 }: {
   sites: SiteData[]
   comparisonPeriod?: "weekly" | "monthly"
+  rangeDays?: number
 }) {
   const [siteLimit, setSiteLimit] = useState(7)
   const [chartType, setChartType] = useState<"line" | "bar">("line")
@@ -574,6 +576,11 @@ export function WeeklyComparisonChart({
         <CardTitle className="text-lg md:text-xl">
           {isMonthly ? "Monthly" : "Weekly"} PM<sub>2.5</sub> Comparison
         </CardTitle>
+        <p className="text-xs leading-5 text-slate-500 md:text-sm">
+          {isMonthly
+            ? `The selected ${rangeDays || "extended"}-day period is summarized using calendar-month averages.`
+            : "The selected period is compared using the latest week and the preceding week."}
+        </p>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">
             <SelectTrigger className="w-full rounded-xl md:w-[160px]">

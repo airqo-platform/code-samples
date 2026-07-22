@@ -28,7 +28,7 @@ import { Button } from "@/ui/button"
 import type { SiteData, Filters, ReportDateRange } from "@/lib/types"
 import { jsPDF } from "jspdf"
 import html2canvas from "html2canvas"
-import { format } from "date-fns"
+import { differenceInCalendarDays, format } from "date-fns"
 import {
   PM25BarChart,
   AQICategoryChart,
@@ -95,10 +95,10 @@ function ReportContent() {
   const [customReportData, setCustomReportData] = useState<SiteData[] | null>(null)
   const [reportDateRange, setReportDateRange] = useState<ReportDateRange | null>(null)
   const [reportQueryRange, setReportQueryRange] = useState<ReportDateRange>(createDefaultReportDateRange)
-  const comparisonPeriod: "weekly" | "monthly" =
-    reportDateRange && reportDateRange.startDate.slice(0, 7) !== reportDateRange.endDate.slice(0, 7)
-      ? "monthly"
-      : "weekly"
+  const reportDurationDays = reportDateRange
+    ? differenceInCalendarDays(new Date(reportDateRange.endDate), new Date(reportDateRange.startDate)) + 1
+    : 0
+  const comparisonPeriod: "weekly" | "monthly" = reportDurationDays > 14 ? "monthly" : "weekly"
   const [selectedSite, setSelectedSite] = useState<SiteData | null>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [isReportDataModalOpen, setIsReportDataModalOpen] = useState(false)
@@ -755,6 +755,8 @@ function ReportContent() {
   })
 
   // Generate report title based on filters, selected sites, and historical period
+  const formatReportDate = (value: string) =>
+    format(new Date(value.slice(0, 10) + "T12:00:00Z"), "MMMM d, yyyy")
   const getReportTitle = () => {
     let title: string
 
@@ -1424,12 +1426,12 @@ function ReportContent() {
                     <span>{formatSelectionList(filters.country, "All Countries")}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">City</span>
-                    <span>{formatSelectionList(filters.city, "All Cities")}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
                     <span className="font-medium">District</span>
                     <span>{formatSelectionList(filters.district, "All Districts")}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">City</span>
+                    <span>{formatSelectionList(filters.city, "All Cities")}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-medium">Sites mapped</span>
@@ -1513,7 +1515,14 @@ function ReportContent() {
 
               <div className="space-y-4 px-5 py-5 text-sm leading-7 text-slate-700 sm:px-6 sm:py-6 sm:text-base">
                 <p>
-                  This report assesses recent air quality conditions across {getReportScopeDescription()}. It brings
+                  This report assesses recent air quality conditions across {getReportScopeDescription()}.
+                  {reportDateRange && (
+                    <>
+                      {" "}It covers measurements from <strong>{formatReportDate(reportDateRange.startDate)}</strong> to{" "}
+                      <strong>{formatReportDate(reportDateRange.endDate)}</strong>.
+                    </>
+                  )}{" "}
+                  It brings
                   together {reportDateRange ? "historical measurements for the selected period" : "the latest available readings"} from {filteredData.length} monitoring
                   {filteredData.length === 1 ? " site" : " sites"}, with a primary focus on PM<sub>2.5</sub>, a fine
                   particulate pollutant used to describe health-relevant air quality conditions.
@@ -1570,7 +1579,11 @@ function ReportContent() {
                 <PM25BarChart sites={filteredData} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <AQICategoryChart sites={filteredData} />
-                  <WeeklyComparisonChart sites={filteredData} comparisonPeriod={comparisonPeriod} />
+                  <WeeklyComparisonChart
+                    sites={filteredData}
+                    comparisonPeriod={comparisonPeriod}
+                    rangeDays={reportDurationDays}
+                  />
                 </div>
               </div>
 

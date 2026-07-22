@@ -113,13 +113,25 @@ export default function ReportDataModal({
       dataType,
       pollutants: ["pm2_5", "pm10"],
     }
+    const selectedStartTimestamp = Date.parse(options.startDate)
+    const selectedEndDate = new Date(options.endDate)
+    const selectedRangeDays = Math.ceil(
+      (Date.parse(options.endDate) - selectedStartTimestamp) / (24 * 60 * 60 * 1000),
+    )
+    const previousMonthStart = new Date(
+      Date.UTC(selectedEndDate.getUTCFullYear(), selectedEndDate.getUTCMonth() - 1, 1),
+    ).toISOString()
+    const requestStartDate =
+      selectedRangeDays > 14 && Date.parse(previousMonthStart) < selectedStartTimestamp
+        ? previousMonthStart
+        : options.startDate
 
     setIsGenerating(true)
     try {
       const response = await getSiteReportData({
         datatype: options.dataType,
         downloadType: "json",
-        startDateTime: options.startDate,
+        startDateTime: requestStartDate,
         endDateTime: options.endDate,
         frequency: options.frequency,
         minimum: true,
