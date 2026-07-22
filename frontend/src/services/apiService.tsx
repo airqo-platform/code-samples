@@ -1,4 +1,5 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios"
+import type { DataDownloadRecord, DataDownloadRequest, DataDownloadResponse, ReportDataOptions, SiteData } from "@/lib/types"
 
 // Remove the incorrect import and add the utility function directly
 const removeTrailingSlash = (url: string): string => {
@@ -235,45 +236,51 @@ export const getSatelliteData = async (body = {}) => {
   }
 }
 
-// Get map nodes with air quality readings.
-let mapNodesRequest: Promise<MapNode[] | null> | null = null
+// Map and Reports use the same readings endpoint. Keep one shared request/cache so
+// the app-level warm-up can be reused when either page is opened later.
+const MAP_READINGS_CACHE_MAX_AGE_MS = 5 * 60 * 1000
+let mapReadingsRequest: Promise<MapNode[]> | null = null
+let mapReadingsCache: { data: MapNode[]; cachedAt: number } | null = null
+
+const fetchMapReadings = (): Promise<MapNode[]> => {
+  if (mapReadingsCache && Date.now() - mapReadingsCache.cachedAt < MAP_READINGS_CACHE_MAX_AGE_MS) {
+    return Promise.resolve(mapReadingsCache.data)
+  }
+  if (mapReadingsRequest) return mapReadingsRequest
+
+  mapReadingsRequest = apiService
+    .get("/devices/readings/map")
+    .then((response) => {
+      const data = Array.isArray(response.data?.measurements) ? response.data.measurements : []
+      if (data.length > 0) mapReadingsCache = { data, cachedAt: Date.now() }
+      return data
+    })
+    .finally(() => {
+      mapReadingsRequest = null
+    })
+
+  return mapReadingsRequest
+}
+
+export const prefetchMapAndReportData = async (): Promise<void> => {
+  try {
+    await fetchMapReadings()
+  } catch (error) {
+    console.error("Error prefetching map and report data after retries:", error)
+  }
+}
 
 export const getMapNodes = async (): Promise<MapNode[] | null> => {
-  if (mapNodesRequest) return mapNodesRequest
-
-  mapNodesRequest = (async () => {
-    try {
-      const response = await apiService.get("/devices/readings/map")
-      return Array.isArray(response.data?.measurements) ? response.data.measurements : []
-    } catch (error) {
-      console.error("Error fetching map nodes after retries:", error)
-      return null
-    }
-  })()
-
   try {
-    return await mapNodesRequest
-  } finally {
-    mapNodesRequest = null
+    return await fetchMapReadings()
+  } catch (error) {
+    console.error("Error fetching map nodes after retries:", error)
+    return null
   }
 }
 
 // Fetch report data and let callers distinguish request failures from empty results.
-let reportDataRequest: Promise<MapNode[]> | null = null
-
-export const getReportData = async (): Promise<MapNode[]> => {
-  if (reportDataRequest) return reportDataRequest
-
-  reportDataRequest = apiService.get("/devices/readings/map").then((response) =>
-    Array.isArray(response.data?.measurements) ? response.data.measurements : [],
-  )
-
-  try {
-    return await reportDataRequest
-  } finally {
-    reportDataRequest = null
-  }
-}
+export const getReportData = async (): Promise<MapNode[]> => fetchMapReadings()
 
 let heatmapDataRequest: Promise<HeatmapData[] | null> | null = null
 let heatmapRetryBlockedUntil = 0
@@ -700,4 +707,201 @@ export const getSiteHistorical = async (
     console.error("Error fetching site historical:", error)
     return null
   }
+}
+
+/** Fetch historical selected-site measurements through the server-side AirQo proxy. */
+export const getSiteReportData = async (request: DataDownloadRequest): Promise<DataDownloadResponse> => {
+  const response = await apiService.post<DataDownloadResponse | string>("/analytics/data-download", request)
+  const payload = response.data
+
+  if (typeof payload === "string") {
+    try {
+      const parsed = JSON.parse(payload) as DataDownloadResponse
+      if (parsed && typeof parsed === "object") return parsed
+    } catch {
+      throw new Error("The report API returned an invalid JSON response.")
+    }
+  }
+
+  return payload as DataDownloadResponse
+}
+
+const getRecordString = (record: DataDownloadRecord, keys: string[]) => {
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === "string" && value.trim()) return value.trim()
+    if (typeof value === "number" && Number.isFinite(value)) return String(value)
+  }
+  return null
+}
+
+const getRecordNumber = (record: DataDownloadRecord, keys: string[]) => {
+  for (const key of keys) {
+    const value = record[key]
+    const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value.replace(/^'+/, "")) : NaN
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+const normalizeSiteName = (value?: string | null) => (value || "").trim().toLowerCase().replace(/[_\s]+/g, " ")
+
+const getAqiCategory = (pm25: number) => {
+  if (pm25 <= 12) return { category: "Good", color: "#A8E05F" }
+  if (pm25 <= 35.4) return { category: "Moderate", color: "#FDD64B" }
+  if (pm25 <= 55.4) return { category: "Unhealthy for Sensitive Groups", color: "#FF9B57" }
+  if (pm25 <= 150.4) return { category: "Unhealthy", color: "#FE6A69" }
+  if (pm25 <= 250.4) return { category: "Very Unhealthy", color: "#A97ABC" }
+  return { category: "Hazardous", color: "#A87383" }
+}
+
+const average = (values: number[]) =>
+  values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0
+
+const getRecordTimestamp = (record: DataDownloadRecord) => {
+  const value = getRecordString(record, [
+    "datetime",
+    "date_time",
+    "timestamp",
+    "time",
+    "date",
+    "day",
+  ])
+  if (!value) return null
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? timestamp : null
+}
+
+const getPm25Value = (record: DataDownloadRecord, dataType: ReportDataOptions["dataType"]) =>
+  dataType === "calibrated"
+    ? getRecordNumber(record, ["pm2_5_calibrated_value", "pm2_5", "pm2_5_raw_value"])
+    : getRecordNumber(record, ["pm2_5_raw_value", "pm2_5", "pm2_5_calibrated_value"])
+
+export const buildSiteReportData = (
+  response: DataDownloadResponse,
+  sourceSites: SiteData[],
+  options: ReportDataOptions,
+): SiteData[] => {
+  if (!Array.isArray(response.data) || response.data.length === 0) {
+    throw new Error(response.message || "No measurements were returned for the selected sites and dates.")
+  }
+
+  const sourceById = new Map<string, SiteData>()
+  const sourceByName = new Map<string, SiteData>()
+  sourceSites.forEach((site) => {
+    ;[site.site_id, site.siteDetails?._id, site._id].filter((id): id is string => Boolean(id)).forEach((id) => sourceById.set(id, site))
+    ;[site.siteDetails?.name, site.siteDetails?.formatted_name, site.siteDetails?.location_name]
+      .map(normalizeSiteName)
+      .filter(Boolean)
+      .forEach((name) => sourceByName.set(name, site))
+  })
+
+  const groupedRecords = new Map<string, { source?: SiteData; records: DataDownloadRecord[] }>()
+  response.data.forEach((record) => {
+    const recordSiteId = getRecordString(record, ["site_id", "siteId", "site"])
+    const recordSiteName = getRecordString(record, ["site_name", "location_name", "name"])
+    const source = (recordSiteId ? sourceById.get(recordSiteId) : undefined) || sourceByName.get(normalizeSiteName(recordSiteName))
+    const groupKey = source?.site_id || source?.siteDetails?._id || recordSiteId || normalizeSiteName(recordSiteName)
+    if (!groupKey) return
+
+    const group = groupedRecords.get(groupKey) || { source, records: [] }
+    group.records.push(record)
+    groupedRecords.set(groupKey, group)
+  })
+
+  const endTimestamp = Date.parse(options.endDate)
+  const endDate = new Date(endTimestamp)
+  const currentWeekStart = endTimestamp - 7 * 24 * 60 * 60 * 1000
+  const previousWeekStart = endTimestamp - 14 * 24 * 60 * 60 * 1000
+  const currentMonthStart = Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1)
+  const nextMonthStart = Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, 1)
+  const previousMonthStart = Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth() - 1, 1)
+
+  return Array.from(groupedRecords.entries()).flatMap(([groupKey, group]) => {
+    const measurements = group.records
+      .map((record) => ({ value: getPm25Value(record, options.dataType), timestamp: getRecordTimestamp(record) }))
+      .filter((measurement): measurement is { value: number; timestamp: number | null } => measurement.value !== null)
+    if (measurements.length === 0) return []
+
+    const periodAverage = average(measurements.map((measurement) => measurement.value))
+    const currentValues = measurements
+      .filter((measurement) => measurement.timestamp !== null && measurement.timestamp >= currentWeekStart)
+      .map((measurement) => measurement.value)
+    const previousValues = measurements
+      .filter(
+        (measurement) =>
+          measurement.timestamp !== null &&
+          measurement.timestamp >= previousWeekStart &&
+          measurement.timestamp < currentWeekStart,
+      )
+      .map((measurement) => measurement.value)
+    const currentWeek = currentValues.length > 0 ? average(currentValues) : periodAverage
+    const previousWeek = previousValues.length > 0 ? average(previousValues) : currentWeek
+    const percentageDifference = previousWeek > 0 ? ((currentWeek - previousWeek) / previousWeek) * 100 : 0
+    const currentMonthValues = measurements
+      .filter(
+        (measurement) =>
+          measurement.timestamp !== null &&
+          measurement.timestamp >= currentMonthStart &&
+          measurement.timestamp < nextMonthStart,
+      )
+      .map((measurement) => measurement.value)
+    const previousMonthValues = measurements
+      .filter(
+        (measurement) =>
+          measurement.timestamp !== null &&
+          measurement.timestamp >= previousMonthStart &&
+          measurement.timestamp < currentMonthStart,
+      )
+      .map((measurement) => measurement.value)
+    const currentMonth = currentMonthValues.length > 0 ? average(currentMonthValues) : periodAverage
+    const previousMonth = previousMonthValues.length > 0 ? average(previousMonthValues) : currentMonth
+    const monthlyPercentageDifference =
+      previousMonth > 0 ? ((currentMonth - previousMonth) / previousMonth) * 100 : 0
+    const latestTimestamp = Math.max(...measurements.map((measurement) => measurement.timestamp || 0))
+    const representativeRecord = group.records[0]
+    const source = group.source
+    const siteId = source?.site_id || source?.siteDetails?._id || getRecordString(representativeRecord, ["site_id", "siteId"]) || groupKey
+    const siteName =
+      source?.siteDetails?.name ||
+      getRecordString(representativeRecord, ["site_name", "location_name", "name"]) ||
+      siteId
+    const aqi = getAqiCategory(periodAverage)
+
+    return [{
+      _id: source?._id || siteId,
+      site_id: siteId,
+      time: latestTimestamp > 0 ? new Date(latestTimestamp).toISOString() : options.endDate,
+      aqi_category: aqi.category,
+      aqi_color: aqi.color,
+      pm2_5: { value: periodAverage },
+      averages: {
+        percentageDifference,
+        weeklyAverages: { currentWeek, previousWeek },
+        monthlyPercentageDifference,
+        monthlyAverages: { currentMonth, previousMonth },
+      },
+      siteDetails: {
+        _id: source?.siteDetails?._id || siteId,
+        name: siteName,
+        formatted_name: source?.siteDetails?.formatted_name || siteName,
+        location_name:
+          source?.siteDetails?.location_name ||
+          getRecordString(representativeRecord, ["location_name", "site_name"]) ||
+          siteName,
+        approximate_latitude:
+          source?.siteDetails?.approximate_latitude ||
+          getRecordNumber(representativeRecord, ["latitude", "site_latitude"]) ||
+          0,
+        approximate_longitude:
+          source?.siteDetails?.approximate_longitude ||
+          getRecordNumber(representativeRecord, ["longitude", "site_longitude"]) ||
+          0,
+        city: source?.siteDetails?.city || getRecordString(representativeRecord, ["city"]) || undefined,
+        district: source?.siteDetails?.district || getRecordString(representativeRecord, ["district"]) || undefined,
+        country: source?.siteDetails?.country || getRecordString(representativeRecord, ["country"]) || undefined,
+        site_category: source?.siteDetails?.site_category,
+      },
+    }]
+  })
 }

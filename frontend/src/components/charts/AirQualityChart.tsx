@@ -454,17 +454,27 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
 }
 
 // Weekly Comparison Line Chart
-export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
+export function WeeklyComparisonChart({
+  sites,
+  comparisonPeriod = "weekly",
+}: {
+  sites: SiteData[]
+  comparisonPeriod?: "weekly" | "monthly"
+}) {
   const [siteLimit, setSiteLimit] = useState(7)
   const [chartType, setChartType] = useState<"line" | "bar">("line")
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
   const [sortOrder, setSortOrder] = useState<"highest" | "lowest" | "none">("none")
   const chartRef = useRef<HTMLDivElement>(null)
+  const isMonthly = comparisonPeriod === "monthly"
+  const periodLabel = isMonthly ? "Month" : "Week"
 
-  const sitesWithData = sites.filter(
-    (site) =>
-      site.averages?.weeklyAverages?.currentWeek !== undefined &&
-      site.averages?.weeklyAverages?.previousWeek !== undefined,
+  const sitesWithData = sites.filter((site) =>
+    isMonthly
+      ? site.averages?.monthlyAverages?.currentMonth !== undefined &&
+        site.averages?.monthlyAverages?.previousMonth !== undefined
+      : site.averages?.weeklyAverages?.currentWeek !== undefined &&
+        site.averages?.weeklyAverages?.previousWeek !== undefined,
   )
 
   const handleSiteLimitChange = (value: string) => {
@@ -474,13 +484,13 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
   const handleDownload = async (type: "csv" | "json" | "png") => {
     if (type === "csv") {
       const dataStr =
-        "Name,Current Week,Previous Week,Change\n" +
+        `Name,Current ${periodLabel},Previous ${periodLabel},Change\n` +
         chartData.map((d) => `${d.name},${d.current},${d.previous},${d.change}`).join("\n")
       const blob = new Blob([dataStr], { type: "text/csv;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = "weekly_comparison_chart.csv"
+      a.download = `${comparisonPeriod}_comparison_chart.csv`
       a.click()
       URL.revokeObjectURL(url)
     } else if (type === "json") {
@@ -489,7 +499,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = "weekly_comparison_chart.json"
+      a.download = `${comparisonPeriod}_comparison_chart.json`
       a.click()
       URL.revokeObjectURL(url)
     } else if (type === "png" && chartRef.current) {
@@ -508,7 +518,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
             const url = URL.createObjectURL(blob)
             const a = document.createElement("a")
             a.href = url
-            a.download = "weekly_comparison_chart.png"
+            a.download = `${comparisonPeriod}_comparison_chart.png`
             a.click()
             URL.revokeObjectURL(url)
           }
@@ -528,8 +538,12 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
   }
 
   const sortedSites = [...sitesWithData].sort((a, b) => {
-    const aValue = a.averages?.weeklyAverages?.currentWeek || 0
-    const bValue = b.averages?.weeklyAverages?.currentWeek || 0
+    const aValue = isMonthly
+      ? a.averages?.monthlyAverages?.currentMonth || 0
+      : a.averages?.weeklyAverages?.currentWeek || 0
+    const bValue = isMonthly
+      ? b.averages?.monthlyAverages?.currentMonth || 0
+      : b.averages?.weeklyAverages?.currentWeek || 0
     if (sortOrder === "highest") return bValue - aValue
     if (sortOrder === "lowest") return aValue - bValue
     return 0
@@ -539,20 +553,26 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
 
   const chartData = displayData.map((site) => ({
     name: site.siteDetails?.name || "Unknown",
-    current: site.averages?.weeklyAverages?.currentWeek || 0,
-    previous: site.averages?.weeklyAverages?.previousWeek || 0,
-    change: site.averages?.percentageDifference || 0,
+    current: isMonthly
+      ? site.averages?.monthlyAverages?.currentMonth || 0
+      : site.averages?.weeklyAverages?.currentWeek || 0,
+    previous: isMonthly
+      ? site.averages?.monthlyAverages?.previousMonth || 0
+      : site.averages?.weeklyAverages?.previousWeek || 0,
+    change: isMonthly
+      ? site.averages?.monthlyPercentageDifference || 0
+      : site.averages?.percentageDifference || 0,
   }))
 
   const allValues = chartData.flatMap((item) => [item.current ?? 0, item.previous ?? 0])
-  const maxWeeklyValue = Math.max(...allValues)
-  const weeklyYAxisDomain = [0, Math.ceil(maxWeeklyValue * 1.1)]
+  const maxComparisonValue = Math.max(...allValues)
+  const comparisonYAxisDomain = [0, Math.ceil(maxComparisonValue * 1.1)]
 
   return (
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="text-lg md:text-xl">
-          Weekly PM<sub>2.5</sub> Comparison
+          {isMonthly ? "Monthly" : "Weekly"} PM<sub>2.5</sub> Comparison
         </CardTitle>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">
@@ -642,7 +662,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
-                  domain={weeklyYAxisDomain}
+                  domain={comparisonYAxisDomain}
                   label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
                   tickCount={10}
@@ -652,7 +672,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
                 <Line
                   type="monotone"
                   dataKey="current"
-                  name="Current Week"
+                  name={`Current ${periodLabel}`}
                   stroke="#0000FF"
                   strokeWidth={2}
                   dot={{ r: 4 }}
@@ -661,7 +681,7 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
                 <Line
                   type="monotone"
                   dataKey="previous"
-                  name="Previous Week"
+                  name={`Previous ${periodLabel}`}
                   stroke="#000000"
                   strokeWidth={2}
                   dot={{ r: 4 }}
@@ -673,15 +693,15 @@ export function WeeklyComparisonChart({ sites }: { sites: SiteData[] }) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
-                  domain={weeklyYAxisDomain}
+                  domain={comparisonYAxisDomain}
                   label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
                   tickCount={10}
                 />
                 <Tooltip formatter={(value) => [`${value} µg/m³`, ""]} labelFormatter={(label) => `Site: ${label}`} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="current" name="Current Week" fill="#0000FF" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="previous" name="Previous Week" fill="#000000" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="current" name={`Current ${periodLabel}`} fill="#0000FF" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="previous" name={`Previous ${periodLabel}`} fill="#000000" radius={[4, 4, 0, 0]} />
               </BarChart>
             )}
           </ResponsiveContainer>

@@ -247,8 +247,14 @@ export interface SiteData {
       currentWeek: number
       previousWeek: number
     }
+    monthlyPercentageDifference?: number
+    monthlyAverages?: {
+      currentMonth: number
+      previousMonth: number
+    }
   }
   siteDetails: {
+    _id?: string
     name: string
     formatted_name?: string
     location_name?: string
@@ -282,4 +288,41 @@ export interface AqiMapData {
 
 export interface MapProps {
   map: any
+}
+
+export interface DataDownloadRequest {
+  datatype: "calibrated" | "raw"
+  downloadType: "json"
+  startDateTime: string
+  endDateTime: string
+  frequency: "raw" | "hourly" | "daily"
+  minimum: boolean
+  outputFormat: "airqo-standard"
+  pollutants: string[]
+  sites: string[]
+  metaDataFields?: string[]
+  weatherFields?: string[]
+  device_category?: "lowcost" | "bam" | "mobile" | "gas"
+}
+
+export type DataDownloadRecord = Record<string, unknown>
+
+export interface DataDownloadResponse {
+  status?: string
+  message?: string
+  data?: DataDownloadRecord[]
+}
+
+export interface ReportDataOptions {
+  selectedSiteIds: string[]
+  startDate: string
+  endDate: string
+  frequency: "hourly" | "daily" | "raw"
+  dataType: "calibrated" | "raw"
+  pollutants: string[]
+}
+
+export interface ReportDateRange {
+  startDate: string
+  endDate: string
 }

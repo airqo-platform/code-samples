@@ -8,6 +8,7 @@ const ALLOWED_ROUTES = [
   { method: "GET", pattern: /^devices\/readings\/map$/ },
   { method: "GET", pattern: /^devices\/grids\/summary$/ },
   { method: "GET", pattern: /^devices\/measurements\/sites\/[A-Za-z0-9_-]+\/historical$/ },
+  { method: "POST", pattern: /^analytics\/data-download$/ },
   { method: "GET", pattern: /^predict\/daily-forecasting$/ },
   { method: "GET", pattern: /^predict\/hourly-forecasting$/ },
   { method: "GET", pattern: /^spatial\/categorize_site$/ },
@@ -41,9 +42,10 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
 
   const upstreamUrl = new URL(path, AIRQO_API_URL)
   request.nextUrl.searchParams.forEach((value, key) => {
-    if (key !== "token") upstreamUrl.searchParams.append(key, value)
+    if (key !== "token" && key !== "access_token") upstreamUrl.searchParams.append(key, value)
   })
   upstreamUrl.searchParams.set("token", token)
+  upstreamUrl.searchParams.set("access_token", token)
 
   const headers = new Headers({ Accept: request.headers.get("accept") || "application/json" })
   const contentType = request.headers.get("content-type")

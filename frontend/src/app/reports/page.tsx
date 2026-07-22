@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   BrainCircuit,
+  CalendarRange,
   ChevronDown,
   Download,
   Globe,
@@ -24,7 +25,7 @@ import Navigation from "@/components/navigation/navigation"
 import type { ReactNode } from "react"
 import { getReportData } from "@/services/apiService"
 import { Button } from "@/ui/button"
-import type { SiteData, Filters } from "@/lib/types"
+import type { SiteData, Filters, ReportDateRange } from "@/lib/types"
 import { jsPDF } from "jspdf"
 import html2canvas from "html2canvas"
 import { format } from "date-fns"
@@ -37,6 +38,8 @@ import {
 import { Input } from "@/ui/input"
 import { Checkbox } from "@/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover"
+import ReportDataModal from "@/components/reports/ReportDataModal"
+import NexusDateRangePicker, { createDefaultReportDateRange } from "@/components/reports/NexusDateRangePicker"
 import "leaflet/dist/leaflet.css"
 
 const GoodAir = "/images/GoodAir.png"
@@ -89,8 +92,16 @@ function ReportContent() {
   const [reportLoadError, setReportLoadError] = useState<string | null>(null)
   const [reportLoadRequest, setReportLoadRequest] = useState(0)
   const [filteredData, setFilteredData] = useState<SiteData[]>([])
+  const [customReportData, setCustomReportData] = useState<SiteData[] | null>(null)
+  const [reportDateRange, setReportDateRange] = useState<ReportDateRange | null>(null)
+  const [reportQueryRange, setReportQueryRange] = useState<ReportDateRange>(createDefaultReportDateRange)
+  const comparisonPeriod: "weekly" | "monthly" =
+    reportDateRange && reportDateRange.startDate.slice(0, 7) !== reportDateRange.endDate.slice(0, 7)
+      ? "monthly"
+      : "weekly"
   const [selectedSite, setSelectedSite] = useState<SiteData | null>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [isReportDataModalOpen, setIsReportDataModalOpen] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
 
   // Add a state to control whether the report is visible on the page
@@ -179,7 +190,14 @@ function ReportContent() {
 
   const calculateAveragePercentageChange = (sites: SiteData[]): number => {
     if (sites.length === 0) return 0
-    const sum = sites.reduce((acc, site) => acc + (site.averages?.percentageDifference || 0), 0)
+    const sum = sites.reduce(
+      (acc, site) =>
+        acc +
+        (comparisonPeriod === "monthly"
+          ? site.averages?.monthlyPercentageDifference || 0
+          : site.averages?.percentageDifference || 0),
+      0,
+    )
     return sum / sites.length
   }
 
@@ -228,7 +246,7 @@ function ReportContent() {
       return "In conclusion, no data is available for the selected criteria."
     }
 
-    return "In conclusion, this report provides an overview of the air quality across the AirQo network. Continued monitoring and proactive measures are essential to ensure public health."
+    return "In conclusion, this report provides an overview of the air quality across the selected monitoring network. Continued monitoring and proactive measures are essential to ensure public health."
   }
 
   const getRegionalInsights = (filters: Filters, filteredData: SiteData[]): string => {
@@ -431,14 +449,14 @@ function ReportContent() {
 
   // Apply filters
   useEffect(() => {
-    const result = filterSites(siteData, filters)
+    const result = filterSites(customReportData ?? siteData, filters)
 
     setFilteredData(result)
     // Reset selected site if it's no longer in filtered data
     if (selectedSite && !result.some((site) => getSiteSelectionId(site) === getSiteSelectionId(selectedSite))) {
       setSelectedSite(null)
     }
-  }, [filters, siteData, selectedSite])
+  }, [customReportData, filters, siteData, selectedSite])
 
   // Handle filter changes
   const handleFilterChange = (filterType: keyof Filters, values: string[]) => {
@@ -464,8 +482,33 @@ function ReportContent() {
       category: [],
     })
     setSelectedSite(null)
+    setReportQueryRange(createDefaultReportDateRange())
+    setCustomReportData(null)
+    setReportDateRange(null)
+    setSelectedDevices([])
   }
 
+  const handleHistoricalReportReady = (reportSites: SiteData[], dateRange: ReportDateRange) => {
+    setCustomReportData(reportSites)
+    setReportDateRange(dateRange)
+    setReportQueryRange(dateRange)
+    setFilteredData(reportSites)
+    setSelectedDevices(reportSites.map(getSiteSelectionId))
+    setSelectedSite(reportSites.length === 1 ? reportSites[0] : null)
+    setShowReportOnPage(true)
+    setReportGenerating(false)
+
+    window.setTimeout(() => {
+      document.getElementById("report-section")?.scrollIntoView({ behavior: "smooth" })
+    }, 100)
+  }
+
+  const clearHistoricalReport = () => {
+    setCustomReportData(null)
+    setReportDateRange(null)
+    setSelectedSite(null)
+    setSelectedDevices([])
+  }
   // Add this function after the resetFilters function
   const handleDeviceSearch = (searchTerm: string) => {
     setDeviceSearch(searchTerm)
@@ -711,25 +754,35 @@ function ReportContent() {
     sitesByCategory[category].push(site)
   })
 
-  // Generate report title based on filters or selected site
+  // Generate report title based on filters, selected sites, and historical period
   const getReportTitle = () => {
+    let title: string
+
     if (selectedSite) {
-      return `Air Quality Report for ${selectedSite.siteDetails.name}`
+      title = `Air Quality Report for ${selectedSite.siteDetails.name}`
+    } else if (selectedDevices.length > 0 && selectedDevices.length < filteredData.length) {
+      title = `Air Quality Report for ${selectedDevices.length} Selected Devices`
+    } else {
+      const parts = []
+      if (filters.country.length) parts.push(formatSelectionLabel(filters.country, ""))
+      if (filters.city.length) parts.push(formatSelectionLabel(filters.city, ""))
+      if (filters.district.length) parts.push(formatSelectionLabel(filters.district, ""))
+      if (filters.category.length) parts.push(`${formatSelectionLabel(filters.category, "")} Sites`)
+      title = parts.length > 0 ? `Air Quality Report for ${parts.join(", ")}` : "Comprehensive Air Quality Report"
     }
 
-    if (selectedDevices.length > 0 && selectedDevices.length < filteredData.length) {
-      return `Air Quality Report for ${selectedDevices.length} Selected Devices`
-    }
+    if (!reportDateRange) return title
 
-    const parts = []
-    if (filters.country.length) parts.push(formatSelectionLabel(filters.country, ""))
-    if (filters.city.length) parts.push(formatSelectionLabel(filters.city, ""))
-    if (filters.district.length) parts.push(formatSelectionLabel(filters.district, ""))
-    if (filters.category.length) parts.push(`${formatSelectionLabel(filters.category, "")} Sites`)
-
-    return parts.length > 0 ? `Air Quality Report for ${parts.join(", ")}` : "Comprehensive Air Quality Report"
+    const startDate = format(
+      new Date(reportDateRange.startDate.slice(0, 10) + "T12:00:00Z"),
+      "MMM d, yyyy",
+    )
+    const endDate = format(
+      new Date(reportDateRange.endDate.slice(0, 10) + "T12:00:00Z"),
+      "MMM d, yyyy",
+    )
+    return `${title}: ${startDate} - ${endDate}`
   }
-
   // Add a function to toggle category collapse state
   const toggleCategoryCollapse = (category: string) => {
     setCollapsedCategories((prev) => ({
@@ -775,11 +828,11 @@ function ReportContent() {
       return `${filteredLocations.join(", ")}${categoryScope}`
     }
 
-    if (selectedDevices.length > 0 && selectedDevices.length < siteData.length) {
+    if (selectedDevices.length > 0 && selectedDevices.length < (customReportData ?? siteData).length) {
       return `${filteredData.length} selected monitoring site${filteredData.length === 1 ? "" : "s"}`
     }
 
-    return `the AirQo monitoring network${categoryScope}`
+    return `the selected monitoring network${categoryScope}`
   }
 
   // Calculate average PM2.5 for AQI index visualization
@@ -938,7 +991,7 @@ function ReportContent() {
           <div>
             <h2 className="text-lg font-bold text-slate-950">Filter report visuals</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Refine every chart, map, summary, and recommendation using the same geographic selection.
+              Use one date range and geographic selection across every chart, map, summary, and recommendation.
             </p>
           </div>
           <Button variant="outline" onClick={resetFilters} disabled={!siteData.length} className="w-full rounded-xl border-slate-300 bg-white md:w-auto">
@@ -946,7 +999,14 @@ function ReportContent() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <NexusDateRangePicker
+            value={reportQueryRange}
+            disabled={!siteData.length}
+            onApply={(range) => {
+              setReportQueryRange(range)
+            }}
+          />
           <FilterMultiSelect
             label="Country"
             placeholder="Select countries"
@@ -1054,7 +1114,7 @@ function ReportContent() {
           )}
           </div>
           <div className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white">
-            Showing {filteredData.length} of {siteData.length} sites
+            Showing {filteredData.length} of {(customReportData ?? siteData).length} sites
           </div>
         </div>
       </div>
@@ -1257,15 +1317,27 @@ function ReportContent() {
         >
           {showReportOnPage ? "Hide Report" : "View Report"}
         </Button>
-        {showReportOnPage && selectedDevices.length > 0 && selectedDevices.length < siteData.length && (
+        <Button
+          onClick={() => setIsReportDataModalOpen(true)}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white ml-2 shadow-sm"
+        >
+          <CalendarRange className="mr-2 h-4 w-4" />
+          Select Sites & Build Report
+        </Button>
+        {showReportOnPage &&
+          (customReportData !== null ||
+            (selectedDevices.length > 0 && selectedDevices.length < siteData.length)) && (
           <Button
             onClick={() => {
-              // Reset to show all filtered data based on current filters
-              setFilteredData(filterSites(siteData, filters))
+              if (customReportData) {
+                clearHistoricalReport()
+              } else {
+                setFilteredData(filterSites(siteData, filters))
+              }
             }}
             className="bg-gray-600 hover:bg-gray-700 text-white ml-2"
           >
-            Back to All Data
+            {customReportData ? "Use Latest Data" : "Back to All Data"}
           </Button>
         )}
       </div>
@@ -1275,6 +1347,13 @@ function ReportContent() {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800">{getReportTitle()}</h2>
             <div className="flex space-x-2">
+              <Button
+                onClick={() => setIsReportDataModalOpen(true)}
+                className="flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              >
+                <CalendarRange className="mr-2 h-4 w-4" />
+                Change Sites
+              </Button>
               <Button
                 onClick={generatePDF}
                 disabled={isGeneratingPDF}
@@ -1323,7 +1402,14 @@ function ReportContent() {
               <p className="text-gray-600 mt-2">
                 {getLocationInfo().city}, {getLocationInfo().country}
               </p>
-              <p className="text-gray-500 mt-1">Report Date: {format(new Date(), "MMMM d, yyyy")}</p>
+              {reportDateRange && (
+                <p className="mt-1 font-medium text-blue-700">
+                  Data Period: {format(new Date(reportDateRange.startDate.slice(0, 10) + "T12:00:00Z"), "MMMM d, yyyy")}
+                  {" to "}
+                  {format(new Date(reportDateRange.endDate.slice(0, 10) + "T12:00:00Z"), "MMMM d, yyyy")}
+                </p>
+              )}
+              <p className="text-gray-500 mt-1">Report Generated: {format(new Date(), "MMMM d, yyyy")}</p>
             </div>
 
             {/* Map snapshot of selected area */}
@@ -1428,10 +1514,10 @@ function ReportContent() {
               <div className="space-y-4 px-5 py-5 text-sm leading-7 text-slate-700 sm:px-6 sm:py-6 sm:text-base">
                 <p>
                   This report assesses recent air quality conditions across {getReportScopeDescription()}. It brings
-                  together the latest available readings from {filteredData.length} AirQo monitoring
+                  together {reportDateRange ? "historical measurements for the selected period" : "the latest available readings"} from {filteredData.length} monitoring
                   {filteredData.length === 1 ? " site" : " sites"}, with a primary focus on PM<sub>2.5</sub>, a fine
                   particulate pollutant used to describe health-relevant air quality conditions.
-                  The analysis combines current PM<sub>2.5</sub> readings, Air Quality Index categories, week-over-week
+                  The analysis combines PM<sub>2.5</sub> readings, Air Quality Index categories, {comparisonPeriod === "monthly" ? "month-over-month" : "week-over-week"}
                   averages, and geographic patterns. It highlights higher- and lower-pollution locations, summarizes
                   short-term changes, and provides practical health guidance; conditions may still vary with weather,
                   traffic, local emissions, and sensor availability.
@@ -1440,7 +1526,9 @@ function ReportContent() {
             </section>
             {/* AQI Index Visualization */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Current Air Quality Status</h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">
+                {reportDateRange ? "Average Air Quality Status for the Selected Period" : "Current Air Quality Status"}
+              </h3>
               <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                 <AQIIndexVisual
                   aqiCategory={selectedSite ? selectedSite.aqi_category || "Unknown" : avgAQICategory}
@@ -1463,7 +1551,7 @@ function ReportContent() {
                   <p className="text-2xl font-bold">{calculateAveragePM25(filteredData).toFixed(2)} µg/m³</p>
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <h4 className="font-semibold text-gray-700 mb-1">Weekly Change</h4>
+                  <h4 className="font-semibold text-gray-700 mb-1">{comparisonPeriod === "monthly" ? "Monthly" : "Weekly"} Change</h4>
                   <p className="text-2xl font-bold flex items-center">
                     {calculateAveragePercentageChange(filteredData).toFixed(2)}%
                     {calculateAveragePercentageChange(filteredData) < 0 ? (
@@ -1482,7 +1570,7 @@ function ReportContent() {
                 <PM25BarChart sites={filteredData} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <AQICategoryChart sites={filteredData} />
-                  <WeeklyComparisonChart sites={filteredData} />
+                  <WeeklyComparisonChart sites={filteredData} comparisonPeriod={comparisonPeriod} />
                 </div>
               </div>
 
@@ -1500,7 +1588,7 @@ function ReportContent() {
                       {Math.abs(calculateAveragePercentageChange(filteredData)).toFixed(2)}%{" "}
                       {calculateAveragePercentageChange(filteredData) < 0 ? "decrease" : "increase"}
                     </strong>{" "}
-                    in PM<sub>2.5</sub> levels compared to the previous week.
+                    in PM<sub>2.5</sub> levels compared to the previous {comparisonPeriod === "monthly" ? "month" : "week"}.
                   </li>
                   {Object.entries(calculateAQICategoryCounts(filteredData)).length > 1 && (
                     <li>
@@ -1842,6 +1930,13 @@ function ReportContent() {
       )}
         </>
       ) : null}
+      <ReportDataModal
+        isOpen={isReportDataModalOpen}
+        onClose={() => setIsReportDataModalOpen(false)}
+        sites={filterSites(siteData, filters)}
+        dateRange={reportQueryRange}
+        onReportReady={handleHistoricalReportReady}
+      />
     </div>
   )
 }
