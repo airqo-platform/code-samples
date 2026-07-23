@@ -105,6 +105,7 @@ const CustomDot = ({ cx, cy, payload }: { cx?: number; cy?: number; payload?: an
 export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   const [siteLimit, setSiteLimit] = useState(7)
   const [chartType, setChartType] = useState<"bar" | "line">("bar")
+  const [xAxisView, setXAxisView] = useState<"time" | "site">("time")
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
   const [sortOrder, setSortOrder] = useState<"highest" | "lowest" | "none">("none")
   const [aggregation, setAggregation] = useState<"daily" | "weekly" | "monthly">(
@@ -124,9 +125,9 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
     if (type === "csv") {
       const dataStr = hasTemporalData
         ? [
-            ["Period", ...temporalSeries.map((series) => series.name)].join(","),
-            ...temporalData.map((row) =>
-              [row.period, ...temporalSeries.map((series) => row[series.dataKey] ?? "")].join(","),
+            [xAxisView === "site" ? "Site" : "Period", ...activeSeries.map((series) => series.name)].join(","),
+            ...activeChartData.map((row) =>
+              [row[activeXAxisKey], ...activeSeries.map((series) => row[series.dataKey] ?? "")].join(","),
             ),
           ].join("\n")
         : "Name,PM₂.₅,Category\n" + displaySites.map((s) => `${s.name},${s.pm25},${s.category}`).join("\n")
@@ -138,7 +139,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
       a.click()
       URL.revokeObjectURL(url)
     } else if (type === "json") {
-      const dataStr = JSON.stringify(hasTemporalData ? temporalData : displaySites, null, 2)
+      const dataStr = JSON.stringify(hasTemporalData ? activeChartData : displaySites, null, 2)
       const blob = new Blob([dataStr], { type: "application/json;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -224,7 +225,25 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
     })
   const hasTemporalData = temporalData.length > 0
 
-  const temporalValues = temporalData.flatMap((row) => temporalSeries.map((series) => Number(row[series.dataKey] || 0)))
+  const siteAxisSeries = temporalData.map((row, index) => ({
+    dataKey: `period_${index}`,
+    name: String(row.period),
+    color: SITE_COLORS[index % SITE_COLORS.length],
+  }))
+  const siteAxisData = selectedSites.map((site, siteIndex) => {
+    const row: Record<string, string | number> = { name: site.siteDetails?.name || `Site ${siteIndex + 1}` }
+    temporalData.forEach((period, periodIndex) => {
+      const value = period[`site_${siteIndex}`]
+      if (typeof value === "number") row[`period_${periodIndex}`] = value
+    })
+    return row
+  })
+  const useSiteXAxis = hasTemporalData && xAxisView === "site"
+  const activeChartData = useSiteXAxis ? siteAxisData : temporalData
+  const activeSeries = useSiteXAxis ? siteAxisSeries : temporalSeries
+  const activeXAxisKey = useSiteXAxis ? "name" : "period"
+
+  const temporalValues = activeChartData.flatMap((row) => activeSeries.map((series) => Number(row[series.dataKey] || 0)))
   const maxValue = Math.max(0, ...(hasTemporalData ? temporalValues : displaySites.map((site) => Number.parseFloat(site.pm25))))
   const yAxisDomain = [0, Math.ceil(maxValue * 1.1)] // Add 10% padding above max value
 
@@ -268,6 +287,19 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 <SelectItem value="daily">Daily</SelectItem>
                 <SelectItem value="weekly">Weekly</SelectItem>
                 <SelectItem value="monthly">Monthly</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="min-w-fit text-xs font-medium text-gray-600">X-axis:</span>
+            <Select value={xAxisView} onValueChange={(value: "time" | "site") => setXAxisView(value)}>
+              <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[125px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="time">Time period</SelectItem>
+                <SelectItem value="site">Site name</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -357,9 +389,9 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
         <div className="h-[300px] md:h-[350px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "bar" ? (
-              <BarChart data={hasTemporalData ? temporalData : displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 70 }}>
+              <BarChart key={`pm-bar-${aggregation}-${xAxisView}`} data={hasTemporalData ? activeChartData : displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 70 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey={hasTemporalData ? "period" : "name"} angle={-35} textAnchor="end" height={75} tick={{ fontSize: 9 }} />
+                <XAxis dataKey={hasTemporalData ? activeXAxisKey : "name"} angle={-35} textAnchor="end" height={75} tick={{ fontSize: 9 }} />
                 <YAxis
                   domain={yAxisDomain}
                   label={{ value: "PM₂.₅ (µg/m³)", angle: -90, position: "insideLeft", fontSize: 9 }}
@@ -368,13 +400,13 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 />
                 <Tooltip
                   formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]}
-                  labelFormatter={(label) => hasTemporalData ? `Period: ${label}` : `Site: ${label}`}
+                  labelFormatter={(label) => useSiteXAxis || !hasTemporalData ? `Site: ${label}` : `Period: ${label}`}
                   contentStyle={{ borderRadius: 10, fontSize: 11 }}
                   labelStyle={{ fontSize: 11, fontWeight: 600 }}
                   itemStyle={{ fontSize: 11 }}
                 />
                 {hasTemporalData ? (
-                  temporalSeries.map((series) => (
+                  activeSeries.map((series) => (
                     <Bar key={series.dataKey} dataKey={series.dataKey} name={series.name} fill={series.color} radius={[3, 3, 0, 0]} />
                   ))
                 ) : (
@@ -385,9 +417,9 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 {hasTemporalData && <Legend iconSize={9} wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />}
               </BarChart>
             ) : (
-              <LineChart data={hasTemporalData ? temporalData : displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 70 }}>
+              <LineChart key={`pm-line-${aggregation}-${xAxisView}`} data={hasTemporalData ? activeChartData : displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 70 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey={hasTemporalData ? "period" : "name"} angle={-35} textAnchor="end" height={75} tick={{ fontSize: 9 }} />
+                <XAxis dataKey={hasTemporalData ? activeXAxisKey : "name"} angle={-35} textAnchor="end" height={75} tick={{ fontSize: 9 }} />
                 <YAxis
                   domain={yAxisDomain}
                   label={{ value: "PM₂.₅ (µg/m³)", angle: -90, position: "insideLeft", fontSize: 9 }}
@@ -396,13 +428,13 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 />
                 <Tooltip
                   formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]}
-                  labelFormatter={(label) => hasTemporalData ? `Period: ${label}` : `Site: ${label}`}
+                  labelFormatter={(label) => useSiteXAxis || !hasTemporalData ? `Site: ${label}` : `Period: ${label}`}
                   contentStyle={{ borderRadius: 10, fontSize: 11 }}
                   labelStyle={{ fontSize: 11, fontWeight: 600 }}
                   itemStyle={{ fontSize: 11 }}
                 />
                 {hasTemporalData ? (
-                  temporalSeries.map((series) => (
+                  activeSeries.map((series) => (
                     <Line key={series.dataKey} type="monotone" dataKey={series.dataKey} name={series.name} stroke={series.color} strokeWidth={2} connectNulls />
                   ))
                 ) : (
@@ -680,23 +712,64 @@ export function WeeklyComparisonChart({
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
   const [sortOrder, setSortOrder] = useState<"highest" | "lowest" | "none">("none")
   const chartRef = useRef<HTMLDivElement>(null)
-  const isMonthly = comparisonPeriod === "monthly"
+  const effectiveComparisonPeriod = timelinePeriod !== "all" && timelineGrouping === "weekly"
+    ? "weekly"
+    : comparisonPeriod
+  const isMonthly = effectiveComparisonPeriod === "monthly"
   const periodLabel = isMonthly ? "Month" : "Week"
   const matchesTimeline = (timestamp: string) =>
     timelinePeriod === "all" || getAqiPeriodBucket(timestamp, timelineGrouping).key === timelinePeriod
   let timelineLabel = "the selected reporting period"
-  const periodBucketMap = new Map<string, { key: string; label: string; sortValue: number }>()
+  const allPeriodBucketMap = new Map<string, { key: string; label: string; sortValue: number }>()
   sites.forEach((site) => {
     site.reportMeasurements?.forEach((measurement) => {
-      if (!matchesTimeline(measurement.timestamp)) return
       if (timelinePeriod !== "all") {
-        timelineLabel = getAqiPeriodBucket(measurement.timestamp, timelineGrouping).label
+        const timelineBucket = getAqiPeriodBucket(measurement.timestamp, timelineGrouping)
+        if (timelineBucket.key === timelinePeriod) timelineLabel = timelineBucket.label
       }
       const bucket = getAqiPeriodBucket(measurement.timestamp, isMonthly ? "monthly" : "weekly")
-      periodBucketMap.set(bucket.key, bucket)
+      allPeriodBucketMap.set(bucket.key, bucket)
     })
   })
-  const periodDefinitions = Array.from(periodBucketMap.values()).sort((a, b) => a.sortValue - b.sortValue)
+
+  const allPeriodDefinitions = Array.from(allPeriodBucketMap.values()).sort((a, b) => a.sortValue - b.sortValue)
+  let comparisonMode: "all" | "within-selection" | "adjacent" | "daily-fallback" | "weekly-fallback" =
+    timelinePeriod === "all" ? "all" : "within-selection"
+  let bucketForMeasurement = (timestamp: string) =>
+    getAqiPeriodBucket(timestamp, isMonthly ? "monthly" : "weekly")
+  let periodDefinitions = allPeriodDefinitions.filter((period) => {
+    if (timelinePeriod === "all") return true
+    return sites.some((site) => site.reportMeasurements?.some((measurement) =>
+      matchesTimeline(measurement.timestamp) && bucketForMeasurement(measurement.timestamp).key === period.key,
+    ))
+  })
+
+  // Compare a selected period with its predecessor. When none exists in the
+  // downloaded report, use smaller periods inside the selection instead.
+  if (timelinePeriod !== "all" && timelineGrouping === (isMonthly ? "monthly" : "weekly")) {
+    const selectedDefinition = allPeriodDefinitions.find((period) => period.key === timelinePeriod)
+    const previousDefinition = selectedDefinition
+      ? [...allPeriodDefinitions].reverse().find((period) => period.sortValue < selectedDefinition.sortValue)
+      : undefined
+
+    if (selectedDefinition && previousDefinition) {
+      periodDefinitions = [previousDefinition, selectedDefinition]
+      comparisonMode = "adjacent"
+    } else if (selectedDefinition) {
+      const fallbackGrouping = isMonthly ? "weekly" : "daily"
+      bucketForMeasurement = (timestamp: string) => getReportBucket(timestamp, fallbackGrouping)
+      const fallbackBucketMap = new Map<string, { key: string; label: string; sortValue: number }>()
+      sites.forEach((site) => {
+        site.reportMeasurements?.forEach((measurement) => {
+          if (!matchesTimeline(measurement.timestamp)) return
+          const bucket = bucketForMeasurement(measurement.timestamp)
+          fallbackBucketMap.set(bucket.key, bucket)
+        })
+      })
+      periodDefinitions = Array.from(fallbackBucketMap.values()).sort((a, b) => a.sortValue - b.sortValue)
+      comparisonMode = isMonthly ? "weekly-fallback" : "daily-fallback"
+    }
+  }
   const hasTemporalPeriods = periodDefinitions.length > 0
   const periodSeries = hasTemporalPeriods
     ? periodDefinitions.map((period, index) => ({
@@ -715,8 +788,8 @@ export function WeeklyComparisonChart({
     if (hasTemporalPeriods) {
       const valuesByPeriod = new Map<string, number[]>()
       site.reportMeasurements?.forEach((measurement) => {
-        if (!matchesTimeline(measurement.timestamp)) return
-        const bucket = getAqiPeriodBucket(measurement.timestamp, isMonthly ? "monthly" : "weekly")
+        const bucket = bucketForMeasurement(measurement.timestamp)
+        if (!periodSeries.some((series) => series.bucketKey === bucket.key)) return
         valuesByPeriod.set(bucket.key, [...(valuesByPeriod.get(bucket.key) || []), measurement.value])
       })
       periodSeries.forEach((series) => {
@@ -751,7 +824,7 @@ export function WeeklyComparisonChart({
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${comparisonPeriod}_comparison_chart.csv`
+      a.download = `${effectiveComparisonPeriod}_comparison_chart.csv`
       a.click()
       URL.revokeObjectURL(url)
     } else if (type === "json") {
@@ -760,7 +833,7 @@ export function WeeklyComparisonChart({
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${comparisonPeriod}_comparison_chart.json`
+      a.download = `${effectiveComparisonPeriod}_comparison_chart.json`
       a.click()
       URL.revokeObjectURL(url)
     } else if (type === "png" && chartRef.current) {
@@ -779,7 +852,7 @@ export function WeeklyComparisonChart({
             const url = URL.createObjectURL(blob)
             const a = document.createElement("a")
             a.href = url
-            a.download = `${comparisonPeriod}_comparison_chart.png`
+            a.download = `${effectiveComparisonPeriod}_comparison_chart.png`
             a.click()
             URL.revokeObjectURL(url)
           }
@@ -812,17 +885,30 @@ export function WeeklyComparisonChart({
   const allValues = chartData.flatMap((item) => periodSeries.map((series) => Number(item[series.dataKey] || 0)))
   const maxComparisonValue = Math.max(0, ...allValues)
   const comparisonYAxisDomain = [0, Math.ceil(maxComparisonValue * 1.1)]
+  const comparisonHeading = comparisonMode === "daily-fallback"
+    ? "Daily"
+    : comparisonMode === "weekly-fallback"
+      ? "Weekly"
+      : isMonthly ? "Monthly" : "Weekly"
 
   return (
     <Card className="w-full font-sans">
       <CardHeader className="p-4 sm:p-5">
         <CardTitle className="text-base md:text-lg">
-          {isMonthly ? "Monthly" : "Weekly"} PM<sub>2.5</sub> Comparison
+          {comparisonHeading} PM<sub>2.5</sub> Comparison
         </CardTitle>
         <p className="text-xs leading-5 text-slate-500 md:text-sm">
-          {isMonthly
-            ? `Each series represents one calendar month within ${timelineLabel}.`
-            : `${periodSeries.length} week${periodSeries.length === 1 ? "" : "s"} with data are shown within ${timelineLabel}.`}
+          {comparisonMode === "adjacent"
+            ? `Comparing ${periodSeries[periodSeries.length - 1]?.name} with the previous available ${periodLabel.toLowerCase()}, ${periodSeries[0]?.name}.`
+            : comparisonMode === "daily-fallback"
+              ? periodSeries.length > 1
+                ? `No earlier week is available in this report. Daily averages within ${timelineLabel} are shown for comparison.`
+                : `No earlier week is available, and only one day has readings within ${timelineLabel}. A historical comparison cannot be calculated.`
+              : comparisonMode === "weekly-fallback"
+                ? `No earlier month is available in this report. Weekly averages within ${timelineLabel} are shown for comparison.`
+                : isMonthly
+                  ? `Each series represents one calendar month within ${timelineLabel}.`
+                  : `${periodSeries.length} week${periodSeries.length === 1 ? "" : "s"} with data ${timelinePeriod === "all" ? "are shown for the reporting period" : `are shown within ${timelineLabel}`}.`}
         </p>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">

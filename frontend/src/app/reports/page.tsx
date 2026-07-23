@@ -16,6 +16,7 @@ import {
   LoaderCircle,
   MapPin,
   Minus,
+  MoreHorizontal,
   Printer,
   BarChart3,
   X,
@@ -1415,55 +1416,54 @@ function ReportContent() {
 
       {showReportOnPage && (
         <div id="report-section" className="mb-8 bg-white rounded-lg shadow-lg p-6 border border-gray-200">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">{getReportTitle()}</h2>
-            <div className="flex space-x-2">
-              <Button
-                onClick={() => setIsReportDataModalOpen(true)}
-                className="flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-              >
-                <CalendarRange className="mr-2 h-4 w-4" />
-                Change Sites
-              </Button>
-              <Button
-                onClick={generatePDF}
-                disabled={isGeneratingPDF}
-                className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {isGeneratingPDF ? (
-                  <>
-                    <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                    Generating PDF...
-                  </>
-                ) : (
-                  <>
-                    <Download className="mr-2 h-4 w-4" />
-                    Download PDF
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={() => window.print()}
-                className="flex items-center justify-center bg-gray-600 hover:bg-gray-700 text-white"
-              >
-                <Printer className="mr-2 h-4 w-4" />
-                Print
-              </Button>
-              <Button
-                onClick={() => setShowAdvancedAnalysis(!showAdvancedAnalysis)}
-                className="flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                <BrainCircuit className="mr-2 h-4 w-4" />
-                {showAdvancedAnalysis ? "Hide Advanced Analysis" : "Show Advanced Analysis"}
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end space-x-2 mb-4">
-            <Label htmlFor="advanced-mode" className="text-sm font-medium cursor-pointer">
-              Advanced Spatial Analysis
-            </Label>
-            <Switch id="advanced-mode" checked={showAdvancedAnalysis} onCheckedChange={setShowAdvancedAnalysis} />
+          <div className="mb-5 flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 pb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsReportDataModalOpen(true)}
+              className="h-9 rounded-lg border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            >
+              <CalendarRange className="mr-1.5 h-4 w-4 text-emerald-600" />
+              Change sites
+            </Button>
+            <Button
+              size="sm"
+              onClick={generatePDF}
+              disabled={isGeneratingPDF}
+              className="h-9 rounded-lg bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+            >
+              {isGeneratingPDF ? (
+                <><div className="mr-1.5 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Preparing PDF...</>
+              ) : (
+                <><Download className="mr-1.5 h-4 w-4" />Download PDF</>
+              )}
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 rounded-lg border-slate-300 bg-white text-slate-700 hover:bg-slate-50">
+                  <MoreHorizontal className="mr-1.5 h-4 w-4" />
+                  More actions
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 rounded-xl border-slate-200 p-2 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-slate-50"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Printer className="h-4 w-4" /></span>
+                  <span><span className="block text-sm font-semibold text-slate-800">Print report</span><span className="block text-xs text-slate-500">Open the browser print dialog</span></span>
+                </button>
+                <div className="my-1 border-t border-slate-100" />
+                <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600"><BrainCircuit className="h-4 w-4" /></span>
+                    <div><Label htmlFor="advanced-mode" className="cursor-pointer text-sm font-semibold text-slate-800">Advanced analysis</Label><p className="text-xs text-slate-500">Spatial statistics and clusters</p></div>
+                  </div>
+                  <Switch id="advanced-mode" checked={showAdvancedAnalysis} onCheckedChange={setShowAdvancedAnalysis} />
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div ref={reportRef} className="space-y-6">
