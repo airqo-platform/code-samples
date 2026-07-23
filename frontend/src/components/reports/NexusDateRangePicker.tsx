@@ -37,7 +37,6 @@ type Preset = {
   getRange: () => { start: Date; end: Date }
 }
 
-const MAX_RANGE_DAYS = 90
 const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 const dateFromIso = (value: string) => {
@@ -107,11 +106,13 @@ function CalendarMonth({
   month,
   rangeStart,
   rangeEnd,
+  maximumDate,
   onSelect,
 }: {
   month: Date
   rangeStart: Date
   rangeEnd: Date | null
+  maximumDate?: Date | null
   onSelect: (date: Date) => void
 }) {
   const days = eachDayOfInterval({
@@ -135,16 +136,18 @@ function CalendarMonth({
           )
           const outside = !isSameMonth(day, month)
           const future = isAfter(startOfDay(day), startOfDay(new Date()))
+          const beyondMaximum = Boolean(maximumDate && isAfter(startOfDay(day), startOfDay(maximumDate)))
+          const unavailable = future || beyondMaximum
 
           return (
             <button
               key={day.toISOString()}
               type="button"
-              disabled={future}
+              disabled={unavailable}
               onClick={() => onSelect(day)}
               className={`relative h-9 text-xs transition first:rounded-l-lg last:rounded-r-lg ${
                 isInRange ? "bg-blue-50" : ""
-              } ${outside ? "text-slate-300" : "text-slate-700"} ${future ? "cursor-not-allowed opacity-35" : "hover:bg-blue-100"}`}
+              } ${outside ? "text-slate-300" : "text-slate-700"} ${unavailable ? "cursor-not-allowed opacity-35" : "hover:bg-blue-100"}`}
               aria-label={format(day, "MMMM d, yyyy")}
             >
               <span
@@ -175,14 +178,18 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
   )
   const [startTime, setStartTime] = useState(format(initialStart, "HH:mm"))
   const [endTime, setEndTime] = useState(format(initialEnd, "HH:mm"))
+  const maximumEndDate = useMemo(
+    () => endOfDay(subDays(addMonths(startOfDay(draftStart), 3), 1)),
+    [draftStart],
+  )
 
   const rangeError = useMemo(() => {
     if (!draftEnd) return "Choose an end date."
-    if (differenceInCalendarDays(draftEnd, draftStart) >= MAX_RANGE_DAYS) {
-      return `Reports support a maximum range of ${MAX_RANGE_DAYS} days.`
+    if (isAfter(draftEnd, maximumEndDate)) {
+      return "Reports support a maximum range of 3 months."
     }
     return null
-  }, [draftEnd, draftStart])
+  }, [draftEnd, maximumEndDate])
 
   const syncFromValue = () => {
     const start = dateFromIso(value.startDate)
@@ -259,9 +266,11 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
         <PopoverContent
           align="start"
           sideOffset={8}
-          className="w-[min(94vw,760px)] overflow-hidden rounded-2xl border-slate-200 p-0 shadow-2xl"
+          collisionPadding={12}
+          sticky="always"
+          className="max-h-[calc(100vh-1.5rem)] w-[min(94vw,760px)] overflow-y-auto rounded-2xl border-slate-200 p-0 shadow-2xl"
         >
-          <div className="flex max-h-[78vh] flex-col md:max-h-none md:flex-row">
+          <div className="flex flex-col md:flex-row">
             <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-slate-200 bg-slate-50 p-3 md:w-40 md:grid-cols-1 md:border-b-0 md:border-r">
               {presets.map((preset) => (
                 <button
@@ -275,7 +284,7 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
               ))}
             </div>
 
-            <div className="min-w-0 flex-1 overflow-y-auto p-4">
+            <div className="min-w-0 flex-1 p-4">
               <div className="mb-2 flex items-center justify-between">
                 <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setVisibleMonth(subMonths(visibleMonth, 1))}>
                   <ChevronLeft className="h-4 w-4" />
@@ -293,15 +302,15 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
                 </Button>
               </div>
               <div className="flex gap-6">
-                <CalendarMonth month={visibleMonth} rangeStart={draftStart} rangeEnd={draftEnd} onSelect={selectDate} />
+                <CalendarMonth month={visibleMonth} rangeStart={draftStart} rangeEnd={draftEnd} maximumDate={selectingEnd ? maximumEndDate : null} onSelect={selectDate} />
                 <div className="hidden min-w-0 flex-1 md:block">
-                  <CalendarMonth month={addMonths(visibleMonth, 1)} rangeStart={draftStart} rangeEnd={draftEnd} onSelect={selectDate} />
+                  <CalendarMonth month={addMonths(visibleMonth, 1)} rangeStart={draftStart} rangeEnd={draftEnd} maximumDate={selectingEnd ? maximumEndDate : null} onSelect={selectDate} />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="border-t border-slate-200 bg-white p-3 sm:p-4">
+          <div className="sticky bottom-0 z-10 border-t border-slate-200 bg-white p-3 shadow-[0_-8px_20px_-16px_rgba(15,23,42,0.45)] sm:p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
@@ -336,7 +345,7 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
           </div>
         </PopoverContent>
       </Popover>
-      <p className="mt-2 min-h-8 text-xs leading-4 text-slate-500">Choose a reporting period, then select the sites to include.</p>
+      <p className="mt-2 min-h-8 text-xs leading-4 text-slate-500">Choose up to 3 months, then select a city or district to generate the report.</p>
     </div>
   )
 }

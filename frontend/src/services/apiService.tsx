@@ -711,7 +711,15 @@ export const getSiteHistorical = async (
 
 /** Fetch historical selected-site measurements through the server-side AirQo proxy. */
 export const getSiteReportData = async (request: DataDownloadRequest): Promise<DataDownloadResponse> => {
-  const response = await apiService.post<DataDownloadResponse | string>("/analytics/data-download", request)
+  let response
+  try {
+    response = await apiService.post<DataDownloadResponse | string>("/analytics/data-download", request)
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 500) {
+      throw new Error("The report service could not complete this request. Please regenerate the report.")
+    }
+    throw error
+  }
   const payload = response.data
 
   if (typeof payload === "string") {
@@ -832,6 +840,10 @@ export const buildSiteReportData = (
     if (periodMeasurements.length === 0) return []
 
     const periodAverage = average(periodMeasurements.map((measurement) => measurement.value))
+    const reportMeasurements = periodMeasurements
+      .filter((measurement): measurement is { value: number; timestamp: number } => measurement.timestamp !== null)
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map((measurement) => ({ timestamp: new Date(measurement.timestamp).toISOString(), value: measurement.value }))
     const currentValues = measurements
       .filter((measurement) => measurement.timestamp !== null && measurement.timestamp >= currentWeekStart)
       .map((measurement) => measurement.value)
@@ -883,6 +895,8 @@ export const buildSiteReportData = (
       aqi_category: aqi.category,
       aqi_color: aqi.color,
       pm2_5: { value: periodAverage },
+      reportMeasurements,
+      reportAggregation: options.frequency,
       averages: {
         percentageDifference,
         weeklyAverages: { currentWeek, previousWeek },
@@ -912,4 +926,47 @@ export const buildSiteReportData = (
       },
     }]
   })
+}
+
+/** Fetch and build the historical values used by report visuals. */
+export const loadHistoricalReportData = async (
+  sourceSites: SiteData[],
+  options: ReportDataOptions,
+): Promise<SiteData[]> => {
+  const selectedStartTimestamp = Date.parse(options.startDate)
+  const selectedEndDate = new Date(options.endDate)
+  const selectedRangeDays = Math.ceil(
+    (Date.parse(options.endDate) - selectedStartTimestamp) / (24 * 60 * 60 * 1000),
+  )
+  const previousMonthStart = new Date(
+    Date.UTC(selectedEndDate.getUTCFullYear(), selectedEndDate.getUTCMonth() - 1, 1),
+  ).toISOString()
+  const requestStartDate =
+    selectedRangeDays > 14 && Date.parse(previousMonthStart) < selectedStartTimestamp
+      ? previousMonthStart
+      : options.startDate
+
+  const response = await getSiteReportData({
+    datatype: options.dataType,
+    downloadType: "json",
+    startDateTime: requestStartDate,
+    endDateTime: options.endDate,
+    // The download API supplies daily values; weekly/monthly report averages
+    // are calculated from those dated daily measurements in the client.
+    frequency: "daily",
+    minimum: true,
+    outputFormat: "airqo-standard",
+    pollutants: options.pollutants,
+    sites: options.selectedSiteIds,
+    metaDataFields: ["latitude", "longitude"],
+    weatherFields: ["temperature", "humidity"],
+    device_category: "lowcost",
+  })
+
+  const reportSites = buildSiteReportData(response, sourceSites, options)
+  if (reportSites.length === 0) {
+    throw new Error("No usable PM2.5 measurements were returned for this selection.")
+  }
+
+  return reportSites
 }

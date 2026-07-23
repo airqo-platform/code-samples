@@ -241,6 +241,11 @@ export interface SiteData {
   aqi_category: string
   aqi_color: string
   pm2_5: { value: number | null }
+  reportMeasurements?: Array<{
+    timestamp: string
+    value: number
+  }>
+  reportAggregation?: "daily" | "weekly" | "monthly"
   averages?: {
     percentageDifference: number
     weeklyAverages: {
@@ -317,7 +322,7 @@ export interface ReportDataOptions {
   selectedSiteIds: string[]
   startDate: string
   endDate: string
-  frequency: "hourly" | "daily" | "raw"
+  frequency: "daily" | "weekly" | "monthly"
   dataType: "calibrated" | "raw"
   pollutants: string[]
 }

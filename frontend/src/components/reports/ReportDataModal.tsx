@@ -17,13 +17,16 @@ import { Label } from "@/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
 import { BarChart3, Calendar, CheckSquare, Layers, LoaderCircle, MapPin, Search, Square } from "lucide-react"
 import type { ReportDataOptions, ReportDateRange, SiteData } from "@/lib/types"
-import { buildSiteReportData, getSiteReportData } from "@/services/apiService"
+import { loadHistoricalReportData } from "@/services/apiService"
 
 interface ReportDataModalProps {
   isOpen: boolean
   onClose: () => void
   sites: SiteData[]
   dateRange: ReportDateRange
+  aggregation: ReportDataOptions["frequency"]
+  onAggregationChange: (aggregation: ReportDataOptions["frequency"]) => void
+  canGenerate: boolean
   onReportReady: (reportSites: SiteData[], dateRange: ReportDateRange) => void
 }
 
@@ -34,13 +37,15 @@ export default function ReportDataModal({
   onClose,
   sites,
   dateRange,
+  aggregation,
+  onAggregationChange,
+  canGenerate,
   onReportReady,
 }: ReportDataModalProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCountry, setSelectedCountry] = useState("ALL")
   const [selectedCity, setSelectedCity] = useState("ALL")
   const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([])
-  const [frequency, setFrequency] = useState<ReportDataOptions["frequency"]>("daily")
   const [dataType, setDataType] = useState<ReportDataOptions["dataType"]>("calibrated")
   const [isGenerating, setIsGenerating] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -109,43 +114,13 @@ export default function ReportDataModal({
       selectedSiteIds: effectiveSiteIds,
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
-      frequency,
+      frequency: aggregation,
       dataType,
       pollutants: ["pm2_5", "pm10"],
     }
-    const selectedStartTimestamp = Date.parse(options.startDate)
-    const selectedEndDate = new Date(options.endDate)
-    const selectedRangeDays = Math.ceil(
-      (Date.parse(options.endDate) - selectedStartTimestamp) / (24 * 60 * 60 * 1000),
-    )
-    const previousMonthStart = new Date(
-      Date.UTC(selectedEndDate.getUTCFullYear(), selectedEndDate.getUTCMonth() - 1, 1),
-    ).toISOString()
-    const requestStartDate =
-      selectedRangeDays > 14 && Date.parse(previousMonthStart) < selectedStartTimestamp
-        ? previousMonthStart
-        : options.startDate
-
     setIsGenerating(true)
     try {
-      const response = await getSiteReportData({
-        datatype: options.dataType,
-        downloadType: "json",
-        startDateTime: requestStartDate,
-        endDateTime: options.endDate,
-        frequency: options.frequency,
-        minimum: true,
-        outputFormat: "airqo-standard",
-        pollutants: options.pollutants,
-        sites: options.selectedSiteIds,
-        metaDataFields: ["latitude", "longitude"],
-        weatherFields: ["temperature", "humidity"],
-        device_category: "lowcost",
-      })
-      const reportSites = buildSiteReportData(response, sites, options)
-      if (reportSites.length === 0) {
-        throw new Error("No usable PM2.5 measurements were returned for this selection.")
-      }
+      const reportSites = await loadHistoricalReportData(sites, options)
 
       onReportReady(reportSites, { startDate: options.startDate, endDate: options.endDate })
       onClose()
@@ -168,7 +143,7 @@ export default function ReportDataModal({
               <BarChart3 className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-xl font-bold">Select sites for your report</DialogTitle>
+              <DialogTitle className="text-xl font-bold">Customize report data</DialogTitle>
               <DialogDescription>
                 Confirm the monitoring sites and data settings for the date range selected above.
               </DialogDescription>
@@ -202,13 +177,13 @@ export default function ReportDataModal({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Frequency</Label>
-                <Select value={frequency} onValueChange={(value: ReportDataOptions["frequency"]) => setFrequency(value)}>
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Average by</Label>
+                <Select value={aggregation} onValueChange={onAggregationChange}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="hourly">Hourly</SelectItem>
-                    <SelectItem value="raw">Raw</SelectItem>
+                    <SelectItem value="daily">Day</SelectItem>
+                    <SelectItem value="weekly">Week</SelectItem>
+                    <SelectItem value="monthly">Month</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -320,13 +295,13 @@ export default function ReportDataModal({
             <Button
               type="button"
               onClick={handleGenerateReport}
-              disabled={isGenerating || activeSiteCount === 0}
+              disabled={!canGenerate || isGenerating || activeSiteCount === 0}
               className="min-w-[145px] bg-blue-600 text-white hover:bg-blue-700"
             >
               {isGenerating ? (
                 <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Building...</>
               ) : (
-                <><BarChart3 className="mr-2 h-4 w-4" /> Build report</>
+                <><BarChart3 className="mr-2 h-4 w-4" /> {errorMessage ? "Regenerate report" : "Build report"}</>
               )}
             </Button>
           </div>

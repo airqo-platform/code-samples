@@ -23,9 +23,9 @@ import {
 } from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
 import type { ReactNode } from "react"
-import { getReportData } from "@/services/apiService"
+import { getReportData, loadHistoricalReportData } from "@/services/apiService"
 import { Button } from "@/ui/button"
-import type { SiteData, Filters, ReportDateRange } from "@/lib/types"
+import type { SiteData, Filters, ReportDataOptions, ReportDateRange } from "@/lib/types"
 import { jsPDF } from "jspdf"
 import html2canvas from "html2canvas"
 import { differenceInCalendarDays, format } from "date-fns"
@@ -75,6 +75,8 @@ const getSiteSelectionId = (site: SiteData) =>
 
 const getSiteCheckboxId = (site: SiteData) => `main-device-${encodeURIComponent(getSiteSelectionId(site))}`
 
+const getReportSiteId = (site: SiteData) => site.site_id || site.siteDetails?._id || site._id
+
 export default function ReportPage() {
   return (
     <div className="reports-theme flex min-h-screen flex-col bg-gray-100 text-slate-950">
@@ -95,6 +97,7 @@ function ReportContent() {
   const [customReportData, setCustomReportData] = useState<SiteData[] | null>(null)
   const [reportDateRange, setReportDateRange] = useState<ReportDateRange | null>(null)
   const [reportQueryRange, setReportQueryRange] = useState<ReportDateRange>(createDefaultReportDateRange)
+  const [reportAggregation, setReportAggregation] = useState<ReportDataOptions["frequency"]>("daily")
   const reportDurationDays = reportDateRange
     ? differenceInCalendarDays(new Date(reportDateRange.endDate), new Date(reportDateRange.startDate)) + 1
     : 0
@@ -135,6 +138,7 @@ function ReportContent() {
     () => Object.values(filters).some((values) => values.length > 0),
     [filters],
   )
+  const hasRequiredReportScope = filters.city.length > 0 || filters.district.length > 0
 
   const formatSelectionLabel = (values: string[], fallback: string) => {
     if (values.length === 0) return fallback
@@ -157,6 +161,8 @@ function ReportContent() {
 
   // Add a visual indicator for the report generation process
   const [reportGenerating, setReportGenerating] = useState(false)
+  const [reportGenerationError, setReportGenerationError] = useState<string | null>(null)
+  const [lastReportSourceSites, setLastReportSourceSites] = useState<SiteData[]>([])
 
   // Add a new state for tracking selection animation:
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
@@ -264,7 +270,7 @@ function ReportContent() {
     }
 
     if (citySummary) {
-      return `The air quality in ${citySummary} is a concern, with PM<sub>2.5</sub> levels frequently exceeding WHO guidelines. Local authorities should implement measures to reduce emissions from traffic and industry.`
+      return `The air quality in ${citySummary} is a concern, with PM₂.₅ levels frequently exceeding WHO guidelines. Local authorities should implement measures to reduce emissions from traffic and industry.`
     }
 
     if (categorySummary) {
@@ -490,6 +496,7 @@ function ReportContent() {
 
   const handleHistoricalReportReady = (reportSites: SiteData[], dateRange: ReportDateRange) => {
     setCustomReportData(reportSites)
+    setReportAggregation(reportSites[0]?.reportAggregation || "daily")
     setReportDateRange(dateRange)
     setReportQueryRange(dateRange)
     setFilteredData(reportSites)
@@ -501,6 +508,39 @@ function ReportContent() {
     window.setTimeout(() => {
       document.getElementById("report-section")?.scrollIntoView({ behavior: "smooth" })
     }, 100)
+  }
+
+  const generateHistoricalReport = async (sourceSites: SiteData[]) => {
+    if (!hasRequiredReportScope) {
+      setReportGenerationError("Select at least one city or district before generating a report. A country-only selection is too broad.")
+      return
+    }
+    const selectedSiteIds = sourceSites.map(getReportSiteId).filter((id): id is string => Boolean(id))
+    if (selectedSiteIds.length === 0) {
+      setReportGenerationError("Select at least one site for the report.")
+      return
+    }
+
+    const options: ReportDataOptions = {
+      selectedSiteIds,
+      startDate: reportQueryRange.startDate,
+      endDate: reportQueryRange.endDate,
+      frequency: reportAggregation,
+      dataType: "calibrated",
+      pollutants: ["pm2_5", "pm10"],
+    }
+
+    setLastReportSourceSites(sourceSites)
+    setReportGenerating(true)
+    setReportGenerationError(null)
+    try {
+      const reportSites = await loadHistoricalReportData(sourceSites, options)
+      handleHistoricalReportReady(reportSites, reportQueryRange)
+    } catch (error) {
+      console.error("Unable to build historical report:", error)
+      setReportGenerationError(error instanceof Error ? error.message : "Unable to build the report.")
+      setReportGenerating(false)
+    }
   }
 
   const clearHistoricalReport = () => {
@@ -719,7 +759,7 @@ function ReportContent() {
   const getHotspotSites = (sites: SiteData[], limit = 3): SiteData[] => {
     if (sites.length === 0) return []
 
-    // Sort sites by PM2.5 value in descending order and take the top 'limit' sites
+    // Sort sites by PM₂.₅ value in descending order and take the top 'limit' sites
     return [...sites]
       .filter((site) => site.pm2_5?.value !== undefined && site.pm2_5?.value !== null)
       .sort((a, b) => (b.pm2_5?.value || 0) - (a.pm2_5?.value || 0))
@@ -729,7 +769,7 @@ function ReportContent() {
   const getColdspotSites = (sites: SiteData[], limit = 3): SiteData[] => {
     if (sites.length === 0) return []
 
-    // Sort sites by PM2.5 value in ascending order and take the top 'limit' sites
+    // Sort sites by PM₂.₅ value in ascending order and take the top 'limit' sites
     return [...sites]
       .filter((site) => site.pm2_5?.value !== undefined && site.pm2_5?.value !== null)
       .sort((a, b) => (a.pm2_5?.value || 0) - (b.pm2_5?.value || 0))
@@ -837,7 +877,7 @@ function ReportContent() {
     return `the selected monitoring network${categoryScope}`
   }
 
-  // Calculate average PM2.5 for AQI index visualization
+  // Calculate average PM₂.₅ for AQI index visualization
   const avgPM25 = calculateAveragePM25(filteredData)
   const avgAQICategory = getAverageAQICategory(filteredData)
 
@@ -1007,6 +1047,11 @@ function ReportContent() {
             disabled={!siteData.length}
             onApply={(range) => {
               setReportQueryRange(range)
+              setCustomReportData(null)
+              setReportDateRange(null)
+              setSelectedSite(null)
+              setShowReportOnPage(false)
+              setReportGenerationError(null)
             }}
           />
           <FilterMultiSelect
@@ -1122,6 +1167,25 @@ function ReportContent() {
       </div>
 
       {/* Selected Devices Counter */}
+      {reportGenerationError && (
+        <div role="alert" className="mb-6 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-bold">Report generation failed</p>
+            <p className="mt-0.5">{reportGenerationError}</p>
+          </div>
+          {lastReportSourceSites.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={reportGenerating}
+              onClick={() => void generateHistoricalReport(lastReportSourceSites)}
+              className="shrink-0 border-red-300 bg-white text-red-700 hover:bg-red-100"
+            >
+              {reportGenerating ? "Regenerating..." : "Regenerate report"}
+            </Button>
+          )}
+        </div>
+      )}
       {selectedDevices.length > 0 && (
         <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-600 p-5 text-white shadow-lg shadow-blue-900/15">
           <div className="flex justify-between items-center">
@@ -1171,33 +1235,12 @@ function ReportContent() {
               <p className="text-blue-100">Generate a report with your selected devices</p>
               <Button
                 onClick={() => {
-                  setReportGenerating(true)
-
-                  // Filter data to only include selected devices
-                  const selectedSitesData = filteredData.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
-
-                  // Update filtered data to only show selected devices in the report
-                  setFilteredData(selectedSitesData)
-
-                  // If only one device is selected, set it as the selected site
-                  if (selectedDevices.length === 1) {
-                    const site = selectedSitesData[0]
-                    if (site) setSelectedSite(site)
-                  }
-
-                  // Show the report on page with a slight delay for visual effect
-                  setTimeout(() => {
-                    setShowReportOnPage(true)
-                    setReportGenerating(false)
-
-                    // Scroll to the report
-                    const reportElement = document.getElementById("report-section")
-                    if (reportElement) {
-                      reportElement.scrollIntoView({ behavior: "smooth" })
-                    }
-                  }, 800)
+                  const selectedSites = filterSites(siteData, filters).filter((site) =>
+                    selectedDevices.includes(getSiteSelectionId(site)),
+                  )
+                  void generateHistoricalReport(selectedSites)
                 }}
-                disabled={reportGenerating}
+                disabled={!hasRequiredReportScope || reportGenerating}
                 className="rounded-xl bg-white text-blue-600 hover:bg-blue-50"
               >
                 {reportGenerating ? (
@@ -1239,35 +1282,13 @@ function ReportContent() {
             />
             <Button
               onClick={() => {
-                if (selectedDevices.length > 0) {
-                  setReportGenerating(true)
-
-                  // Filter data to only include selected devices
-                  const selectedSitesData = filteredData.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
-
-                  // Update filtered data to only show selected devices in the report
-                  setFilteredData(selectedSitesData)
-
-                  // If only one device is selected, set it as the selected site
-                  if (selectedDevices.length === 1) {
-                    const site = selectedSitesData[0]
-                    if (site) setSelectedSite(site)
-                  }
-
-                  // Show the report on page with a slight delay for visual effect
-                  setTimeout(() => {
-                    setShowReportOnPage(true)
-                    setReportGenerating(false)
-
-                    // Scroll to the report
-                    const reportElement = document.getElementById("report-section")
-                    if (reportElement) {
-                      reportElement.scrollIntoView({ behavior: "smooth" })
-                    }
-                  }, 800)
-                }
+                const availableSites = filterSites(siteData, filters)
+                const selectedSites = selectedDevices.length > 0
+                  ? availableSites.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
+                  : availableSites
+                void generateHistoricalReport(selectedSites)
               }}
-              disabled={selectedDevices.length === 0 || reportGenerating}
+              disabled={!hasRequiredReportScope || reportGenerating}
               className="rounded-xl bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap"
             >
               {reportGenerating ? (
@@ -1276,7 +1297,7 @@ function ReportContent() {
                   Generating...
                 </>
               ) : (
-                "Generate Report"
+                selectedDevices.length > 0 ? "Generate selected" : "Generate Report"
               )}
             </Button>
           </div>
@@ -1312,19 +1333,58 @@ function ReportContent() {
       </div>
 
       {/* Report Action Buttons */}
-      <div className="flex justify-end mb-6">
+      <div className={`mb-4 rounded-2xl border px-4 py-3 ${
+        hasRequiredReportScope
+          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+          : "border-amber-200 bg-amber-50 text-amber-900"
+      }`}>
+        <div className="flex items-start gap-3">
+          <div className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${hasRequiredReportScope ? "bg-emerald-500" : "bg-amber-500"}`} />
+          <div>
+            <p className="text-sm font-bold">{hasRequiredReportScope ? "Report scope ready" : "Choose a report area"}</p>
+            <p className="mt-0.5 text-xs leading-5 opacity-80">
+              {hasRequiredReportScope
+                ? `The report will use ${filters.district.length ? "district" : "city"}-level data for the selected date range.`
+                : "Select at least one city or district. Country-only reports are disabled to keep results focused and meaningful."}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="mb-6 flex flex-wrap justify-end gap-2">
         <Button
-          onClick={() => setShowReportOnPage(!showReportOnPage)}
-          className="bg-green-600 hover:bg-green-700 text-white"
+          onClick={() => {
+            if (showReportOnPage) {
+              setShowReportOnPage(false)
+              return
+            }
+            if (customReportData && reportDateRange) {
+              setShowReportOnPage(true)
+              return
+            }
+            const availableSites = filterSites(siteData, filters)
+            const selectedSites = selectedDevices.length
+              ? availableSites.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
+              : availableSites
+            void generateHistoricalReport(selectedSites)
+          }}
+          disabled={(!showReportOnPage && !hasRequiredReportScope) || reportGenerating}
+          className="bg-green-600 text-white hover:bg-green-700"
         >
-          {showReportOnPage ? "Hide Report" : "View Report"}
+          {reportGenerating
+            ? "Generating report..."
+            : showReportOnPage
+              ? "Hide Report"
+              : customReportData && reportDateRange
+                ? "Show Report"
+                : "Generate Report"}
         </Button>
         <Button
           onClick={() => setIsReportDataModalOpen(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white ml-2 shadow-sm"
+          disabled={!hasRequiredReportScope || reportGenerating}
+          className="bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
         >
           <CalendarRange className="mr-2 h-4 w-4" />
-          Select Sites & Build Report
+          Customize data & sites
         </Button>
         {showReportOnPage &&
           (customReportData !== null ||
@@ -1337,7 +1397,7 @@ function ReportContent() {
                 setFilteredData(filterSites(siteData, filters))
               }
             }}
-            className="bg-gray-600 hover:bg-gray-700 text-white ml-2"
+            className="bg-gray-600 text-white hover:bg-gray-700"
           >
             {customReportData ? "Use Latest Data" : "Back to All Data"}
           </Button>
@@ -1481,7 +1541,7 @@ function ReportContent() {
                                 <span className="font-medium">{meta.label}</span>
                               </div>
                               <div className="text-sm text-gray-700">
-                                PM2.5: {(site.pm2_5?.value ?? 0).toFixed(1)} µg/m³
+                                PM₂.₅: {(site.pm2_5?.value ?? 0).toFixed(1)} µg/m³
                               </div>
                               <div className="text-xs text-gray-500">
                                 {site.siteDetails.city || "Unknown City"}, {site.siteDetails.country || "Unknown"}
@@ -1557,7 +1617,7 @@ function ReportContent() {
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                   <h4 className="font-semibold text-gray-700 mb-1">Average PM<sub>2.5</sub></h4>
-                  <p className="text-2xl font-bold">{calculateAveragePM25(filteredData).toFixed(2)} µg/m³</p>
+                  <p className="text-2xl font-bold">{calculateAveragePM25(filteredData).toFixed(1)} µg/m³</p>
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                   <h4 className="font-semibold text-gray-700 mb-1">{comparisonPeriod === "monthly" ? "Monthly" : "Weekly"} Change</h4>
@@ -1592,7 +1652,7 @@ function ReportContent() {
                 <ul className="list-disc list-inside space-y-2 text-gray-700">
                   <li>
                     The average PM<sub>2.5</sub> concentration is{" "}
-                    <strong>{calculateAveragePM25(filteredData).toFixed(2)} µg/m³</strong>, which is classified as{" "}
+                    <strong>{calculateAveragePM25(filteredData).toFixed(1)} µg/m³</strong>, which is classified as{" "}
                     <strong>{avgAQICategory}</strong>.
                   </li>
                   <li>
@@ -1618,7 +1678,7 @@ function ReportContent() {
                   {selectedSite && (
                     <li>
                       {selectedSite.siteDetails.name} has a PM<sub>2.5</sub> reading of{" "}
-                      <strong>{(selectedSite.pm2_5?.value || 0).toFixed(2)} µg/m³</strong>, which is{" "}
+                      <strong>{(selectedSite.pm2_5?.value || 0).toFixed(1)} µg/m³</strong>, which is{" "}
                       {compareToAverage(selectedSite.pm2_5?.value || 0, calculateAveragePM25(filteredData))} the
                       regional average.
                     </li>
@@ -1628,7 +1688,7 @@ function ReportContent() {
                       <strong>Pollution Hotspots:</strong>{" "}
                       {getHotspotSites(filteredData).map((site, index, arr) => (
                         <span key={getSiteSelectionId(site)}>
-                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(2)} µg/m³)
+                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(1)} µg/m³)
                           {index < arr.length - 1 ? ", " : ""}
                         </span>
                       ))}
@@ -1641,7 +1701,7 @@ function ReportContent() {
                       <strong>Lower-Pollution sites:</strong>{" "}
                       {getColdspotSites(filteredData).map((site, index, arr) => (
                         <span key={getSiteSelectionId(site)}>
-                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(2)} µg/m³)
+                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(1)} µg/m³)
                           {index < arr.length - 1 ? ", " : ""}
                         </span>
                       ))}
@@ -1729,8 +1789,8 @@ function ReportContent() {
             icon={<Globe className="h-7 w-7 text-blue-500" />}
           />
           <SummaryCard
-            title="Average PM2.5"
-            value={`${calculateAveragePM25(filteredData).toFixed(2)} \u00B5g/m\u00B3`}
+            title="Average PM₂.₅"
+            value={`${calculateAveragePM25(filteredData).toFixed(1)} \u00B5g/m\u00B3`}
             icon={<BarChart3 className="h-7 w-7 text-emerald-500" />}
           />
           <SummaryCard
@@ -1878,30 +1938,8 @@ function ReportContent() {
                   <SiteCard
                     key={getSiteSelectionId(site)}
                     site={site}
-                    onSelect={() => {
-                      setSelectedSite(site)
-
-                      // Generate report for this single device
-                      setReportGenerating(true)
-
-                      // Filter data to only include this device
-                      const selectedSitesData = [site]
-
-                      // Update filtered data to only show this device in the report
-                      setFilteredData(selectedSitesData)
-
-                      // Show the report on page with a slight delay for visual effect
-                      setTimeout(() => {
-                        setShowReportOnPage(true)
-                        setReportGenerating(false)
-
-                        // Scroll to the report
-                        const reportElement = document.getElementById("report-section")
-                        if (reportElement) {
-                          reportElement.scrollIntoView({ behavior: "smooth" })
-                        }
-                      }, 800)
-                    }}
+                    onSelect={() => void generateHistoricalReport([site])}
+                    reportDisabled={!hasRequiredReportScope || reportGenerating}
                     isSelected={selectedSite ? getSiteSelectionId(selectedSite) === getSiteSelectionId(site) : false}
                     isCheckboxSelected={isSiteSelected}
                     onCheckboxChange={() => toggleDeviceSelection(getSiteSelectionId(site))}
@@ -1935,7 +1973,7 @@ function ReportContent() {
             />
             <HealthTipBox
               title="For Active Individuals"
-              description="Consider indoor workouts when PM2.5 levels exceed 35.5 µg/m³."
+              description="Consider indoor workouts when PM₂.₅ levels exceed 35.5 µg/m³."
             />
           </div>
         </CardContent>
@@ -1948,6 +1986,9 @@ function ReportContent() {
         onClose={() => setIsReportDataModalOpen(false)}
         sites={filterSites(siteData, filters)}
         dateRange={reportQueryRange}
+        aggregation={reportAggregation}
+        onAggregationChange={setReportAggregation}
+        canGenerate={hasRequiredReportScope}
         onReportReady={handleHistoricalReportReady}
       />
     </div>
@@ -2093,6 +2134,7 @@ function SiteCard({
   isCheckboxSelected,
   onCheckboxChange,
   lastSelectedId,
+  reportDisabled,
 }: {
   site: SiteData
   onSelect?: () => void
@@ -2100,6 +2142,7 @@ function SiteCard({
   isCheckboxSelected?: boolean
   onCheckboxChange?: () => void
   lastSelectedId?: string | null
+  reportDisabled?: boolean
 }) {
   const pm25Value = site.pm2_5?.value ?? 0
   const aqiCategory = site.aqi_category || "Unknown"
@@ -2220,9 +2263,9 @@ function SiteCard({
 
         <div className="mt-3 grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)] gap-2">
           <div className="rounded-xl border border-white/80 bg-white/80 p-3 shadow-sm backdrop-blur">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Current PM2.5</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Current PM₂.₅</p>
             <p className={`mt-0.5 text-2xl font-bold tracking-tight ${theme.metric}`}>
-              {pm25Value.toFixed(2)} <span className="text-sm font-semibold">µg/m³</span>
+              {pm25Value.toFixed(1)} <span className="text-sm font-semibold">µg/m³</span>
             </p>
           </div>
           <div className="flex flex-col justify-between rounded-xl border border-white/80 bg-white/70 p-3 shadow-sm backdrop-blur">
@@ -2254,7 +2297,7 @@ function SiteCard({
           <div className="mt-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Previous</p>
-              <p className="text-sm font-bold text-slate-700">{previousWeek.toFixed(2)}</p>
+              <p className="text-sm font-bold text-slate-700">{previousWeek.toFixed(1)}</p>
               <p className="hidden">µg/m³</p>
             </div>
             <div className={`flex h-8 w-8 items-center justify-center rounded-full ${theme.soft}`}>
@@ -2262,7 +2305,7 @@ function SiteCard({
             </div>
             <div className="text-right">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Current</p>
-              <p className="text-sm font-bold text-slate-900">{currentWeek.toFixed(2)}</p>
+              <p className="text-sm font-bold text-slate-900">{currentWeek.toFixed(1)}</p>
               <p className="hidden">µg/m³</p>
             </div>
           </div>
@@ -2272,6 +2315,7 @@ function SiteCard({
           <Button
             variant={isSelected ? "default" : "outline"}
             size="sm"
+            disabled={reportDisabled}
             onClick={(e) => {
               e.stopPropagation()
               onSelect()
@@ -2282,7 +2326,7 @@ function SiteCard({
                 : "border-blue-200 bg-white/80 text-blue-700 hover:border-blue-300 hover:bg-blue-50"
             }`}
           >
-            {isSelected ? "Selected for report" : "View detailed report"}
+            {reportDisabled ? "Select a city or district first" : isSelected ? "Selected for report" : "View detailed report"}
           </Button>
         )}
       </CardContent>
@@ -2355,7 +2399,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
     {
       type: "HH (High-High)",
       count: Math.floor(sites.length * 0.25),
-      description: "Areas with high PM2.5 values surrounded by areas with high values",
+      description: "Areas with high PM₂.₅ values surrounded by areas with high values",
       devices: sites
         .slice(0, Math.floor(sites.length * 0.25))
         .map((site) => site.siteDetails?.name || site.siteDetails?.formatted_name || "Unknown Site"),
@@ -2363,7 +2407,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
     {
       type: "LL (Low-Low)",
       count: Math.floor(sites.length * 0.3),
-      description: "Areas with low PM2.5 values surrounded by areas with low values",
+      description: "Areas with low PM₂.₅ values surrounded by areas with low values",
       devices: sites
         .slice(Math.floor(sites.length * 0.25), Math.floor(sites.length * 0.25) + Math.floor(sites.length * 0.3))
         .map((site) => site.siteDetails?.name || site.siteDetails?.formatted_name || "Unknown Site"),
@@ -2371,7 +2415,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
     {
       type: "HL (High-Low)",
       count: Math.floor(sites.length * 0.15),
-      description: "Areas with high PM2.5 values surrounded by areas with low values (potential outliers)",
+      description: "Areas with high PM₂.₅ values surrounded by areas with low values (potential outliers)",
       devices: sites
         .slice(
           Math.floor(sites.length * 0.25) + Math.floor(sites.length * 0.3),
@@ -2382,7 +2426,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
     {
       type: "LH (Low-High)",
       count: Math.floor(sites.length * 0.1),
-      description: "Areas with low PM2.5 values surrounded by areas with high values (potential outliers)",
+      description: "Areas with low PM₂.₅ values surrounded by areas with high values (potential outliers)",
       devices: sites
         .slice(
           Math.floor(sites.length * 0.25) + Math.floor(sites.length * 0.3) + Math.floor(sites.length * 0.15),
@@ -2582,7 +2626,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
         <h4 className="font-semibold text-gray-700 mb-2">Key Insights from Local Moran&apos;s I Analysis</h4>
         <ul className="list-disc list-inside space-y-1 text-gray-700 text-sm">
           <li>
-            <strong>High-High Clusters:</strong> {moranData[0].count} sites show high PM2.5 values clustered together,
+            <strong>High-High Clusters:</strong> {moranData[0].count} sites show high PM₂.₅ values clustered together,
             indicating potential pollution hotspots that require immediate attention.
           </li>
           <li>
@@ -2590,7 +2634,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
             or LH), suggesting localized emission sources or unique geographical factors affecting air quality.
           </li>
           <li>
-            <strong>Low-Low Clusters:</strong> {moranData[1].count} sites show low PM2.5 values clustered together,
+            <strong>Low-Low Clusters:</strong> {moranData[1].count} sites show low PM₂.₅ values clustered together,
             representing areas with consistently better air quality.
           </li>
         </ul>

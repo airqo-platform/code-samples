@@ -15,7 +15,7 @@ import {
   Line,
   CartesianGrid,
 } from "recharts"
-import { useState, useRef } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
 import html2canvas from "html2canvas"
 import type { SiteData } from "@/lib/types"
@@ -32,19 +32,89 @@ const AQI_COLORS: Record<string, string> = {
   Unknown: "#CCCCCC",
 }
 
+const SITE_COLORS = ["#2563eb", "#dc2626", "#059669", "#7c3aed", "#ea580c", "#0891b2", "#4f46e5", "#be123c"]
+
+const getReportBucket = (timestamp: string, aggregation: "daily" | "weekly" | "monthly") => {
+  const date = new Date(timestamp)
+  if (aggregation === "weekly") {
+    const dayOfWeek = date.getUTCDay()
+    date.setUTCDate(date.getUTCDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
+  }
+
+  const year = date.getUTCFullYear()
+  const month = date.getUTCMonth()
+  if (aggregation === "monthly") {
+    return {
+      key: `${year}-${String(month + 1).padStart(2, "0")}`,
+      label: date.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
+      sortValue: Date.UTC(year, month, 1),
+    }
+  }
+
+  const day = date.getUTCDate()
+  const label = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+  return {
+    key: `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    label: aggregation === "weekly" ? `Week of ${label}` : label,
+    sortValue: Date.UTC(year, month, day),
+  }
+}
+
+const getAqiPeriodBucket = (timestamp: string, grouping: "monthly" | "weekly") => {
+  const date = new Date(timestamp)
+  const year = date.getUTCFullYear()
+  const month = date.getUTCMonth()
+  const monthLabel = date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
+  if (grouping === "monthly") {
+    return {
+      key: `${year}-${String(month + 1).padStart(2, "0")}`,
+      label: monthLabel,
+      sortValue: Date.UTC(year, month, 1),
+    }
+  }
+
+  const weekOfMonth = Math.ceil(date.getUTCDate() / 7)
+  return {
+    key: `${year}-${String(month + 1).padStart(2, "0")}-week-${weekOfMonth}`,
+    label: `Week ${weekOfMonth}, ${monthLabel}`,
+    sortValue: Date.UTC(year, month, (weekOfMonth - 1) * 7 + 1),
+  }
+}
+
+const getAqiCategoryForPm25 = (value: number) => {
+  if (value <= 12) return "Good"
+  if (value <= 35.4) return "Moderate"
+  if (value <= 55.4) return "Unhealthy for Sensitive Groups"
+  if (value <= 150.4) return "Unhealthy"
+  if (value <= 250.4) return "Very Unhealthy"
+  return "Hazardous"
+}
+
 // Custom Dot component for dynamic coloring in LineChart
 const CustomDot = ({ cx, cy, payload }: { cx?: number; cy?: number; payload?: any }) => {
   if (!cx || !cy || !payload) return null
   return <circle cx={cx} cy={cy} r={4} fill={payload.color || "#CCCCCC"} stroke="#3b82f6" strokeWidth={1} />
 }
 
-// PM2.5 Bar Chart
+// PM₂.₅ Bar Chart
 export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   const [siteLimit, setSiteLimit] = useState(7)
   const [chartType, setChartType] = useState<"bar" | "line">("bar")
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
   const [sortOrder, setSortOrder] = useState<"highest" | "lowest" | "none">("none")
+  const [aggregation, setAggregation] = useState<"daily" | "weekly" | "monthly">(
+    () => sites.find((site) => site.reportAggregation)?.reportAggregation || "daily",
+  )
   const chartRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setAggregation(sites.find((site) => site.reportAggregation)?.reportAggregation || "daily")
+  }, [sites])
 
   const handleSiteLimitChange = (value: string) => {
     setSiteLimit(value === "all" ? sites.length : Number.parseInt(value, 10))
@@ -52,7 +122,14 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
 
   const handleDownload = async (type: "csv" | "json" | "png") => {
     if (type === "csv") {
-      const dataStr = "Name,PM2.5,Category\n" + displaySites.map((s) => `${s.name},${s.pm25},${s.category}`).join("\n")
+      const dataStr = hasTemporalData
+        ? [
+            ["Period", ...temporalSeries.map((series) => series.name)].join(","),
+            ...temporalData.map((row) =>
+              [row.period, ...temporalSeries.map((series) => row[series.dataKey] ?? "")].join(","),
+            ),
+          ].join("\n")
+        : "Name,PM₂.₅,Category\n" + displaySites.map((s) => `${s.name},${s.pm25},${s.category}`).join("\n")
       const blob = new Blob([dataStr], { type: "text/csv;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -61,7 +138,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
       a.click()
       URL.revokeObjectURL(url)
     } else if (type === "json") {
-      const dataStr = JSON.stringify(displaySites, null, 2)
+      const dataStr = JSON.stringify(hasTemporalData ? temporalData : displaySites, null, 2)
       const blob = new Blob([dataStr], { type: "application/json;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -115,26 +192,57 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
 
   const displaySites = sortedSites.slice(0, siteLimit).map((site) => ({
     name: site.siteDetails?.name || "Unknown",
-    pm25: site.pm2_5?.value ? Number(site.pm2_5.value).toFixed(2) : "0.00",
+    pm25: site.pm2_5?.value ? Number(site.pm2_5.value).toFixed(1) : "0.0",
     category: site.aqi_category || "Unknown",
     color: AQI_COLORS[site.aqi_category || "Unknown"] || "#CCCCCC",
   }))
 
-  const maxValue = Math.max(...displaySites.map((site) => Number.parseFloat(site.pm25)))
+  const selectedSites = sortedSites.slice(0, siteLimit)
+  const temporalSeries = selectedSites.map((site, index) => ({
+    dataKey: `site_${index}`,
+    name: site.siteDetails?.name || `Site ${index + 1}`,
+    color: SITE_COLORS[index % SITE_COLORS.length],
+  }))
+  const bucketMap = new Map<string, { period: string; sortValue: number; values: Record<string, number[]> }>()
+  selectedSites.forEach((site, index) => {
+    site.reportMeasurements?.forEach((measurement) => {
+      const bucket = getReportBucket(measurement.timestamp, aggregation)
+      const row = bucketMap.get(bucket.key) || { period: bucket.label, sortValue: bucket.sortValue, values: {} }
+      const dataKey = `site_${index}`
+      row.values[dataKey] = [...(row.values[dataKey] || []), measurement.value]
+      bucketMap.set(bucket.key, row)
+    })
+  })
+  const temporalData = Array.from(bucketMap.values())
+    .sort((a, b) => a.sortValue - b.sortValue)
+    .map((bucket) => {
+      const row: Record<string, string | number> = { period: bucket.period }
+      Object.entries(bucket.values).forEach(([dataKey, values]) => {
+        row[dataKey] = Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1))
+      })
+      return row
+    })
+  const hasTemporalData = temporalData.length > 0
+
+  const temporalValues = temporalData.flatMap((row) => temporalSeries.map((series) => Number(row[series.dataKey] || 0)))
+  const maxValue = Math.max(0, ...(hasTemporalData ? temporalValues : displaySites.map((site) => Number.parseFloat(site.pm25))))
   const yAxisDomain = [0, Math.ceil(maxValue * 1.1)] // Add 10% padding above max value
 
   return (
-    <Card className="w-full shadow-lg border-gray-200">
-      <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
-        <CardTitle className="text-lg md:text-xl flex items-center gap-2 text-gray-800">
-          <BarChart3 className="h-5 w-5 text-blue-600" />
-          PM<sub>2.5</sub> Levels by Site
+    <Card className="w-full border-gray-200 font-sans shadow-lg">
+      <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:p-5">
+        <CardTitle className="flex items-center gap-2 text-base text-gray-800 md:text-lg">
+          <BarChart3 className="h-4 w-4 text-blue-600" />
+          PM<sub>2.5</sub>{" "}
+          {hasTemporalData
+            ? `${aggregation[0].toUpperCase()}${aggregation.slice(1)} Averages by Site`
+            : "Levels by Site"}
         </CardTitle>
-        <div className="flex flex-col space-y-3 md:flex-row md:space-y-0 md:space-x-4 pt-4">
+        <div className="flex flex-col gap-2.5 pt-3 md:flex-row md:flex-wrap md:items-center">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600 min-w-fit">Sites:</span>
+            <span className="min-w-fit text-xs font-medium text-gray-600">Sites:</span>
             <Select onValueChange={handleSiteLimitChange} defaultValue="7">
-              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[140px]">
+              <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[125px]">
                 <SelectValue placeholder="Sites to display" />
               </SelectTrigger>
               <SelectContent>
@@ -148,9 +256,26 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600 min-w-fit">Type:</span>
+            <span className="min-w-fit text-xs font-medium text-gray-600">Average:</span>
+            <Select
+              value={aggregation}
+              onValueChange={(value: "daily" | "weekly" | "monthly") => setAggregation(value)}
+            >
+              <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[130px]">
+                <SelectValue placeholder="Average period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="min-w-fit text-xs font-medium text-gray-600">Type:</span>
             <Select onValueChange={(v: string) => setChartType(v as "bar" | "line")} defaultValue="bar">
-              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[120px]">
+              <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[105px]">
                 <SelectValue placeholder="Chart type" />
               </SelectTrigger>
               <SelectContent>
@@ -171,9 +296,9 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600 min-w-fit">Sort:</span>
+            <span className="min-w-fit text-xs font-medium text-gray-600">Sort:</span>
             <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
-              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[140px]">
+              <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[125px]">
                 <SelectValue placeholder="Sort order" />
               </SelectTrigger>
               <SelectContent>
@@ -200,9 +325,9 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600 min-w-fit">Export:</span>
+            <span className="min-w-fit text-xs font-medium text-gray-600">Export:</span>
             <Select value={downloadValue} onValueChange={handleDownloadChange}>
-              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-blue-500 md:w-[120px]">
+              <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[105px]">
                 <SelectValue placeholder="Download" />
               </SelectTrigger>
               <SelectContent>
@@ -232,47 +357,58 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
         <div className="h-[300px] md:h-[350px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "bar" ? (
-              <BarChart data={displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
+              <BarChart data={hasTemporalData ? temporalData : displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 70 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey={hasTemporalData ? "period" : "name"} angle={-35} textAnchor="end" height={75} tick={{ fontSize: 9 }} />
                 <YAxis
                   domain={yAxisDomain}
-                  label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
-                  tick={{ fontSize: 10 }}
+                  label={{ value: "PM₂.₅ (µg/m³)", angle: -90, position: "insideLeft", fontSize: 9 }}
+                  tick={{ fontSize: 9 }}
                   tickCount={10}
                 />
                 <Tooltip
-                  formatter={(value) => [`${value} µg/m³`, "PM2.5"]}
-                  labelFormatter={(label) => `Site: ${label}`}
+                  formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]}
+                  labelFormatter={(label) => hasTemporalData ? `Period: ${label}` : `Site: ${label}`}
+                  contentStyle={{ borderRadius: 10, fontSize: 11 }}
+                  labelStyle={{ fontSize: 11, fontWeight: 600 }}
+                  itemStyle={{ fontSize: 11 }}
                 />
-                <Bar dataKey="pm25" name="PM2.5 Level" fill="#3b82f6" radius={[4, 4, 0, 0]}>
-                  {displaySites.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
+                {hasTemporalData ? (
+                  temporalSeries.map((series) => (
+                    <Bar key={series.dataKey} dataKey={series.dataKey} name={series.name} fill={series.color} radius={[3, 3, 0, 0]} />
+                  ))
+                ) : (
+                  <Bar dataKey="pm25" name="PM₂.₅ Level" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                    {displaySites.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                  </Bar>
+                )}
+                {hasTemporalData && <Legend iconSize={9} wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />}
               </BarChart>
             ) : (
-              <LineChart data={displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
+              <LineChart data={hasTemporalData ? temporalData : displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 70 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
+                <XAxis dataKey={hasTemporalData ? "period" : "name"} angle={-35} textAnchor="end" height={75} tick={{ fontSize: 9 }} />
                 <YAxis
                   domain={yAxisDomain}
-                  label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
-                  tick={{ fontSize: 10 }}
+                  label={{ value: "PM₂.₅ (µg/m³)", angle: -90, position: "insideLeft", fontSize: 9 }}
+                  tick={{ fontSize: 9 }}
                   tickCount={10}
                 />
                 <Tooltip
-                  formatter={(value) => [`${value} µg/m³`, "PM2.5"]}
-                  labelFormatter={(label) => `Site: ${label}`}
+                  formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]}
+                  labelFormatter={(label) => hasTemporalData ? `Period: ${label}` : `Site: ${label}`}
+                  contentStyle={{ borderRadius: 10, fontSize: 11 }}
+                  labelStyle={{ fontSize: 11, fontWeight: 600 }}
+                  itemStyle={{ fontSize: 11 }}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="pm25"
-                  name="PM2.5 Level"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  dot={<CustomDot />}
-                  activeDot={{ r: 6 }}
-                />
+                {hasTemporalData ? (
+                  temporalSeries.map((series) => (
+                    <Line key={series.dataKey} type="monotone" dataKey={series.dataKey} name={series.name} stroke={series.color} strokeWidth={2} connectNulls />
+                  ))
+                ) : (
+                  <Line type="monotone" dataKey="pm25" name="PM₂.₅ Level" stroke="#3b82f6" strokeWidth={2} dot={<CustomDot />} activeDot={{ r: 6 }} />
+                )}
+                {hasTemporalData && <Legend iconSize={9} wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />}
               </LineChart>
             )}
           </ResponsiveContainer>
@@ -283,9 +419,35 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
 }
 
 export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
+  const [periodGrouping, setPeriodGrouping] = useState<"monthly" | "weekly">("monthly")
+  const [selectedPeriod, setSelectedPeriod] = useState("all")
+  const [chartType, setChartType] = useState<"pie" | "bar">("pie")
+  const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
+  const chartRef = useRef<HTMLDivElement>(null)
+
+  const periodMap = new Map<string, { key: string; label: string; sortValue: number }>()
+  sites.forEach((site) => {
+    site.reportMeasurements?.forEach((measurement) => {
+      const bucket = getAqiPeriodBucket(measurement.timestamp, periodGrouping)
+      periodMap.set(bucket.key, bucket)
+    })
+  })
+  const periodOptions = Array.from(periodMap.values()).sort((a, b) => a.sortValue - b.sortValue)
+  const effectivePeriod = selectedPeriod === "all" || periodMap.has(selectedPeriod) ? selectedPeriod : "all"
+  const selectedPeriodLabel = effectivePeriod === "all"
+    ? "Entire reporting period"
+    : periodMap.get(effectivePeriod)?.label || "Selected period"
+
   const categoryCount: Record<string, number> = {}
   sites.forEach((site) => {
-    const category = site.aqi_category || "Unknown"
+    let category = site.aqi_category || "Unknown"
+    if (effectivePeriod !== "all") {
+      const values = (site.reportMeasurements || [])
+        .filter((measurement) => getAqiPeriodBucket(measurement.timestamp, periodGrouping).key === effectivePeriod)
+        .map((measurement) => measurement.value)
+      if (values.length === 0) return
+      category = getAqiCategoryForPm25(values.reduce((sum, value) => sum + value, 0) / values.length)
+    }
     categoryCount[category] = (categoryCount[category] || 0) + 1
   })
 
@@ -295,13 +457,11 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
     color: AQI_COLORS[name] || "#CCCCCC",
   }))
 
-  const [chartType, setChartType] = useState<"pie" | "bar">("pie")
-  const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
-  const chartRef = useRef<HTMLDivElement>(null)
+  const sitesWithData = chartData.reduce((total, category) => total + category.value, 0)
 
   const handleDownload = async (type: "csv" | "json" | "png") => {
     if (type === "csv") {
-      const dataStr = "Category,Count\n" + chartData.map((d) => `${d.name},${d.value}`).join("\n")
+      const dataStr = "Period,Category,Count\n" + chartData.map((d) => `${selectedPeriodLabel},${d.name},${d.value}`).join("\n")
       const blob = new Blob([dataStr], { type: "text/csv;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -310,7 +470,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
       a.click()
       URL.revokeObjectURL(url)
     } else if (type === "json") {
-      const dataStr = JSON.stringify(chartData, null, 2)
+      const dataStr = JSON.stringify({ period: selectedPeriodLabel, data: chartData }, null, 2)
       const blob = new Blob([dataStr], { type: "application/json;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -354,13 +514,14 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
   }
 
   return (
-    <Card className="w-full shadow-lg border-gray-200">
+    <Card className="w-full border-gray-200 font-sans shadow-lg">
       <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-gray-100">
-        <CardTitle className="text-lg md:text-xl flex items-center gap-2 text-gray-800">
+        <CardTitle className="flex items-center gap-2 text-base text-gray-800 md:text-lg">
           <PieChartIcon className="h-5 w-5 text-green-600" />
           AQI Category Distribution
         </CardTitle>
-        <div className="flex flex-col space-y-3 md:flex-row md:space-y-0 md:space-x-4 pt-4">
+        <p className="mt-1 text-sm text-slate-600">{selectedPeriodLabel} · {sitesWithData} site{sitesWithData === 1 ? "" : "s"} with data</p>
+        <div className="flex flex-col gap-3 pt-4 md:flex-row md:flex-wrap md:items-center">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-600 min-w-fit">Type:</span>
             <Select onValueChange={(v: string) => setChartType(v as "pie" | "bar")} defaultValue="pie">
@@ -380,6 +541,40 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
                     Bar
                   </div>
                 </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="min-w-fit text-sm font-medium text-gray-600">View by:</span>
+            <Select
+              value={periodGrouping}
+              onValueChange={(value: "monthly" | "weekly") => {
+                setPeriodGrouping(value)
+                setSelectedPeriod("all")
+              }}
+            >
+              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-green-500 md:w-[125px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="monthly">Month</SelectItem>
+                <SelectItem value="weekly">Week</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="min-w-fit text-sm font-medium text-gray-600">Period:</span>
+            <Select value={effectivePeriod} onValueChange={setSelectedPeriod}>
+              <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-green-500 md:w-[210px]">
+                <SelectValue placeholder="Select period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Entire reporting period</SelectItem>
+                {periodOptions.map((period) => (
+                  <SelectItem key={period.key} value={period.key}>{period.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -409,8 +604,9 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
         <div className="h-[300px] md:h-[350px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "pie" ? (
-              <PieChart>
+              <PieChart key={`aqi-pie-${periodGrouping}-${effectivePeriod}`}>
                 <Pie
+                  key={`aqi-pie-data-${periodGrouping}-${effectivePeriod}`}
                   data={chartData}
                   cx="50%"
                   cy="50%"
@@ -428,7 +624,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
               </PieChart>
             ) : (
-              <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
+              <BarChart key={`aqi-bar-${periodGrouping}-${effectivePeriod}`} data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
                   label={{ value: "Count", angle: -90, position: "insideLeft", fontSize: 10 }}
@@ -555,12 +751,12 @@ export function WeeklyComparisonChart({
 
   const chartData = displayData.map((site) => ({
     name: site.siteDetails?.name || "Unknown",
-    current: isMonthly
+    current: Number((isMonthly
       ? site.averages?.monthlyAverages?.currentMonth || 0
-      : site.averages?.weeklyAverages?.currentWeek || 0,
-    previous: isMonthly
+      : site.averages?.weeklyAverages?.currentWeek || 0).toFixed(1)),
+    previous: Number((isMonthly
       ? site.averages?.monthlyAverages?.previousMonth || 0
-      : site.averages?.weeklyAverages?.previousWeek || 0,
+      : site.averages?.weeklyAverages?.previousWeek || 0).toFixed(1)),
     change: isMonthly
       ? site.averages?.monthlyPercentageDifference || 0
       : site.averages?.percentageDifference || 0,
@@ -571,9 +767,9 @@ export function WeeklyComparisonChart({
   const comparisonYAxisDomain = [0, Math.ceil(maxComparisonValue * 1.1)]
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-lg md:text-xl">
+    <Card className="w-full font-sans">
+      <CardHeader className="p-4 sm:p-5">
+        <CardTitle className="text-base md:text-lg">
           {isMonthly ? "Monthly" : "Weekly"} PM<sub>2.5</sub> Comparison
         </CardTitle>
         <p className="text-xs leading-5 text-slate-500 md:text-sm">
@@ -670,11 +866,11 @@ export function WeeklyComparisonChart({
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
                   domain={comparisonYAxisDomain}
-                  label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
+                  label={{ value: "PM₂.₅ (µg/m³)", angle: -90, position: "insideLeft", fontSize: 9 }}
                   tick={{ fontSize: 10 }}
                   tickCount={10}
                 />
-                <Tooltip formatter={(value) => [`${value} µg/m³`, ""]} labelFormatter={(label) => `Site: ${label}`} />
+                <Tooltip formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]} labelFormatter={(label) => `Site: ${label}`} contentStyle={{ fontSize: 11 }} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
                 <Line
                   type="monotone"
@@ -701,11 +897,11 @@ export function WeeklyComparisonChart({
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
                   domain={comparisonYAxisDomain}
-                  label={{ value: "PM2.5 (µg/m³)", angle: -90, position: "insideLeft", fontSize: 10 }}
+                  label={{ value: "PM₂.₅ (µg/m³)", angle: -90, position: "insideLeft", fontSize: 9 }}
                   tick={{ fontSize: 10 }}
                   tickCount={10}
                 />
-                <Tooltip formatter={(value) => [`${value} µg/m³`, ""]} labelFormatter={(label) => `Site: ${label}`} />
+                <Tooltip formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]} labelFormatter={(label) => `Site: ${label}`} contentStyle={{ fontSize: 11 }} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
                 <Bar dataKey="current" name={`Current ${periodLabel}`} fill="#0000FF" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="previous" name={`Previous ${periodLabel}`} fill="#000000" radius={[4, 4, 0, 0]} />
@@ -773,9 +969,9 @@ export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-lg md:text-xl">Air Quality Index</CardTitle>
+    <Card className="w-full font-sans">
+      <CardHeader className="p-4 sm:p-5">
+        <CardTitle className="text-base md:text-lg">Air Quality Index</CardTitle>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
             <SelectTrigger className="w-full rounded-xl md:w-[160px]">
@@ -816,7 +1012,7 @@ export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string
               className="w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white font-bold text-sm md:text-base"
               style={{ backgroundColor: getColorByCategory(aqiCategory) }}
             >
-              {pm25Value.toFixed(0)}
+              {pm25Value.toFixed(1)}
             </div>
             <div className="text-center">
               <p className="text-base md:text-lg font-bold">{aqiCategory}</p>
