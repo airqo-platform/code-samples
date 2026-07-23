@@ -188,8 +188,11 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
     if (isAfter(draftEnd, maximumEndDate)) {
       return "Reports support a maximum range of 3 months."
     }
+    if (includeTime && isSameDay(draftStart, draftEnd) && startTime >= endTime) {
+      return "Start time must be before end time."
+    }
     return null
-  }, [draftEnd, maximumEndDate])
+  }, [draftEnd, draftStart, maximumEndDate, includeTime, startTime, endTime])
 
   const syncFromValue = () => {
     const start = dateFromIso(value.startDate)
