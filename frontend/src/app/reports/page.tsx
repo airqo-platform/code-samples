@@ -34,6 +34,7 @@ import {
   AQICategoryChart,
   WeeklyComparisonChart,
   AQIIndexVisual,
+  type ReportTimelineGrouping,
 } from "@/components/charts/AirQualityChart"
 import { Input } from "@/ui/input"
 import { Checkbox } from "@/ui/checkbox"
@@ -98,10 +99,12 @@ function ReportContent() {
   const [reportDateRange, setReportDateRange] = useState<ReportDateRange | null>(null)
   const [reportQueryRange, setReportQueryRange] = useState<ReportDateRange>(createDefaultReportDateRange)
   const [reportAggregation, setReportAggregation] = useState<ReportDataOptions["frequency"]>("daily")
+  const [reportTimelineGrouping, setReportTimelineGrouping] = useState<ReportTimelineGrouping>("monthly")
+  const [reportTimelinePeriod, setReportTimelinePeriod] = useState("all")
   const reportDurationDays = reportDateRange
     ? differenceInCalendarDays(new Date(reportDateRange.endDate), new Date(reportDateRange.startDate)) + 1
     : 0
-  const comparisonPeriod: "weekly" | "monthly" = reportDurationDays > 14 ? "monthly" : "weekly"
+  const comparisonPeriod: "weekly" | "monthly" = reportDurationDays > 31 ? "monthly" : "weekly"
   const [selectedSite, setSelectedSite] = useState<SiteData | null>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [isReportDataModalOpen, setIsReportDataModalOpen] = useState(false)
@@ -492,11 +495,15 @@ function ReportContent() {
     setCustomReportData(null)
     setReportDateRange(null)
     setSelectedDevices([])
+    setReportTimelineGrouping("monthly")
+    setReportTimelinePeriod("all")
   }
 
   const handleHistoricalReportReady = (reportSites: SiteData[], dateRange: ReportDateRange) => {
     setCustomReportData(reportSites)
     setReportAggregation(reportSites[0]?.reportAggregation || "daily")
+    setReportTimelineGrouping("monthly")
+    setReportTimelinePeriod("all")
     setReportDateRange(dateRange)
     setReportQueryRange(dateRange)
     setFilteredData(reportSites)
@@ -1052,6 +1059,8 @@ function ReportContent() {
               setSelectedSite(null)
               setShowReportOnPage(false)
               setReportGenerationError(null)
+              setReportTimelineGrouping("monthly")
+              setReportTimelinePeriod("all")
             }}
           />
           <FilterMultiSelect
@@ -1638,11 +1647,19 @@ function ReportContent() {
               <div className="space-y-6">
                 <PM25BarChart sites={filteredData} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <AQICategoryChart sites={filteredData} />
+                  <AQICategoryChart
+                    sites={filteredData}
+                    periodGrouping={reportTimelineGrouping}
+                    selectedPeriod={reportTimelinePeriod}
+                    onPeriodGroupingChange={setReportTimelineGrouping}
+                    onSelectedPeriodChange={setReportTimelinePeriod}
+                  />
                   <WeeklyComparisonChart
                     sites={filteredData}
                     comparisonPeriod={comparisonPeriod}
                     rangeDays={reportDurationDays}
+                    timelineGrouping={reportTimelineGrouping}
+                    timelinePeriod={reportTimelinePeriod}
                   />
                 </div>
               </div>

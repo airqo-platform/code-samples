@@ -418,9 +418,21 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   )
 }
 
-export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
-  const [periodGrouping, setPeriodGrouping] = useState<"monthly" | "weekly">("monthly")
-  const [selectedPeriod, setSelectedPeriod] = useState("all")
+export type ReportTimelineGrouping = "monthly" | "weekly"
+
+export function AQICategoryChart({
+  sites,
+  periodGrouping,
+  selectedPeriod,
+  onPeriodGroupingChange,
+  onSelectedPeriodChange,
+}: {
+  sites: SiteData[]
+  periodGrouping: ReportTimelineGrouping
+  selectedPeriod: string
+  onPeriodGroupingChange: (grouping: ReportTimelineGrouping) => void
+  onSelectedPeriodChange: (period: string) => void
+}) {
   const [chartType, setChartType] = useState<"pie" | "bar">("pie")
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
   const chartRef = useRef<HTMLDivElement>(null)
@@ -550,8 +562,8 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
             <Select
               value={periodGrouping}
               onValueChange={(value: "monthly" | "weekly") => {
-                setPeriodGrouping(value)
-                setSelectedPeriod("all")
+                onPeriodGroupingChange(value)
+                onSelectedPeriodChange("all")
               }}
             >
               <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-green-500 md:w-[125px]">
@@ -566,7 +578,7 @@ export function AQICategoryChart({ sites }: { sites: SiteData[] }) {
 
           <div className="flex items-center gap-2">
             <span className="min-w-fit text-sm font-medium text-gray-600">Period:</span>
-            <Select value={effectivePeriod} onValueChange={setSelectedPeriod}>
+            <Select value={effectivePeriod} onValueChange={onSelectedPeriodChange}>
               <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-green-500 md:w-[210px]">
                 <SelectValue placeholder="Select period" />
               </SelectTrigger>
@@ -654,10 +666,14 @@ export function WeeklyComparisonChart({
   sites,
   comparisonPeriod = "weekly",
   rangeDays,
+  timelineGrouping,
+  timelinePeriod,
 }: {
   sites: SiteData[]
   comparisonPeriod?: "weekly" | "monthly"
   rangeDays?: number
+  timelineGrouping: ReportTimelineGrouping
+  timelinePeriod: string
 }) {
   const [siteLimit, setSiteLimit] = useState(7)
   const [chartType, setChartType] = useState<"line" | "bar">("line")
@@ -666,14 +682,61 @@ export function WeeklyComparisonChart({
   const chartRef = useRef<HTMLDivElement>(null)
   const isMonthly = comparisonPeriod === "monthly"
   const periodLabel = isMonthly ? "Month" : "Week"
+  const matchesTimeline = (timestamp: string) =>
+    timelinePeriod === "all" || getAqiPeriodBucket(timestamp, timelineGrouping).key === timelinePeriod
+  let timelineLabel = "the selected reporting period"
+  const periodBucketMap = new Map<string, { key: string; label: string; sortValue: number }>()
+  sites.forEach((site) => {
+    site.reportMeasurements?.forEach((measurement) => {
+      if (!matchesTimeline(measurement.timestamp)) return
+      if (timelinePeriod !== "all") {
+        timelineLabel = getAqiPeriodBucket(measurement.timestamp, timelineGrouping).label
+      }
+      const bucket = getAqiPeriodBucket(measurement.timestamp, isMonthly ? "monthly" : "weekly")
+      periodBucketMap.set(bucket.key, bucket)
+    })
+  })
+  const periodDefinitions = Array.from(periodBucketMap.values()).sort((a, b) => a.sortValue - b.sortValue)
+  const hasTemporalPeriods = periodDefinitions.length > 0
+  const periodSeries = hasTemporalPeriods
+    ? periodDefinitions.map((period, index) => ({
+        dataKey: `period_${index}`,
+        name: period.label,
+        color: SITE_COLORS[index % SITE_COLORS.length],
+        bucketKey: period.key,
+      }))
+    : [
+        { dataKey: "previous", name: `Previous ${periodLabel}`, color: "#111827", bucketKey: "previous" },
+        { dataKey: "current", name: `Current ${periodLabel}`, color: "#2563eb", bucketKey: "current" },
+      ]
 
-  const sitesWithData = sites.filter((site) =>
-    isMonthly
-      ? site.averages?.monthlyAverages?.currentMonth !== undefined &&
-        site.averages?.monthlyAverages?.previousMonth !== undefined
-      : site.averages?.weeklyAverages?.currentWeek !== undefined &&
-        site.averages?.weeklyAverages?.previousWeek !== undefined,
-  )
+  const siteRows = sites.flatMap((site) => {
+    const row: Record<string, string | number> = { name: site.siteDetails?.name || "Unknown" }
+    if (hasTemporalPeriods) {
+      const valuesByPeriod = new Map<string, number[]>()
+      site.reportMeasurements?.forEach((measurement) => {
+        if (!matchesTimeline(measurement.timestamp)) return
+        const bucket = getAqiPeriodBucket(measurement.timestamp, isMonthly ? "monthly" : "weekly")
+        valuesByPeriod.set(bucket.key, [...(valuesByPeriod.get(bucket.key) || []), measurement.value])
+      })
+      periodSeries.forEach((series) => {
+        const values = valuesByPeriod.get(series.bucketKey) || []
+        if (values.length > 0) {
+          row[series.dataKey] = Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1))
+        }
+      })
+    } else {
+      row.current = Number((isMonthly
+        ? site.averages?.monthlyAverages?.currentMonth || 0
+        : site.averages?.weeklyAverages?.currentWeek || 0).toFixed(1))
+      row.previous = Number((isMonthly
+        ? site.averages?.monthlyAverages?.previousMonth || 0
+        : site.averages?.weeklyAverages?.previousWeek || 0).toFixed(1))
+    }
+    return periodSeries.some((series) => typeof row[series.dataKey] === "number") ? [row] : []
+  })
+
+  const sitesWithData = siteRows
 
   const handleSiteLimitChange = (value: string) => {
     setSiteLimit(value === "all" ? sitesWithData.length : Number.parseInt(value, 10))
@@ -682,8 +745,8 @@ export function WeeklyComparisonChart({
   const handleDownload = async (type: "csv" | "json" | "png") => {
     if (type === "csv") {
       const dataStr =
-        `Name,Current ${periodLabel},Previous ${periodLabel},Change\n` +
-        chartData.map((d) => `${d.name},${d.current},${d.previous},${d.change}`).join("\n")
+        ["Site", ...periodSeries.map((series) => series.name)].join(",") + "\n" +
+        chartData.map((row) => [row.name, ...periodSeries.map((series) => row[series.dataKey] ?? "")].join(",")).join("\n")
       const blob = new Blob([dataStr], { type: "text/csv;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -735,35 +798,19 @@ export function WeeklyComparisonChart({
     }
   }
 
+  const latestPeriodKey = periodSeries[periodSeries.length - 1]?.dataKey
   const sortedSites = [...sitesWithData].sort((a, b) => {
-    const aValue = isMonthly
-      ? a.averages?.monthlyAverages?.currentMonth || 0
-      : a.averages?.weeklyAverages?.currentWeek || 0
-    const bValue = isMonthly
-      ? b.averages?.monthlyAverages?.currentMonth || 0
-      : b.averages?.weeklyAverages?.currentWeek || 0
+    const aValue = Number(a[latestPeriodKey] || 0)
+    const bValue = Number(b[latestPeriodKey] || 0)
     if (sortOrder === "highest") return bValue - aValue
     if (sortOrder === "lowest") return aValue - bValue
     return 0
   })
 
-  const displayData = sortedSites.slice(0, siteLimit)
+  const chartData = sortedSites.slice(0, siteLimit)
 
-  const chartData = displayData.map((site) => ({
-    name: site.siteDetails?.name || "Unknown",
-    current: Number((isMonthly
-      ? site.averages?.monthlyAverages?.currentMonth || 0
-      : site.averages?.weeklyAverages?.currentWeek || 0).toFixed(1)),
-    previous: Number((isMonthly
-      ? site.averages?.monthlyAverages?.previousMonth || 0
-      : site.averages?.weeklyAverages?.previousWeek || 0).toFixed(1)),
-    change: isMonthly
-      ? site.averages?.monthlyPercentageDifference || 0
-      : site.averages?.percentageDifference || 0,
-  }))
-
-  const allValues = chartData.flatMap((item) => [item.current ?? 0, item.previous ?? 0])
-  const maxComparisonValue = Math.max(...allValues)
+  const allValues = chartData.flatMap((item) => periodSeries.map((series) => Number(item[series.dataKey] || 0)))
+  const maxComparisonValue = Math.max(0, ...allValues)
   const comparisonYAxisDomain = [0, Math.ceil(maxComparisonValue * 1.1)]
 
   return (
@@ -774,8 +821,8 @@ export function WeeklyComparisonChart({
         </CardTitle>
         <p className="text-xs leading-5 text-slate-500 md:text-sm">
           {isMonthly
-            ? `The selected ${rangeDays || "extended"}-day period is summarized using calendar-month averages.`
-            : "The selected period is compared using the latest week and the preceding week."}
+            ? `Each series represents one calendar month within ${timelineLabel}.`
+            : `${periodSeries.length} week${periodSeries.length === 1 ? "" : "s"} with data are shown within ${timelineLabel}.`}
         </p>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">
@@ -861,7 +908,7 @@ export function WeeklyComparisonChart({
         <div className="h-[250px] md:h-[300px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "line" ? (
-              <LineChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
+              <LineChart key={`comparison-line-${timelineGrouping}-${timelinePeriod}`} data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
@@ -872,27 +919,22 @@ export function WeeklyComparisonChart({
                 />
                 <Tooltip formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]} labelFormatter={(label) => `Site: ${label}`} contentStyle={{ fontSize: 11 }} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
-                <Line
-                  type="monotone"
-                  dataKey="current"
-                  name={`Current ${periodLabel}`}
-                  stroke="#0000FF"
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="previous"
-                  name={`Previous ${periodLabel}`}
-                  stroke="#000000"
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
+                {periodSeries.map((series) => (
+                  <Line
+                    key={series.dataKey}
+                    type="monotone"
+                    dataKey={series.dataKey}
+                    name={series.name}
+                    stroke={series.color}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                    connectNulls
+                  />
+                ))}
               </LineChart>
             ) : (
-              <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
+              <BarChart key={`comparison-bar-${timelineGrouping}-${timelinePeriod}`} data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
@@ -903,8 +945,9 @@ export function WeeklyComparisonChart({
                 />
                 <Tooltip formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]} labelFormatter={(label) => `Site: ${label}`} contentStyle={{ fontSize: 11 }} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="current" name={`Current ${periodLabel}`} fill="#0000FF" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="previous" name={`Previous ${periodLabel}`} fill="#000000" radius={[4, 4, 0, 0]} />
+                {periodSeries.map((series) => (
+                  <Bar key={series.dataKey} dataKey={series.dataKey} name={series.name} fill={series.color} radius={[3, 3, 0, 0]} />
+                ))}
               </BarChart>
             )}
           </ResponsiveContainer>
