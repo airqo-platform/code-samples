@@ -31,7 +31,7 @@ export default function ErrorPopup({
   title = "Oops, try again",
 }: ErrorPopupProps) {
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && !isRetrying && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-2xl">
         <div className="h-2 bg-red-600" />
         <div className="px-4 pb-5 pt-6 sm:px-5 sm:pb-6">
@@ -58,7 +58,6 @@ export default function ErrorPopup({
               type="button"
               variant="outline"
               onClick={onClose}
-              disabled={isRetrying}
               className="min-w-28 rounded-xl border-slate-900 bg-white text-slate-900 hover:bg-slate-100"
             >
               Close
