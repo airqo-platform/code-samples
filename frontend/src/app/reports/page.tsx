@@ -42,6 +42,7 @@ import { Checkbox } from "@/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover"
 import ReportDataModal from "@/components/reports/ReportDataModal"
 import NexusDateRangePicker, { createDefaultReportDateRange } from "@/components/reports/NexusDateRangePicker"
+import { PM25CalendarPlot } from "@/components/reports/PM25CalendarPlot"
 import "leaflet/dist/leaflet.css"
 
 const GoodAir = "/images/GoodAir.png"
@@ -1646,6 +1647,7 @@ function ReportContent() {
               {/* Charts */}
               <div className="space-y-6">
                 <PM25BarChart sites={filteredData} />
+                <PM25CalendarPlot sites={filteredData} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <AQICategoryChart
                     sites={filteredData}
