@@ -716,7 +716,7 @@ export const getSiteReportData = async (request: DataDownloadRequest): Promise<D
     response = await apiService.post<DataDownloadResponse | string>("/analytics/data-download", request)
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 500) {
-      throw new Error("The report service could not complete this request. Please regenerate the report.")
+      throw new Error("Our file-retrieval service encountered an issue. The robot is attempting recovery. Please regenerate the report.")
     }
     throw error
   }

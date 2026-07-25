@@ -35,12 +35,15 @@ import {
   AQICategoryChart,
   WeeklyComparisonChart,
   AQIIndexVisual,
+  getAqiCategoryForPm25,
+  getAqiPeriodBucket,
   type ReportTimelineGrouping,
 } from "@/components/charts/AirQualityChart"
 import { Input } from "@/ui/input"
 import { Checkbox } from "@/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover"
 import ReportDataModal from "@/components/reports/ReportDataModal"
+import ErrorPopup from "@/components/reports/ErrorPopup"
 import NexusDateRangePicker, { createDefaultReportDateRange } from "@/components/reports/NexusDateRangePicker"
 import { PM25CalendarPlot } from "@/components/reports/PM25CalendarPlot"
 import "leaflet/dist/leaflet.css"
@@ -103,14 +106,20 @@ function ReportContent() {
   const [reportAggregation, setReportAggregation] = useState<ReportDataOptions["frequency"]>("daily")
   const [reportTimelineGrouping, setReportTimelineGrouping] = useState<ReportTimelineGrouping>("monthly")
   const [reportTimelinePeriod, setReportTimelinePeriod] = useState("all")
+  const [comparisonRowsShown, setComparisonRowsShown] = useState<5 | 10>(10)
+  const [comparisonSearch, setComparisonSearch] = useState("")
+  const [comparisonAqiFilter, setComparisonAqiFilter] = useState("all")
+  const [isDownloadingComparisonPng, setIsDownloadingComparisonPng] = useState(false)
   const reportDurationDays = reportDateRange
     ? differenceInCalendarDays(new Date(reportDateRange.endDate), new Date(reportDateRange.startDate)) + 1
     : 0
   const comparisonPeriod: "weekly" | "monthly" = reportDurationDays > 31 ? "monthly" : "weekly"
   const [selectedSite, setSelectedSite] = useState<SiteData | null>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [pdfExportError, setPdfExportError] = useState<string | null>(null)
   const [isReportDataModalOpen, setIsReportDataModalOpen] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
+  const comparisonTableRef = useRef<HTMLTableElement>(null)
 
   // Add a state to control whether the report is visible on the page
   const [showReportOnPage, setShowReportOnPage] = useState(false)
@@ -750,6 +759,7 @@ function ReportContent() {
       }
 
       pdf.save(`${filename}-${format(new Date(), "yyyy-MM-dd")}.pdf`)
+      setPdfExportError(null)
 
       // Restore original tab state if we temporarily changed it
       if (tempShowBothTabs) {
@@ -757,7 +767,7 @@ function ReportContent() {
       }
     } catch (error) {
       console.error("Error generating PDF:", error)
-      alert("Failed to generate PDF. Please try again.")
+      setPdfExportError("We couldn't create the PDF. Please try again.")
     } finally {
       setIsGeneratingPDF(false)
       setPdfMode(false)
@@ -838,7 +848,7 @@ function ReportContent() {
   const toggleCategoryCollapse = (category: string) => {
     setCollapsedCategories((prev) => ({
       ...prev,
-      [category]: !prev[category],
+      [category]: prev[category] === false,
     }))
   }
 
@@ -890,6 +900,77 @@ function ReportContent() {
   const avgPM25 = calculateAveragePM25(filteredData)
   const avgAQICategory = getAverageAQICategory(filteredData)
   const dailyPm25Extremes = useMemo(() => getDailyPm25Extremes(filteredData), [filteredData])
+  const reportTimelinePeriodKeys = useMemo(() => {
+    const keys = new Set<string>()
+    filteredData.forEach((site) => {
+      site.reportMeasurements?.forEach((measurement) => {
+        keys.add(getAqiPeriodBucket(measurement.timestamp, reportTimelineGrouping).key)
+      })
+    })
+    return keys
+  }, [filteredData, reportTimelineGrouping])
+  const effectiveReportTimelinePeriod =
+    reportTimelinePeriod === "all" || reportTimelinePeriodKeys.has(reportTimelinePeriod)
+      ? reportTimelinePeriod
+      : "all"
+  const comparisonTableRows = useMemo(
+    () =>
+      filteredData.flatMap((site) => {
+        if (effectiveReportTimelinePeriod === "all") {
+          return [{
+            site,
+            pm25Value: site.pm2_5?.value,
+            aqiCategory: site.aqi_category || "Unknown",
+          }]
+        }
+
+        const values = (site.reportMeasurements || [])
+          .filter(
+            (measurement) =>
+              getAqiPeriodBucket(measurement.timestamp, reportTimelineGrouping).key ===
+              effectiveReportTimelinePeriod,
+          )
+          .map((measurement) => measurement.value)
+
+        if (values.length === 0) return []
+
+        const pm25Value = values.reduce((sum, value) => sum + value, 0) / values.length
+        return [{ site, pm25Value, aqiCategory: getAqiCategoryForPm25(pm25Value) }]
+      }),
+    [effectiveReportTimelinePeriod, filteredData, reportTimelineGrouping],
+  )
+  const comparisonAqiOptions = useMemo(
+    () => Array.from(new Set(comparisonTableRows.map((row) => row.aqiCategory))).sort(),
+    [comparisonTableRows],
+  )
+  const effectiveComparisonAqiFilter =
+    comparisonAqiFilter === "all" || comparisonAqiOptions.includes(comparisonAqiFilter)
+      ? comparisonAqiFilter
+      : "all"
+  const filteredComparisonTableRows = useMemo(() => {
+    const search = comparisonSearch.trim().toLowerCase()
+
+    return comparisonTableRows.filter(({ site, aqiCategory }) => {
+      if (effectiveComparisonAqiFilter !== "all" && aqiCategory !== effectiveComparisonAqiFilter) {
+        return false
+      }
+      if (!search) return true
+
+      const siteCategory = site.siteDetails?.site_category?.category || "Uncategorized"
+      const displayCategory = siteCategory === "Water Body" ? "Urban Background" : siteCategory
+      return [
+        site.siteDetails?.name,
+        site.siteDetails?.formatted_name,
+        displayCategory,
+        aqiCategory,
+        site.siteDetails?.city,
+        site.siteDetails?.district,
+        site.siteDetails?.country,
+      ]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(search))
+    })
+  }, [comparisonSearch, comparisonTableRows, effectiveComparisonAqiFilter])
 
   const getAQICategoryCounts = (sites: SiteData[]): { [key: string]: number } => {
     const categoryCounts: { [key: string]: number } = {}
@@ -1028,8 +1109,77 @@ function ReportContent() {
     }
   }
 
+  const downloadComparisonTablePng = async () => {
+    if (!comparisonTableRef.current) return
+
+    setIsDownloadingComparisonPng(true)
+    try {
+      const tableCanvas = await html2canvas(comparisonTableRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        onclone: (clonedDocument) => {
+          const clonedScroller = clonedDocument.querySelector<HTMLElement>("[data-comparison-table-scroll]")
+          if (clonedScroller) {
+            clonedScroller.style.maxHeight = "none"
+            clonedScroller.style.overflow = "visible"
+          }
+        },
+      })
+      const titleHeight = 64
+      const outputCanvas = document.createElement("canvas")
+      outputCanvas.width = tableCanvas.width
+      outputCanvas.height = tableCanvas.height + titleHeight
+      const context = outputCanvas.getContext("2d")
+      if (!context) throw new Error("Canvas is unavailable")
+
+      context.fillStyle = "#ffffff"
+      context.fillRect(0, 0, outputCanvas.width, outputCanvas.height)
+      context.fillStyle = "#0f172a"
+      context.font = "600 28px Arial, sans-serif"
+      context.fillText("Device Comparison Table", 24, 42)
+      context.drawImage(tableCanvas, 0, titleHeight)
+
+      const blob = await new Promise<Blob | null>((resolve) => outputCanvas.toBlob(resolve, "image/png"))
+      if (!blob) throw new Error("PNG generation failed")
+
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = "device_comparison_table.png"
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error generating device comparison PNG:", error)
+    } finally {
+      setIsDownloadingComparisonPng(false)
+    }
+  }
+
   return (
     <div className="container mx-auto max-w-[1440px] px-4 py-6 sm:py-8">
+      <ErrorPopup
+        isOpen={Boolean(reportLoadError)}
+        message={reportLoadError || "We couldn't load the report data."}
+        onClose={() => setReportLoadError(null)}
+        onTryAgain={() => setReportLoadRequest((request) => request + 1)}
+        isRetrying={isReportDataLoading}
+      />
+      <ErrorPopup
+        isOpen={Boolean(reportGenerationError)}
+        message={reportGenerationError || "We couldn't generate the report."}
+        onClose={() => setReportGenerationError(null)}
+        onTryAgain={lastReportSourceSites.length > 0 ? () => void generateHistoricalReport(lastReportSourceSites) : undefined}
+        isRetrying={reportGenerating}
+      />
+      <ErrorPopup
+        isOpen={Boolean(pdfExportError)}
+        message={pdfExportError || "We couldn't create the PDF."}
+        onClose={() => setPdfExportError(null)}
+        onTryAgain={() => void generatePDF()}
+        isRetrying={isGeneratingPDF}
+      />
       <header className="mb-8 border-b border-slate-200 px-1 pb-6 text-center">
         <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">Air Quality Reports</h1>
         <p className="mx-auto mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
@@ -1128,19 +1278,6 @@ function ReportContent() {
           </div>
         </div>
       )}
-      {reportLoadError && (
-        <div className="mb-8 flex flex-col items-center justify-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-center" role="alert">
-          <p className="text-sm font-medium text-red-800">{reportLoadError}</p>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setReportLoadRequest((request) => request + 1)}
-            className="rounded-xl border-red-300 bg-white text-red-700 hover:bg-red-100"
-          >
-            Try again
-          </Button>
-        </div>
-      )}
 
       {siteData.length > 0 ? (
         <>
@@ -1179,25 +1316,6 @@ function ReportContent() {
       </div>
 
       {/* Selected Devices Counter */}
-      {reportGenerationError && (
-        <div role="alert" className="mb-6 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-bold">Report generation failed</p>
-            <p className="mt-0.5">{reportGenerationError}</p>
-          </div>
-          {lastReportSourceSites.length > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={reportGenerating}
-              onClick={() => void generateHistoricalReport(lastReportSourceSites)}
-              className="shrink-0 border-red-300 bg-white text-red-700 hover:bg-red-100"
-            >
-              {reportGenerating ? "Regenerating..." : "Regenerate report"}
-            </Button>
-          )}
-        </div>
-      )}
       {selectedDevices.length > 0 && (
         <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-600 p-5 text-white shadow-lg shadow-blue-900/15">
           <div className="flex justify-between items-center">
@@ -1667,6 +1785,130 @@ function ReportContent() {
                 </div>
               </div>
 
+              {/* Device comparison follows the AQI Category Distribution period selection. */}
+              <section className="pdf-keep-together mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-3 sm:px-4">
+                  <h4 className="text-base font-semibold text-slate-950">Device Comparison Table</h4>
+                  {!pdfMode && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        type="search"
+                        value={comparisonSearch}
+                        onChange={(event) => setComparisonSearch(event.target.value)}
+                        placeholder="Filter devices..."
+                        aria-label="Filter comparison table"
+                        className="h-7 w-40 rounded-md px-2.5 text-xs"
+                      />
+                      <select
+                        value={effectiveComparisonAqiFilter}
+                        onChange={(event) => setComparisonAqiFilter(event.target.value)}
+                        aria-label="Filter by AQI category"
+                        className="h-7 max-w-[210px] rounded-md border border-slate-300 bg-white px-2 text-xs font-medium text-slate-700"
+                      >
+                        <option value="all">All AQI categories</option>
+                        {comparisonAqiOptions.map((category) => (
+                          <option key={category} value={category}>{category}</option>
+                        ))}
+                      </select>
+                      <span className="text-xs font-medium text-slate-600">Show rows:</span>
+                      {([5, 10] as const).map((rowCount) => (
+                        <button
+                          key={rowCount}
+                          type="button"
+                          onClick={() => setComparisonRowsShown(rowCount)}
+                          className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition ${
+                            comparisonRowsShown === rowCount
+                              ? "border-blue-600 bg-blue-600 text-white"
+                              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                          aria-pressed={comparisonRowsShown === rowCount}
+                        >
+                          {rowCount}
+                        </button>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void downloadComparisonTablePng()}
+                        disabled={isDownloadingComparisonPng || filteredComparisonTableRows.length === 0}
+                        className="h-7 gap-1.5 rounded-md px-2.5 text-xs"
+                      >
+                        {isDownloadingComparisonPng ? (
+                          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        PNG
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div
+                  data-comparison-table-scroll
+                  className="overflow-auto border-t border-slate-100"
+                  style={{ maxHeight: pdfMode ? "none" : comparisonRowsShown === 5 ? "236px" : "436px" }}
+                >
+                  <table
+                    ref={comparisonTableRef}
+                    data-device-comparison-table
+                    className="w-full min-w-[760px] border-collapse bg-white text-left text-xs text-slate-800"
+                  >
+                    <thead className="sticky top-0 z-10 bg-slate-50 text-slate-700">
+                      <tr>
+                        <th scope="col" className="w-[38%] px-3 py-2 font-medium">Device Name</th>
+                        <th scope="col" className="w-[16%] px-3 py-2 font-medium">Category</th>
+                        <th scope="col" className="w-[11%] px-3 py-2 font-medium">
+                          PM<sub>2.5</sub>
+                        </th>
+                        <th scope="col" className="w-[27%] px-3 py-2 font-medium">AQI Category</th>
+                        <th scope="col" className="w-[8%] px-3 py-2 text-right font-medium">Location</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredComparisonTableRows.map(({ site, pm25Value, aqiCategory }, index) => {
+                        const aqiMeta = getAQIMeta(aqiCategory)
+                        const siteCategory = site.siteDetails?.site_category?.category || "Uncategorized"
+                        const displayCategory = siteCategory === "Water Body" ? "Urban Background" : siteCategory
+
+                        return (
+                          <tr
+                            key={`comparison-${getSiteSelectionId(site)}`}
+                            className={`border-t border-slate-100 ${index % 2 === 0 ? "bg-blue-50/70" : "bg-white"}`}
+                          >
+                            <th scope="row" className="px-3 py-2 font-semibold text-slate-950">
+                              {site.siteDetails?.name || site.siteDetails?.formatted_name || "Unknown Device"}
+                            </th>
+                            <td className="px-3 py-2">{displayCategory}</td>
+                            <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-950">
+                              {typeof pm25Value === "number" ? `${pm25Value.toFixed(1)} \u00b5g/m\u00b3` : "N/A"}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span
+                                className="inline-flex whitespace-nowrap rounded px-2 py-1 font-semibold text-white"
+                                style={{ backgroundColor: aqiMeta.color }}
+                              >
+                                {aqiMeta.label}
+                              </span>
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right">
+                              {site.siteDetails?.city || site.siteDetails?.district || "Unknown"}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      {filteredComparisonTableRows.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-8 text-center text-sm text-slate-500">
+                            No devices match the selected table filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
               <div className="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <h4 className="font-semibold text-gray-700 mb-2">Key Findings</h4>
                 <ul className="list-disc list-inside space-y-2 text-gray-700">
@@ -1860,7 +2102,9 @@ function ReportContent() {
         <Button
           variant="outline"
           onClick={() => {
-            const allCollapsed = Object.keys(sitesByCategory).every((category) => collapsedCategories[category])
+            const allCollapsed = Object.keys(sitesByCategory).every(
+              (category) => collapsedCategories[category] !== false,
+            )
 
             if (allCollapsed) {
               // Expand all
@@ -1880,7 +2124,7 @@ function ReportContent() {
           }}
           className="h-10 shrink-0 rounded-xl border-blue-200 bg-blue-50/60 px-4 font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-100"
         >
-          {Object.keys(sitesByCategory).every((category) => collapsedCategories[category])
+          {Object.keys(sitesByCategory).every((category) => collapsedCategories[category] !== false)
             ? "Expand All Categories"
             : "Collapse All Categories"}
         </Button>
@@ -1936,7 +2180,7 @@ function ReportContent() {
               </Button>
               <div
                 onClick={() => toggleCategoryCollapse(category)}
-                className={`transform transition-transform duration-300 ${collapsedCategories[category] ? "rotate-180" : ""}`}
+                className={`transform transition-transform duration-300 ${collapsedCategories[category] !== false ? "rotate-180" : ""}`}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -1958,7 +2202,7 @@ function ReportContent() {
 
           <div
             className={`transition-all duration-500 ease-in-out overflow-hidden ${
-              collapsedCategories[category] ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
+              collapsedCategories[category] !== false ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
             }`}
           >
             <div className="grid grid-cols-1 gap-4 p-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -2416,6 +2660,35 @@ function HealthTipBox({ title, description }: { title: string; description: stri
 // Modify the AdvancedAnalysisSection component to make it more compact for PDF
 function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteData[]; activeTab?: string }) {
   const [localActiveTab, setLocalActiveTab] = useState(activeTab)
+  const moranChartRef = useRef<HTMLDivElement>(null)
+  const getisOrdChartRef = useRef<HTMLDivElement>(null)
+
+  const downloadSpatialChartPng = async (element: HTMLDivElement | null, filename: string) => {
+    if (!element) return
+    try {
+      const canvas = await html2canvas(element, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        onclone: (clonedDocument) => {
+          clonedDocument.querySelectorAll<HTMLElement>("[data-chart-export-control]").forEach((control) => {
+            control.style.display = "none"
+          })
+        },
+      })
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"))
+      if (!blob) return
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = filename
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error exporting spatial chart:", error)
+    }
+  }
 
   // Use the passed activeTab if it's "both", otherwise use local state
   const effectiveTab = activeTab === "both" ? "both" : localActiveTab
@@ -2605,9 +2878,20 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="py-3">
+        <Card ref={moranChartRef}>
+          <CardHeader className="flex-row items-center justify-between space-y-0 py-3">
             <CardTitle className="text-base">Cluster and Outlier Analysis</CardTitle>
+            <Button
+              data-chart-export-control
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void downloadSpatialChartPng(moranChartRef.current, "moran_cluster_analysis.png")}
+              className="h-8 gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              PNG
+            </Button>
           </CardHeader>
           <CardContent className="h-[250px] p-3">
             <ResponsiveContainer width="100%" height="100%">
@@ -2720,9 +3004,20 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="py-3">
+        <Card ref={getisOrdChartRef}>
+          <CardHeader className="flex-row items-center justify-between space-y-0 py-3">
             <CardTitle className="text-base">Hot Spot Analysis</CardTitle>
+            <Button
+              data-chart-export-control
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void downloadSpatialChartPng(getisOrdChartRef.current, "getis_ord_hot_spot_analysis.png")}
+              className="h-8 gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              PNG
+            </Button>
           </CardHeader>
           <CardContent className="h-[250px] p-3">
             <ResponsiveContainer width="100%" height="100%">

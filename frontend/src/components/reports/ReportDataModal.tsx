@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BarChart3, Calendar, CheckSquare, Layers, LoaderCircle, MapPin, Search, Square } from "lucide-react"
 import type { ReportDataOptions, ReportDateRange, SiteData } from "@/lib/types"
 import { loadHistoricalReportData } from "@/services/apiService"
+import ErrorPopup from "@/components/reports/ErrorPopup"
 
 interface ReportDataModalProps {
   isOpen: boolean
@@ -49,6 +50,7 @@ export default function ReportDataModal({
   const [dataType, setDataType] = useState<ReportDataOptions["dataType"]>("calibrated")
   const [isGenerating, setIsGenerating] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [canRetryError, setCanRetryError] = useState(false)
 
   const countries = useMemo(
     () =>
@@ -104,6 +106,7 @@ export default function ReportDataModal({
 
   const handleGenerateReport = async () => {
     setErrorMessage(null)
+    setCanRetryError(false)
     const effectiveSiteIds = selectedSiteIds.length > 0 ? selectedSiteIds : filteredSites.map(getSiteId)
 
     if (effectiveSiteIds.length === 0) {
@@ -127,6 +130,7 @@ export default function ReportDataModal({
     } catch (error) {
       console.error("Unable to build historical report:", error)
       setErrorMessage(error instanceof Error ? error.message : "Unable to build the report.")
+      setCanRetryError(true)
     } finally {
       setIsGenerating(false)
     }
@@ -135,8 +139,9 @@ export default function ReportDataModal({
   const activeSiteCount = selectedSiteIds.length > 0 ? selectedSiteIds.length : filteredSites.length
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl">
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl">
         <DialogHeader className="border-b border-slate-100 bg-slate-50/80 px-6 py-5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
@@ -281,11 +286,6 @@ export default function ReportDataModal({
             </div>
           </div>
 
-          {errorMessage && (
-            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {errorMessage}
-            </div>
-          )}
         </div>
 
         <DialogFooter className="flex items-center justify-between border-t border-slate-100 bg-slate-50/80 px-6 py-4 sm:justify-between">
@@ -306,7 +306,15 @@ export default function ReportDataModal({
             </Button>
           </div>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+      <ErrorPopup
+        isOpen={Boolean(errorMessage)}
+        message={errorMessage || "We couldn't generate the report."}
+        onClose={() => setErrorMessage(null)}
+        onTryAgain={canRetryError ? () => void handleGenerateReport() : undefined}
+        isRetrying={isGenerating}
+      />
+    </>
   )
 }

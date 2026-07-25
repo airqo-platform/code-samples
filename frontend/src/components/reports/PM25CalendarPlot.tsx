@@ -1,8 +1,11 @@
 "use client"
 
-import { CalendarDays } from "lucide-react"
+import { CalendarDays, Download } from "lucide-react"
 import type { ReactNode } from "react"
+import { useRef, useState } from "react"
 import type { SiteData } from "@/lib/types"
+import html2canvas from "html2canvas"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -69,14 +72,70 @@ const LegendItem = ({ color, children }: { color: string; children: ReactNode })
 )
 
 export function PM25CalendarPlot({ sites }: { sites: SiteData[] }) {
+  const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
+  const chartRef = useRef<HTMLElement>(null)
   const dailyAverages = getDailyAverages(sites)
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleDownload = async (type: "csv" | "json" | "png") => {
+    if (type === "csv") {
+      const csv = [
+        "Date,Daily Average PM2.5 (ug/m3)",
+        ...dailyAverages.map((average) => `${average.dateKey},${average.value.toFixed(1)}`),
+      ].join("\n")
+      downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8;" }), "pm25_calendar_plot.csv")
+      return
+    }
+
+    if (type === "json") {
+      downloadBlob(
+        new Blob([JSON.stringify(dailyAverages, null, 2)], { type: "application/json;charset=utf-8;" }),
+        "pm25_calendar_plot.json",
+      )
+      return
+    }
+
+    if (chartRef.current) {
+      const canvas = await html2canvas(chartRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        onclone: (clonedDocument) => {
+          clonedDocument.querySelectorAll<HTMLElement>("[data-chart-export-control]").forEach((control) => {
+            control.style.display = "none"
+          })
+        },
+      })
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"))
+      if (blob) downloadBlob(blob, "pm25_calendar_plot.png")
+    }
+  }
+
+  const handleDownloadChange = (value: "none" | "csv" | "json" | "png") => {
+    setDownloadValue(value)
+    if (value !== "none") {
+      void handleDownload(value)
+        .catch((error) => console.error("Error exporting PM2.5 calendar plot:", error))
+        .finally(() => setDownloadValue("none"))
+    }
+  }
+
   if (dailyAverages.length === 0) return null
 
   const valuesByDate = new Map(dailyAverages.map((average) => [average.dateKey, average.value]))
   const years = Array.from(new Set(dailyAverages.map((average) => new Date(average.timestamp).getUTCFullYear())))
 
   return (
-    <section className="pdf-keep-together overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+    <section ref={chartRef} className="pdf-keep-together overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
       {years.map((year, yearIndex) => {
         const yearValues = dailyAverages.filter((average) => new Date(average.timestamp).getUTCFullYear() === year)
         const values = yearValues.map((average) => average.value)
@@ -92,12 +151,34 @@ export function PM25CalendarPlot({ sites }: { sites: SiteData[] }) {
 
         return (
           <div key={year} className={yearIndex > 0 ? "border-t border-gray-200" : undefined}>
-            <div className="border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-4 text-center">
-              <h4 className="flex items-center justify-center gap-2 text-lg font-bold text-blue-800 md:text-xl">
-                <CalendarDays className="h-5 w-5" />
-                Calendar Plot of Daily Average PM<sub>2.5</sub>: {year}
-              </h4>
-              <p className="mt-1 text-xs text-slate-600">Daily averages across the selected monitoring sites</p>
+            <div className="flex flex-col gap-3 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-center sm:text-left">
+                <h4 className="flex items-center justify-center gap-2 text-lg font-bold text-blue-800 sm:justify-start md:text-xl">
+                  <CalendarDays className="h-5 w-5" />
+                  Calendar Plot of Daily Average PM<sub>2.5</sub>: {year}
+                </h4>
+                <p className="mt-1 text-xs text-slate-600">Daily averages across the selected monitoring sites</p>
+              </div>
+              {yearIndex === 0 && (
+                <div data-chart-export-control>
+                  <Select value={downloadValue} onValueChange={handleDownloadChange}>
+                    <SelectTrigger className="h-9 w-full rounded-xl bg-white sm:w-[130px]">
+                      <SelectValue placeholder="Export" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        <div className="flex items-center gap-2">
+                          <Download className="h-4 w-4" />
+                          Export
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="csv">CSV</SelectItem>
+                      <SelectItem value="json">JSON</SelectItem>
+                      <SelectItem value="png">PNG</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-x-4 gap-y-5 p-4 sm:grid-cols-2 lg:grid-cols-4">

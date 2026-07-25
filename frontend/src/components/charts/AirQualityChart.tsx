@@ -65,7 +65,7 @@ const getReportBucket = (timestamp: string, aggregation: "daily" | "weekly" | "m
   }
 }
 
-const getAqiPeriodBucket = (timestamp: string, grouping: "monthly" | "weekly") => {
+export const getAqiPeriodBucket = (timestamp: string, grouping: "monthly" | "weekly") => {
   const date = new Date(timestamp)
   const year = date.getUTCFullYear()
   const month = date.getUTCMonth()
@@ -86,7 +86,7 @@ const getAqiPeriodBucket = (timestamp: string, grouping: "monthly" | "weekly") =
   }
 }
 
-const getAqiCategoryForPm25 = (value: number) => {
+export const getAqiCategoryForPm25 = (value: number) => {
   if (value <= 12) return "Good"
   if (value <= 35.4) return "Moderate"
   if (value <= 55.4) return "Unhealthy for Sensitive Groups"
