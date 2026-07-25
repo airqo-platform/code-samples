@@ -889,6 +889,7 @@ function ReportContent() {
   // Calculate average PM₂.₅ for AQI index visualization
   const avgPM25 = calculateAveragePM25(filteredData)
   const avgAQICategory = getAverageAQICategory(filteredData)
+  const dailyPm25Extremes = useMemo(() => getDailyPm25Extremes(filteredData), [filteredData])
 
   const getAQICategoryCounts = (sites: SiteData[]): { [key: string]: number } => {
     const categoryCounts: { [key: string]: number } = {}
@@ -1682,6 +1683,16 @@ function ReportContent() {
                     </strong>{" "}
                     in PM<sub>2.5</sub> levels compared to the previous {comparisonPeriod === "monthly" ? "month" : "week"}.
                   </li>
+                  {dailyPm25Extremes && (
+                    <li>
+                      The highest daily average PM<sub>2.5</sub> concentration was{" "}
+                      <strong>{dailyPm25Extremes.highest.value.toFixed(1)} {"\u00b5g/m\u00b3"}</strong> on{" "}
+                      <strong>{dailyPm25Extremes.highest.dates.map(formatReportDate).join(", ")}</strong>, while the
+                      lowest daily average was{" "}
+                      <strong>{dailyPm25Extremes.lowest.value.toFixed(1)} {"\u00b5g/m\u00b3"}</strong> on{" "}
+                      <strong>{dailyPm25Extremes.lowest.dates.map(formatReportDate).join(", ")}</strong>.
+                    </li>
+                  )}
                   {Object.entries(calculateAQICategoryCounts(filteredData)).length > 1 && (
                     <li>
                       The most common air quality category is{" "}
@@ -2858,4 +2869,42 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
       )}
     </div>
   )
+}
+type DailyPm25Extreme = {
+  dates: string[]
+  value: number
+}
+
+const getDailyPm25Extremes = (sites: SiteData[]): { highest: DailyPm25Extreme; lowest: DailyPm25Extreme } | null => {
+  const valuesByDate = new Map<string, number[]>()
+
+  sites.forEach((site) => {
+    site.reportMeasurements?.forEach((measurement) => {
+      const date = new Date(measurement.timestamp)
+      if (Number.isNaN(date.getTime()) || !Number.isFinite(measurement.value)) return
+      const dateKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`
+      valuesByDate.set(dateKey, [...(valuesByDate.get(dateKey) || []), measurement.value])
+    })
+  })
+
+  const dailyValues = Array.from(valuesByDate.entries()).map(([date, values]) => ({
+    date,
+    value: values.reduce((sum, value) => sum + value, 0) / values.length,
+  }))
+  if (dailyValues.length === 0) return null
+
+  const highestValue = Math.max(...dailyValues.map(({ value }) => value))
+  const lowestValue = Math.min(...dailyValues.map(({ value }) => value))
+  const matchesValue = (value: number, target: number) => Math.abs(value - target) < 0.000001
+
+  return {
+    highest: {
+      dates: dailyValues.filter(({ value }) => matchesValue(value, highestValue)).map(({ date }) => date),
+      value: highestValue,
+    },
+    lowest: {
+      dates: dailyValues.filter(({ value }) => matchesValue(value, lowestValue)).map(({ date }) => date),
+      value: lowestValue,
+    },
+  }
 }
