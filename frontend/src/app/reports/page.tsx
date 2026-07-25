@@ -630,9 +630,9 @@ function ReportContent() {
 
       const reportElement = reportRef.current
 
-      // Reduce scale to decrease file size (from 2 to 1.5)
+      // Keep enough resolution for report text while limiting the rasterized PDF size.
       const canvas = await html2canvas(reportElement, {
-        scale: 1.5, // Reduced from 2 to 1.5 to decrease file size
+        scale: 1.25,
         logging: false,
         useCORS: true,
         allowTaint: true,
@@ -735,7 +735,16 @@ function ReportContent() {
         )
 
         const renderedHeight = (sliceHeight * contentWidth) / canvas.width
-        pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", marginLeft, marginTop, contentWidth, renderedHeight)
+        pdf.addImage(
+          pageCanvas.toDataURL("image/jpeg", 0.78),
+          "JPEG",
+          marginLeft,
+          marginTop,
+          contentWidth,
+          renderedHeight,
+          undefined,
+          "FAST",
+        )
 
         pdf.setFontSize(8)
         pdf.setTextColor(100, 116, 139)
