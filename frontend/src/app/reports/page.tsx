@@ -919,6 +919,12 @@ function ReportContent() {
   // Calculate average PM₂.₅ for AQI index visualization
   const avgPM25 = calculateAveragePM25(filteredData)
   const avgAQICategory = getAverageAQICategory(filteredData)
+  const averagePercentageChange = calculateAveragePercentageChange(filteredData)
+  const comparisonReference = comparisonPeriod === "monthly" ? "previous month" : "previous week"
+  const averageChangeDescription =
+    Math.abs(averagePercentageChange) < 0.01
+      ? `was broadly unchanged from the ${comparisonReference}`
+      : `was ${Math.abs(averagePercentageChange).toFixed(1)}% ${averagePercentageChange > 0 ? "higher" : "lower"} than the ${comparisonReference}`
   const dailyPm25Extremes = useMemo(() => getDailyPm25Extremes(filteredData), [filteredData])
   const reportTimelinePeriodKeys = useMemo(() => {
     const keys = new Set<string>()
@@ -1720,21 +1726,24 @@ function ReportContent() {
 
               <div className="space-y-4 px-5 py-5 text-sm leading-7 text-slate-700 sm:px-6 sm:py-6 sm:text-base">
                 <p>
-                  This report assesses recent air quality conditions across {getReportScopeDescription()}.
+                  This report summarizes air quality conditions across <strong>{getReportScopeDescription()}</strong>
                   {reportDateRange && (
                     <>
-                      {" "}It covers measurements from <strong>{formatReportDate(reportDateRange.startDate)}</strong> to{" "}
-                      <strong>{formatReportDate(reportDateRange.endDate)}</strong>.
+                      {" "}from <strong>{formatReportDate(reportDateRange.startDate)}</strong> to{" "}
+                      <strong>{formatReportDate(reportDateRange.endDate)}</strong>
                     </>
-                  )}{" "}
-                  It brings
-                  together {reportDateRange ? "historical measurements for the selected period" : "the latest available readings"} from {filteredData.length} monitoring
-                  {filteredData.length === 1 ? " site" : " sites"}, with a primary focus on PM<sub>2.5</sub>, a fine
-                  particulate pollutant used to describe health-relevant air quality conditions.
-                  The analysis combines PM<sub>2.5</sub> readings, Air Quality Index categories, {comparisonPeriod === "monthly" ? "month-over-month" : "week-over-week"}
-                  averages, and geographic patterns. It highlights higher- and lower-pollution locations, summarizes
-                  short-term changes, and provides practical health guidance; conditions may still vary with weather,
-                  traffic, local emissions, and sensor availability.
+                  )}. It brings together {reportDateRange ? "historical measurements" : "the latest available readings"} from{" "}
+                  <strong>{filteredData.length} monitoring {filteredData.length === 1 ? "site" : "sites"}</strong>.
+                  PM<sub>2.5</sub> is the primary indicator, while Air Quality Index categories translate measured
+                  concentrations into health-relevant conditions.
+                </p>
+                <p>
+                  Across the selected sites, average PM<sub>2.5</sub> was{" "}
+                  <strong>{avgPM25.toFixed(1)} {"\u00b5g/m\u00b3"}</strong>, corresponding to an overall AQI category of{" "}
+                  <strong>{avgAQICategory}</strong>. The network average {averageChangeDescription}. The sections that
+                  follow compare monitoring locations, show geographic and temporal patterns, identify higher- and
+                  lower-pollution conditions, and provide practical health guidance. Results reflect available sensor
+                  coverage and may vary with weather, traffic, local emissions, and temporary data gaps.
                 </p>
               </div>
             </section>
