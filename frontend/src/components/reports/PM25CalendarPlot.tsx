@@ -17,6 +17,15 @@ const DAY_MS = 24 * 60 * 60 * 1000
 type DailyAverage = { dateKey: string; timestamp: number; value: number }
 type CalendarCell = { day: number; dateKey: string; value: number | null } | null
 
+const AQI_LEVELS = [
+  { label: "Good", range: "0-9.0", max: 9, color: "#22863a", textColor: "#ffffff" },
+  { label: "Moderate", range: "9.1-35.4", max: 35.4, color: "#fdd835", textColor: "#111827" },
+  { label: "Sensitive Groups", range: "35.5-55.4", max: 55.4, color: "#fb8c00", textColor: "#111827" },
+  { label: "Unhealthy", range: "55.5-125.4", max: 125.4, color: "#dc2626", textColor: "#ffffff" },
+  { label: "Very Unhealthy", range: "125.5-225.4", max: 225.4, color: "#7e22ce", textColor: "#ffffff" },
+  { label: "Hazardous", range: "\u2265225.5", max: Number.POSITIVE_INFINITY, color: "#7f1d1d", textColor: "#ffffff" },
+] as const
+
 const toDateKey = (timestamp: string) => {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return null
@@ -56,17 +65,17 @@ const getCalendarCells = (year: number, month: number, valuesByDate: Map<string,
   return cells
 }
 
+const getAqiLevel = (value: number) => AQI_LEVELS.find((level) => value <= level.max) ?? AQI_LEVELS[AQI_LEVELS.length - 1]
+
 const getCellStyle = (value: number | null) => {
   if (value === null) return { backgroundColor: "#e5e7eb", color: "#6b7280" }
-  if (value <= 12) return { backgroundColor: "#22863a", color: "#ffffff" }
-  if (value <= 35.4) return { backgroundColor: "#fdd835", color: "#111827" }
-  if (value <= 55.4) return { backgroundColor: "#fb8c00", color: "#111827" }
-  return { backgroundColor: "#dc2626", color: "#ffffff" }
+  const level = getAqiLevel(value)
+  return { backgroundColor: level.color, color: level.textColor }
 }
 
 const LegendItem = ({ color, children }: { color: string; children: ReactNode }) => (
-  <div className="flex items-center gap-1.5 whitespace-nowrap">
-    <span className="h-3 w-6 rounded-sm border border-black/10" style={{ backgroundColor: color }} />
+  <div className="flex shrink-0 items-center gap-1 whitespace-nowrap">
+    <span className="h-2 w-3 rounded-sm border border-black/10 sm:w-4" style={{ backgroundColor: color }} />
     <span>{children}</span>
   </div>
 )
@@ -145,6 +154,9 @@ export function PM25CalendarPlot({ sites }: { sites: SiteData[] }) {
         const sortedValues = [...values].sort((a, b) => a - b)
         const middle = Math.floor(sortedValues.length / 2)
         const median = sortedValues.length % 2 ? sortedValues[middle] : (sortedValues[middle - 1] + sortedValues[middle]) / 2
+        const visibleAqiLevels = AQI_LEVELS.filter((level) =>
+          values.some((value) => getAqiLevel(value).label === level.label),
+        )
         const monthsWithData = new Set(
           yearValues.map((average) => new Date(average.timestamp).getUTCMonth()),
         )
@@ -181,11 +193,11 @@ export function PM25CalendarPlot({ sites }: { sites: SiteData[] }) {
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-x-4 gap-y-5 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-5 p-4">
               {MONTH_NAMES.map((monthName, month) => ({ monthName, month }))
                 .filter(({ month }) => monthsWithData.has(month))
                 .map(({ monthName, month }) => (
-                <div key={monthName} className="min-w-0">
+                <div key={monthName} className="w-full min-w-0 sm:w-[calc(50%-0.5rem)] lg:w-[calc(25%-0.75rem)]">
                   <h5 className="mb-1 text-center text-sm font-bold text-blue-800">{monthName}</h5>
                   <div className="grid grid-cols-7 gap-px overflow-hidden rounded bg-white">
                     {WEEKDAYS.map((weekday) => <div key={weekday} className="pb-1 text-center text-[9px] font-semibold text-slate-600">{weekday}</div>)}
@@ -209,14 +221,15 @@ export function PM25CalendarPlot({ sites }: { sites: SiteData[] }) {
 
             <div className="space-y-3 border-t border-gray-100 px-4 py-4 text-xs text-slate-700">
               <div className="mx-auto w-fit rounded-lg border border-blue-500 px-3 py-1.5 text-center">
-                Daily mean: {mean.toFixed(1)} {"\u00b5g/m\u00b3"}&nbsp; | &nbsp;Daily median: {median.toFixed(1)} {"\u00b5g/m\u00b3"}&nbsp; | &nbsp;Days with data: {yearValues.length}&nbsp; | &nbsp;Missing days: {missingDays}
+                Days with data: {yearValues.length}&nbsp; | &nbsp;Missing days: {missingDays}
               </div>
-              <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
-                <LegendItem color="#22863a">Good: 0-12.0 {"\u00b5g/m\u00b3"}</LegendItem>
-                <LegendItem color="#fdd835">Moderate: 12.1-35.4 {"\u00b5g/m\u00b3"}</LegendItem>
-                <LegendItem color="#fb8c00">Sensitive Groups: 35.5-55.4 {"\u00b5g/m\u00b3"}</LegendItem>
-                <LegendItem color="#dc2626">Unhealthy: {"\u226555.5 \u00b5g/m\u00b3"}</LegendItem>
-                <LegendItem color="#e5e7eb">Missing data</LegendItem>
+              <div className="flex flex-nowrap items-center justify-start gap-x-2 overflow-x-auto pb-1 text-[8px] leading-none sm:justify-center sm:text-[9px] lg:gap-x-3">
+                {visibleAqiLevels.map((level) => (
+                  <LegendItem key={level.label} color={level.color}>
+                    {level.label}: {level.range} {"\u00b5g/m\u00b3"}
+                  </LegendItem>
+                ))}
+                {missingDays > 0 && <LegendItem color="#e5e7eb">Missing data</LegendItem>}
               </div>
               <p className="text-center text-[10px] text-slate-500">
                 Values inside calendar cells are daily average calibrated PM<sub>2.5</sub> concentrations in {"\u00b5g/m\u00b3"}. Missing days are counted between the first and last available dates shown for the year.

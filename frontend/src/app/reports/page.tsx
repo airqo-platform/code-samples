@@ -57,6 +57,7 @@ const Hazardous = "/images/Hazardous.png"
 const Invalid = "/images/Invalid.png"
 const REPORT_RETRY_DELAY_MS = 5_000
 const REPORT_LOAD_MAX_ATTEMPTS = 2
+const MAX_RANDOM_SITE_SELECTION = 20
 
 import { Switch } from "@/ui/switch"
 import { Label } from "@/ui/label"
@@ -82,6 +83,17 @@ const getSiteSelectionId = (site: SiteData) =>
 const getSiteCheckboxId = (site: SiteData) => `main-device-${encodeURIComponent(getSiteSelectionId(site))}`
 
 const getReportSiteId = (site: SiteData) => site.site_id || site.siteDetails?._id || site._id
+
+const getRandomSiteSelection = (sites: SiteData[], limit = MAX_RANDOM_SITE_SELECTION) => {
+  const siteIds = Array.from(new Set(sites.map(getSiteSelectionId)))
+  for (let index = siteIds.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1))
+    const currentSiteId = siteIds[index]
+    siteIds[index] = siteIds[randomIndex]
+    siteIds[randomIndex] = currentSiteId
+  }
+  return siteIds.slice(0, limit)
+}
 
 export default function ReportPage() {
   return (
@@ -580,8 +592,7 @@ function ReportContent() {
   }
 
   const selectAllDevices = () => {
-    const allDeviceIds = filteredData.map(getSiteSelectionId)
-    setSelectedDevices(allDeviceIds)
+    setSelectedDevices(getRandomSiteSelection(filteredData))
   }
 
   const clearDeviceSelection = () => {
@@ -1118,6 +1129,17 @@ function ReportContent() {
     }
   }
 
+  const handleGenerateReport = (sourceSites?: SiteData[]) => {
+    const availableSites = filterSites(siteData, filters)
+    const reportSites =
+      sourceSites ??
+      (selectedDevices.length > 0
+        ? availableSites.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
+        : availableSites)
+
+    void generateHistoricalReport(reportSites)
+  }
+
   const downloadComparisonTablePng = async () => {
     if (!comparisonTableRef.current) return
 
@@ -1179,7 +1201,7 @@ function ReportContent() {
         isOpen={Boolean(reportGenerationError)}
         message={reportGenerationError || "We couldn't generate the report."}
         onClose={() => setReportGenerationError(null)}
-        onTryAgain={lastReportSourceSites.length > 0 ? () => void generateHistoricalReport(lastReportSourceSites) : undefined}
+        onTryAgain={() => handleGenerateReport(lastReportSourceSites.length > 0 ? lastReportSourceSites : undefined)}
         isRetrying={reportGenerating}
       />
       <ErrorPopup
@@ -1373,12 +1395,7 @@ function ReportContent() {
             <div className="flex justify-between items-center">
               <p className="text-blue-100">Generate a report with your selected devices</p>
               <Button
-                onClick={() => {
-                  const selectedSites = filterSites(siteData, filters).filter((site) =>
-                    selectedDevices.includes(getSiteSelectionId(site)),
-                  )
-                  void generateHistoricalReport(selectedSites)
-                }}
+                onClick={() => handleGenerateReport()}
                 disabled={!hasRequiredReportScope || reportGenerating}
                 className="rounded-xl bg-white text-blue-600 hover:bg-blue-50"
               >
@@ -1403,7 +1420,7 @@ function ReportContent() {
           <div className="flex gap-2">
             <Button variant="outline" onClick={selectAllDevices} size="sm" 
             className="rounded-xl border-blue-700 bg-blue-500 text-white hover:bg-blue-600">
-              Select All
+              {filteredData.length > MAX_RANDOM_SITE_SELECTION ? "Select Random 20" : "Select All"}
             </Button>
             <Button variant="outline" onClick={clearDeviceSelection} size="sm" className="rounded-xl">
               Clear All
@@ -1420,13 +1437,7 @@ function ReportContent() {
               className="h-11 flex-1 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white"
             />
             <Button
-              onClick={() => {
-                const availableSites = filterSites(siteData, filters)
-                const selectedSites = selectedDevices.length > 0
-                  ? availableSites.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
-                  : availableSites
-                void generateHistoricalReport(selectedSites)
-              }}
+              onClick={() => handleGenerateReport()}
               disabled={!hasRequiredReportScope || reportGenerating}
               className="rounded-xl bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap"
             >
@@ -1500,11 +1511,7 @@ function ReportContent() {
               setShowReportOnPage(true)
               return
             }
-            const availableSites = filterSites(siteData, filters)
-            const selectedSites = selectedDevices.length
-              ? availableSites.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
-              : availableSites
-            void generateHistoricalReport(selectedSites)
+            handleGenerateReport()
           }}
           disabled={(!showReportOnPage && !hasRequiredReportScope) || reportGenerating}
           className="bg-green-600 text-white hover:bg-green-700"
