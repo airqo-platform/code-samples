@@ -14,6 +14,7 @@ import {
   LineChart,
   Line,
   CartesianGrid,
+  ReferenceLine,
 } from "recharts"
 import { useEffect, useState, useRef } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
@@ -33,6 +34,8 @@ const AQI_COLORS: Record<string, string> = {
 }
 
 const SITE_COLORS = ["#2563eb", "#dc2626", "#059669", "#7c3aed", "#ea580c", "#0891b2", "#4f46e5", "#be123c"]
+const WHO_PM25_DAILY_GUIDELINE = 15
+const UGANDA_NEMA_PM25_DAILY_STANDARD = 35
 
 const getReportBucket = (timestamp: string, aggregation: "daily" | "weekly" | "monthly") => {
   const date = new Date(timestamp)
@@ -87,11 +90,11 @@ export const getAqiPeriodBucket = (timestamp: string, grouping: "monthly" | "wee
 }
 
 export const getAqiCategoryForPm25 = (value: number) => {
-  if (value <= 12) return "Good"
+  if (value <= 9) return "Good"
   if (value <= 35.4) return "Moderate"
   if (value <= 55.4) return "Unhealthy for Sensitive Groups"
-  if (value <= 150.4) return "Unhealthy"
-  if (value <= 250.4) return "Very Unhealthy"
+  if (value <= 125.4) return "Unhealthy"
+  if (value <= 225.4) return "Very Unhealthy"
   return "Hazardous"
 }
 
@@ -106,6 +109,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   const [siteLimit, setSiteLimit] = useState(7)
   const [chartType, setChartType] = useState<"bar" | "line">("bar")
   const [xAxisView, setXAxisView] = useState<"time" | "site">("time")
+  const [seriesMode, setSeriesMode] = useState<"separate" | "merged">("separate")
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
   const [sortOrder, setSortOrder] = useState<"highest" | "lowest" | "none">("none")
   const [aggregation, setAggregation] = useState<"daily" | "weekly" | "monthly">(
@@ -198,7 +202,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
     color: AQI_COLORS[site.aqi_category || "Unknown"] || "#CCCCCC",
   }))
 
-  const selectedSites = sortedSites.slice(0, siteLimit)
+  const selectedSites = seriesMode === "merged" ? sortedSites : sortedSites.slice(0, siteLimit)
   const temporalSeries = selectedSites.map((site, index) => ({
     dataKey: `site_${index}`,
     name: site.siteDetails?.name || `Site ${index + 1}`,
@@ -224,6 +228,20 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
       return row
     })
   const hasTemporalData = temporalData.length > 0
+  const mergedTemporalData: Record<string, string | number>[] = temporalData.map((row) => {
+    const values = temporalSeries
+      .map((series) => row[series.dataKey])
+      .filter((value): value is number => typeof value === "number")
+    const mergedValue = values.length
+      ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1))
+      : 0
+    return {
+      period: row.period,
+      merged: mergedValue,
+      color: AQI_COLORS[getAqiCategoryForPm25(mergedValue)],
+    }
+  })
+  const mergedSeries = [{ dataKey: "merged", name: "All sites average", color: "#2563eb" }]
 
   const siteAxisSeries = temporalData.map((row, index) => ({
     dataKey: `period_${index}`,
@@ -238,14 +256,17 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
     })
     return row
   })
-  const useSiteXAxis = hasTemporalData && xAxisView === "site"
-  const activeChartData = useSiteXAxis ? siteAxisData : temporalData
-  const activeSeries = useSiteXAxis ? siteAxisSeries : temporalSeries
+  const useMergedSeries = hasTemporalData && seriesMode === "merged"
+  const useSiteXAxis = hasTemporalData && !useMergedSeries && xAxisView === "site"
+  const activeChartData = useMergedSeries ? mergedTemporalData : useSiteXAxis ? siteAxisData : temporalData
+  const activeSeries = useMergedSeries ? mergedSeries : useSiteXAxis ? siteAxisSeries : temporalSeries
   const activeXAxisKey = useSiteXAxis ? "name" : "period"
+  const showDailyRecommendations = hasTemporalData && aggregation === "daily"
 
   const temporalValues = activeChartData.flatMap((row) => activeSeries.map((series) => Number(row[series.dataKey] || 0)))
   const maxValue = Math.max(0, ...(hasTemporalData ? temporalValues : displaySites.map((site) => Number.parseFloat(site.pm25))))
-  const yAxisDomain = [0, Math.ceil(maxValue * 1.1)] // Add 10% padding above max value
+  const dailyReferenceMax = showDailyRecommendations ? UGANDA_NEMA_PM25_DAILY_STANDARD : 0
+  const yAxisDomain = [0, Math.ceil(Math.max(maxValue, dailyReferenceMax) * 1.1)]
 
   return (
     <Card className="w-full border-gray-200 font-sans shadow-lg">
@@ -254,10 +275,26 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
           <BarChart3 className="h-4 w-4 text-blue-600" />
           PM<sub>2.5</sub>{" "}
           {hasTemporalData
-            ? `${aggregation[0].toUpperCase()}${aggregation.slice(1)} Averages by Site`
+            ? `${aggregation[0].toUpperCase()}${aggregation.slice(1)} Averages ${useMergedSeries ? "\u2014 All Sites Combined" : "by Site"}`
             : "Levels by Site"}
         </CardTitle>
         <div className="flex flex-col gap-2.5 pt-3 md:flex-row md:flex-wrap md:items-center">
+          {hasTemporalData && (
+            <div className="flex items-center gap-2">
+              <span className="min-w-fit text-xs font-medium text-gray-600">Display:</span>
+              <Select value={seriesMode} onValueChange={(value: "separate" | "merged") => setSeriesMode(value)}>
+                <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[145px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="separate">Separate sites</SelectItem>
+                  <SelectItem value="merged">Merge all sites</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {seriesMode === "separate" && (
           <div className="flex items-center gap-2">
             <span className="min-w-fit text-xs font-medium text-gray-600">Sites:</span>
             <Select onValueChange={handleSiteLimitChange} defaultValue="7">
@@ -273,6 +310,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
               </SelectContent>
             </Select>
           </div>
+          )}
 
           <div className="flex items-center gap-2">
             <span className="min-w-fit text-xs font-medium text-gray-600">Average:</span>
@@ -291,8 +329,9 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="min-w-fit text-xs font-medium text-gray-600">X-axis:</span>
+          {seriesMode === "separate" && (
+            <div className="flex items-center gap-2">
+              <span className="min-w-fit text-xs font-medium text-gray-600">X-axis:</span>
             <Select value={xAxisView} onValueChange={(value: "time" | "site") => setXAxisView(value)}>
               <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[125px]">
                 <SelectValue />
@@ -302,7 +341,8 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 <SelectItem value="site">Site name</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <span className="min-w-fit text-xs font-medium text-gray-600">Type:</span>
@@ -327,8 +367,9 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="min-w-fit text-xs font-medium text-gray-600">Sort:</span>
+          {seriesMode === "separate" && (
+            <div className="flex items-center gap-2">
+              <span className="min-w-fit text-xs font-medium text-gray-600">Sort:</span>
             <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
               <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[125px]">
                 <SelectValue placeholder="Sort order" />
@@ -354,7 +395,8 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 </SelectItem>
               </SelectContent>
             </Select>
-          </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <span className="min-w-fit text-xs font-medium text-gray-600">Export:</span>
@@ -378,7 +420,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
         </div>
       </CardHeader>
       <CardContent className="p-6">
-        {siteLimit > 7 && (
+        {seriesMode === "separate" && siteLimit > 7 && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <p className="text-amber-700 text-sm flex items-center gap-2">
               <span className="text-amber-600">⚠️</span>
@@ -389,7 +431,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
         <div className="h-[300px] md:h-[350px]" ref={chartRef}>
           <ResponsiveContainer width="100%" height="100%">
             {chartType === "bar" ? (
-              <BarChart key={`pm-bar-${aggregation}-${xAxisView}`} data={hasTemporalData ? activeChartData : displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 70 }}>
+              <BarChart key={`pm-bar-${aggregation}-${xAxisView}-${seriesMode}`} data={hasTemporalData ? activeChartData : displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 70 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey={hasTemporalData ? activeXAxisKey : "name"} angle={-35} textAnchor="end" height={75} tick={{ fontSize: 9 }} />
                 <YAxis
@@ -407,17 +449,41 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 />
                 {hasTemporalData ? (
                   activeSeries.map((series) => (
-                    <Bar key={series.dataKey} dataKey={series.dataKey} name={series.name} fill={series.color} radius={[3, 3, 0, 0]} />
+                    <Bar key={series.dataKey} dataKey={series.dataKey} name={series.name} fill={series.color} radius={[3, 3, 0, 0]}>
+                      {useMergedSeries && mergedTemporalData.map((row, index) => (
+                        <Cell key={`merged-aqi-${index}`} fill={String(row.color)} />
+                      ))}
+                    </Bar>
                   ))
                 ) : (
                   <Bar dataKey="pm25" name="PM₂.₅ Level" fill="#3b82f6" radius={[4, 4, 0, 0]}>
                     {displaySites.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                   </Bar>
                 )}
-                {hasTemporalData && <Legend iconSize={9} wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />}
+                {showDailyRecommendations && (
+                  <ReferenceLine
+                    isFront
+                    y={WHO_PM25_DAILY_GUIDELINE}
+                    stroke="#0f766e"
+                    strokeDasharray="6 4"
+                    strokeWidth={3}
+                    label={{ value: "WHO 24h guideline: 15 \u00b5g/m\u00b3", position: "insideTopRight", fill: "#0f766e", fontSize: 9, fontWeight: 700, stroke: "#ffffff", strokeWidth: 3, paintOrder: "stroke" }}
+                  />
+                )}
+                {showDailyRecommendations && (
+                  <ReferenceLine
+                    isFront
+                    y={UGANDA_NEMA_PM25_DAILY_STANDARD}
+                    stroke="#1d4ed8"
+                    strokeDasharray="6 4"
+                    strokeWidth={3}
+                    label={{ value: "NEMA Uganda 24h standard: 35 \u00b5g/m\u00b3", position: "insideTopRight", fill: "#1d4ed8", fontSize: 9, fontWeight: 700, stroke: "#ffffff", strokeWidth: 3, paintOrder: "stroke" }}
+                  />
+                )}
+                {hasTemporalData && !useMergedSeries && <Legend iconSize={9} wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />}
               </BarChart>
             ) : (
-              <LineChart key={`pm-line-${aggregation}-${xAxisView}`} data={hasTemporalData ? activeChartData : displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 70 }}>
+              <LineChart key={`pm-line-${aggregation}-${xAxisView}-${seriesMode}`} data={hasTemporalData ? activeChartData : displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 70 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey={hasTemporalData ? activeXAxisKey : "name"} angle={-35} textAnchor="end" height={75} tick={{ fontSize: 9 }} />
                 <YAxis
@@ -439,6 +505,26 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                   ))
                 ) : (
                   <Line type="monotone" dataKey="pm25" name="PM₂.₅ Level" stroke="#3b82f6" strokeWidth={2} dot={<CustomDot />} activeDot={{ r: 6 }} />
+                )}
+                {showDailyRecommendations && (
+                  <ReferenceLine
+                    isFront
+                    y={WHO_PM25_DAILY_GUIDELINE}
+                    stroke="#0f766e"
+                    strokeDasharray="6 4"
+                    strokeWidth={3}
+                    label={{ value: "WHO 24h guideline: 15 \u00b5g/m\u00b3", position: "insideTopRight", fill: "#0f766e", fontSize: 9, fontWeight: 700, stroke: "#ffffff", strokeWidth: 3, paintOrder: "stroke" }}
+                  />
+                )}
+                {showDailyRecommendations && (
+                  <ReferenceLine
+                    isFront
+                    y={UGANDA_NEMA_PM25_DAILY_STANDARD}
+                    stroke="#1d4ed8"
+                    strokeDasharray="6 4"
+                    strokeWidth={3}
+                    label={{ value: "NEMA Uganda 24h standard: 35 \u00b5g/m\u00b3", position: "insideTopRight", fill: "#1d4ed8", fontSize: 9, fontWeight: 700, stroke: "#ffffff", strokeWidth: 3, paintOrder: "stroke" }}
+                  />
                 )}
                 {hasTemporalData && <Legend iconSize={9} wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />}
               </LineChart>
