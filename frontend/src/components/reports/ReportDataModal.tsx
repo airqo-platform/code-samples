@@ -19,6 +19,8 @@ import { BarChart3, Calendar, CheckSquare, Layers, LoaderCircle, MapPin, Search,
 import type { ReportDataOptions, ReportDateRange, SiteData } from "@/lib/types"
 import { loadHistoricalReportData } from "@/services/apiService"
 import ErrorPopup from "@/components/reports/ErrorPopup"
+import ReportLoadingScreen from "@/components/reports/ReportLoadingScreen"
+import { retryReportRequest } from "@/lib/report-retry"
 
 interface ReportDataModalProps {
   isOpen: boolean
@@ -123,7 +125,7 @@ export default function ReportDataModal({
     }
     setIsGenerating(true)
     try {
-      const reportSites = await loadHistoricalReportData(sites, options)
+      const reportSites = await retryReportRequest(() => loadHistoricalReportData(sites, options))
 
       onReportReady(reportSites, { startDate: options.startDate, endDate: options.endDate })
       onClose()
@@ -140,6 +142,7 @@ export default function ReportDataModal({
 
   return (
     <>
+      {isGenerating && <ReportLoadingScreen />}
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 text-slate-900 shadow-2xl">
         <DialogHeader className="border-b border-slate-100 bg-slate-50/80 px-6 py-5">

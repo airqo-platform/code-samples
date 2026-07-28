@@ -44,8 +44,10 @@ import { Checkbox } from "@/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover"
 import ReportDataModal from "@/components/reports/ReportDataModal"
 import ErrorPopup from "@/components/reports/ErrorPopup"
+import ReportLoadingScreen from "@/components/reports/ReportLoadingScreen"
 import NexusDateRangePicker, { createDefaultReportDateRange } from "@/components/reports/NexusDateRangePicker"
 import { PM25CalendarPlot } from "@/components/reports/PM25CalendarPlot"
+import { REPORT_REQUEST_RETRIES, REPORT_RETRY_DELAY_MS, retryReportRequest } from "@/lib/report-retry"
 import "leaflet/dist/leaflet.css"
 
 const GoodAir = "/images/GoodAir.png"
@@ -55,8 +57,7 @@ const Unhealthy = "/images/Unhealthy.png"
 const VeryUnhealthy = "/images/VeryUnhealthy.png"
 const Hazardous = "/images/Hazardous.png"
 const Invalid = "/images/Invalid.png"
-const REPORT_RETRY_DELAY_MS = 5_000
-const REPORT_LOAD_MAX_ATTEMPTS = 2
+const REPORT_LOAD_MAX_ATTEMPTS = REPORT_REQUEST_RETRIES + 1
 const MAX_RANDOM_SITE_SELECTION = 20
 
 import { Switch } from "@/ui/switch"
@@ -564,7 +565,7 @@ function ReportContent() {
     setReportGenerating(true)
     setReportGenerationError(null)
     try {
-      const reportSites = await loadHistoricalReportData(sourceSites, options)
+      const reportSites = await retryReportRequest(() => loadHistoricalReportData(sourceSites, options))
       handleHistoricalReportReady(reportSites, reportQueryRange)
     } catch (error) {
       console.error("Unable to build historical report:", error)
@@ -1196,6 +1197,7 @@ function ReportContent() {
 
   return (
     <div className="container mx-auto max-w-[1440px] px-4 py-6 sm:py-8">
+      {reportGenerating && <ReportLoadingScreen />}
       <ErrorPopup
         isOpen={Boolean(reportLoadError)}
         message={reportLoadError || "We couldn't load the report data."}
