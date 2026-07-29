@@ -21,7 +21,7 @@ The browser uses same-origin paths. The Node service adds the AirQo API token an
 - An existing website and access to its server or backend configuration.
 - Node.js 18 or newer on the server.
 - A valid AirQo API token and grid ID.
-- Nginx, another reverse proxy, or an existing backend capable of routing requests to Node.
+- An existing backend, hosting router, or optional reverse proxy capable of routing requests to Node.
 
 ## Files to deploy
 
@@ -122,6 +122,9 @@ Expected response:
 ```
 
 ## 3. Connect the existing website to the proxy
+
+> [!NOTE]
+> Nginx is optional. Use the Nginx example only when the existing website already uses Nginx. Apache, IIS, an application backend, or the hosting platform can provide the same required routes instead.
 
 If the website uses Nginx, add the contents of [`leaflet-forecast-nginx.conf.example`](./leaflet-forecast-nginx.conf.example) inside the existing domain's `server {}` block. The essential routes are:
 
