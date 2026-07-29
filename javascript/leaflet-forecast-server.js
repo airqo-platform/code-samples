@@ -1,5 +1,8 @@
 "use strict";
 
+// For an existing website, run this as an internal service and reverse-proxy
+// only /airqo-config, /airqo-api/*, and optionally /healthz to it.
+
 const http = require("node:http");
 const fs = require("node:fs/promises");
 const { Readable } = require("node:stream");
