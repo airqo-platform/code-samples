@@ -1154,15 +1154,15 @@
       position: "bottomright",
     }).addTo(map);
 
-    var apiBaseUrl = "https://api.airqo.net/api/v2";
+    // Use the local same-origin proxy. It securely adds the AirQo token.
+    var apiBaseUrl = "/airqo-api/api/v2";
     var apiEndpoint = apiBaseUrl + "/devices/measurements/grids/{GRID_ID}";
     var forecastEndpoint = apiBaseUrl + "/predict/daily-forecasting/{GRID_ID}";
     var heatmapEndpoint = apiBaseUrl + "/spatial/heatmaps/{GRID_ID}";
     var gridMeasurementsPageLimit = 1000;
     var mapDataCacheTtlMs = 60 * 60 * 1000;
 
-    var accessToken = "your-access-token";  // Replace with your actual access token
-    var gridId =  "your-grid-id";           // Replace with your actual grid ID
+    var gridId = "";
 
     var apiResponse = null;
     var forecastBySiteId = {};
@@ -1175,7 +1175,7 @@
     var heatmapControlElement = null;
     var heatmapRequest = null;
     var legendAdded = false;
-    var mapDataCacheKey = "airqo:leaflet-map:measurements:" + gridId;
+    var mapDataCacheKey = "";
 
     var AQI_INDEX_COLORS = {
       good: "#00e400",
@@ -1186,10 +1186,28 @@
       hazardous: "#7e0023",
     };
 
-    addHeatmapControl();
-    fetchHeatmap(false);
-    fetchLiveMeasurements();
-    fetchDailyForecast();
+    loadServerConfig();
+
+    function loadServerConfig() {
+      $.getJSON("/airqo-config")
+        .done(function (config) {
+          if (!config.gridId) {
+            setMapLoadingState("error", "AIRQO_GRID_ID is not configured");
+            return;
+          }
+
+          gridId = config.gridId;
+          mapDataCacheKey = "airqo:leaflet-map:measurements:" + gridId;
+          addHeatmapControl();
+          fetchHeatmap(false);
+          fetchLiveMeasurements();
+          fetchDailyForecast();
+        })
+        .fail(function (error) {
+          console.error("Unable to load the local AirQo configuration:", error);
+          setMapLoadingState("error", "Start this page with leaflet-forecast-server.js");
+        });
+    }
 
     function addHeatmapControl() {
       var HeatmapControl = L.Control.extend({
@@ -1260,7 +1278,7 @@
       if (heatmapToggleInput) heatmapToggleInput.disabled = true;
 
       heatmapRequest = $.ajax({
-        url: heatmapEndpoint.replace("{GRID_ID}", gridId) + "?token=" + encodeURIComponent(accessToken),
+        url: heatmapEndpoint.replace("{GRID_ID}", encodeURIComponent(gridId)),
         method: "GET",
         success: function (response) {
           var data = response.data || response;
@@ -1405,9 +1423,8 @@
     }
 
     function getGridMeasurementsUrl(page) {
-      return apiEndpoint.replace("{GRID_ID}", gridId) +
-        "?token=" + encodeURIComponent(accessToken) +
-        "&page=" + encodeURIComponent(page) +
+      return apiEndpoint.replace("{GRID_ID}", encodeURIComponent(gridId)) +
+        "?page=" + encodeURIComponent(page) +
         "&limit=" + encodeURIComponent(gridMeasurementsPageLimit);
     }
 
@@ -1527,7 +1544,7 @@
 
     function fetchDailyForecast() {
       $.ajax({
-        url: forecastEndpoint.replace("{GRID_ID}", gridId) + "?token=" + encodeURIComponent(accessToken),
+        url: forecastEndpoint.replace("{GRID_ID}", encodeURIComponent(gridId)),
         method: "GET",
         success: function (response) {
           var data = response.data || response;
