@@ -3,8 +3,10 @@
 const http = require("node:http");
 const fs = require("node:fs/promises");
 
-const host = "127.0.0.1";
+// Cloud/container platforms normally inject PORT and require binding to all interfaces.
+const host = process.env.HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 8080);
+const isProduction = process.env.NODE_ENV === "production";
 
 // Option 1 (recommended): set AIRQO_API_TOKEN and AIRQO_GRID_ID environment variables.
 // Option 2: replace the fallback values below and run this file directly.
@@ -25,6 +27,10 @@ function sendJson(response, statusCode, body) {
     "Cache-Control": "no-store",
   });
   response.end(JSON.stringify(body));
+}
+
+function isPlaceholder(value) {
+  return !value || value.startsWith("<<") || value.startsWith("your-");
 }
 
 async function proxyAirQo(request, response, requestUrl) {
@@ -73,10 +79,12 @@ async function serveSample(request, response) {
   else response.end(body);
 }
 
-if (
-  !apiToken || !gridId ||
-  apiToken === "your-access-token" || gridId === "your-grid-id"
-) {
+if (isProduction && (!process.env.AIRQO_API_TOKEN || !process.env.AIRQO_GRID_ID)) {
+  console.error(
+    "Production requires AIRQO_API_TOKEN and AIRQO_GRID_ID environment variables."
+  );
+  process.exitCode = 1;
+} else if (isPlaceholder(apiToken) || isPlaceholder(gridId)) {
   console.error(
     "Configure AIRQO_API_TOKEN and AIRQO_GRID_ID, or replace the fallback values in leaflet-forecast-server.js."
   );
@@ -87,9 +95,11 @@ if (
 } else {
   const server = http.createServer(async (request, response) => {
     try {
-      const requestUrl = new URL(request.url, `http://${request.headers.host || host}`);
+      const requestUrl = new URL(request.url, "http://localhost");
 
-      if (requestUrl.pathname === "/airqo-config" && request.method === "GET") {
+      if (requestUrl.pathname === "/healthz" && request.method === "GET") {
+        sendJson(response, 200, { status: "ok" });
+      } else if (requestUrl.pathname === "/airqo-config" && request.method === "GET") {
         sendJson(response, 200, { gridId });
       } else if (requestUrl.pathname.startsWith(proxyPrefix)) {
         await proxyAirQo(request, response, requestUrl);
@@ -109,6 +119,6 @@ if (
   });
 
   server.listen(port, host, () => {
-    console.log(`Leaflet forecast sample: http://${host}:${port}/`);
+    console.log(`Leaflet forecast server listening on ${host}:${port}`);
   });
 }
