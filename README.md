@@ -12,7 +12,7 @@ This monorepo is organized into subfolders, each containing code samples for a s
 
 3. **php**: Code samples demonstrating how to access the Air Quality API with PHP.
 
-4. **python**: Code samples for Python applications
+4. **python**: Code samples for Python applications 
 
 ## Getting Started
 
