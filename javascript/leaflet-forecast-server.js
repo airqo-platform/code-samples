@@ -8,8 +8,8 @@ const port = Number(process.env.PORT || 8080);
 
 // Option 1 (recommended): set AIRQO_API_TOKEN and AIRQO_GRID_ID environment variables.
 // Option 2: replace the fallback values below and run this file directly.
-const apiToken = process.env.AIRQO_API_TOKEN || "RASS69WPGMWWXDR7";
-const gridId = process.env.AIRQO_GRID_ID || "67c96c4771c7b0001383dde1";
+const apiToken = process.env.AIRQO_API_TOKEN || "<<access-token>>";
+const gridId = process.env.AIRQO_GRID_ID || "<<grid-id>>";
 const proxyPrefix = "/airqo-api/";
 const sampleFile = __dirname + "/leaflet-with-forecast.html";
 const encodedGridId = encodeURIComponent(gridId || "");
