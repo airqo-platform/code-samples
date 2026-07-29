@@ -2,6 +2,8 @@
 
 const http = require("node:http");
 const fs = require("node:fs/promises");
+const { Readable } = require("node:stream");
+const { pipeline } = require("node:stream/promises");
 
 // Cloud/container platforms normally inject PORT and require binding to all interfaces.
 const host = process.env.HOST || "0.0.0.0";
@@ -56,16 +58,23 @@ async function proxyAirQo(request, response, requestUrl) {
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(30000),
     });
-    const responseBody = Buffer.from(await upstreamResponse.arrayBuffer());
-
     response.writeHead(upstreamResponse.status, {
       "Content-Type": upstreamResponse.headers.get("content-type") || "application/json; charset=utf-8",
-      "Cache-Control": upstreamResponse.headers.get("cache-control") || "no-store",
+      "Cache-Control": "no-store, max-age=0",
     });
-    response.end(responseBody);
+
+    if (upstreamResponse.body) {
+      await pipeline(Readable.fromWeb(upstreamResponse.body), response);
+    } else {
+      response.end();
+    }
   } catch (error) {
     console.error("AirQo request failed:", error);
-    sendJson(response, 502, { error: "Could not reach the AirQo API." });
+    if (!response.headersSent) {
+      sendJson(response, 502, { error: "Could not reach the AirQo API." });
+    } else {
+      response.destroy(error);
+    }
   }
 }
 
