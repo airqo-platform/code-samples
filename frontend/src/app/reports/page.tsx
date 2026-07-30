@@ -7,6 +7,7 @@ import {
   ArrowDown,
   ArrowUp,
   BrainCircuit,
+  CalendarRange,
   ChevronDown,
   Download,
   Globe,
@@ -15,6 +16,7 @@ import {
   LoaderCircle,
   MapPin,
   Minus,
+  MoreHorizontal,
   Printer,
   BarChart3,
   X,
@@ -22,21 +24,30 @@ import {
 } from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
 import type { ReactNode } from "react"
-import { getReportData } from "@/services/apiService"
+import { getReportData, loadHistoricalReportData } from "@/services/apiService"
 import { Button } from "@/ui/button"
-import type { SiteData, Filters } from "@/lib/types"
+import type { SiteData, Filters, ReportDataOptions, ReportDateRange } from "@/lib/types"
 import { jsPDF } from "jspdf"
 import html2canvas from "html2canvas"
-import { format } from "date-fns"
+import { differenceInCalendarDays, format } from "date-fns"
 import {
   PM25BarChart,
   AQICategoryChart,
   WeeklyComparisonChart,
   AQIIndexVisual,
+  getAqiCategoryForPm25,
+  getAqiPeriodBucket,
+  type ReportTimelineGrouping,
 } from "@/components/charts/AirQualityChart"
 import { Input } from "@/ui/input"
 import { Checkbox } from "@/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover"
+import ReportDataModal from "@/components/reports/ReportDataModal"
+import ErrorPopup from "@/components/reports/ErrorPopup"
+import ReportLoadingScreen from "@/components/reports/ReportLoadingScreen"
+import NexusDateRangePicker, { createDefaultReportDateRange } from "@/components/reports/NexusDateRangePicker"
+import { PM25CalendarPlot } from "@/components/reports/PM25CalendarPlot"
+import { REPORT_REQUEST_RETRIES, REPORT_RETRY_DELAY_MS, retryReportRequest } from "@/lib/report-retry"
 import "leaflet/dist/leaflet.css"
 
 const GoodAir = "/images/GoodAir.png"
@@ -46,8 +57,8 @@ const Unhealthy = "/images/Unhealthy.png"
 const VeryUnhealthy = "/images/VeryUnhealthy.png"
 const Hazardous = "/images/Hazardous.png"
 const Invalid = "/images/Invalid.png"
-const REPORT_RETRY_DELAY_MS = 5_000
-const REPORT_LOAD_MAX_ATTEMPTS = 2
+const REPORT_LOAD_MAX_ATTEMPTS = REPORT_REQUEST_RETRIES + 1
+const MAX_RANDOM_SITE_SELECTION = 20
 
 import { Switch } from "@/ui/switch"
 import { Label } from "@/ui/label"
@@ -72,6 +83,19 @@ const getSiteSelectionId = (site: SiteData) =>
 
 const getSiteCheckboxId = (site: SiteData) => `main-device-${encodeURIComponent(getSiteSelectionId(site))}`
 
+const getReportSiteId = (site: SiteData) => site.site_id || site.siteDetails?._id || site._id
+
+const getRandomSiteSelection = (sites: SiteData[], limit = MAX_RANDOM_SITE_SELECTION) => {
+  const siteIds = Array.from(new Set(sites.map(getSiteSelectionId)))
+  for (let index = siteIds.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1))
+    const currentSiteId = siteIds[index]
+    siteIds[index] = siteIds[randomIndex]
+    siteIds[randomIndex] = currentSiteId
+  }
+  return siteIds.slice(0, limit)
+}
+
 export default function ReportPage() {
   return (
     <div className="reports-theme flex min-h-screen flex-col bg-gray-100 text-slate-950">
@@ -89,9 +113,26 @@ function ReportContent() {
   const [reportLoadError, setReportLoadError] = useState<string | null>(null)
   const [reportLoadRequest, setReportLoadRequest] = useState(0)
   const [filteredData, setFilteredData] = useState<SiteData[]>([])
+  const [customReportData, setCustomReportData] = useState<SiteData[] | null>(null)
+  const [reportDateRange, setReportDateRange] = useState<ReportDateRange | null>(null)
+  const [reportQueryRange, setReportQueryRange] = useState<ReportDateRange>(createDefaultReportDateRange)
+  const [reportAggregation, setReportAggregation] = useState<ReportDataOptions["frequency"]>("daily")
+  const [reportTimelineGrouping, setReportTimelineGrouping] = useState<ReportTimelineGrouping>("monthly")
+  const [reportTimelinePeriod, setReportTimelinePeriod] = useState("all")
+  const [comparisonRowsShown, setComparisonRowsShown] = useState<5 | 10>(10)
+  const [comparisonSearch, setComparisonSearch] = useState("")
+  const [comparisonAqiFilter, setComparisonAqiFilter] = useState("all")
+  const [isDownloadingComparisonPng, setIsDownloadingComparisonPng] = useState(false)
+  const reportDurationDays = reportDateRange
+    ? differenceInCalendarDays(new Date(reportDateRange.endDate), new Date(reportDateRange.startDate)) + 1
+    : 0
+  const comparisonPeriod: "weekly" | "monthly" = reportDurationDays > 31 ? "monthly" : "weekly"
   const [selectedSite, setSelectedSite] = useState<SiteData | null>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [pdfExportError, setPdfExportError] = useState<string | null>(null)
+  const [isReportDataModalOpen, setIsReportDataModalOpen] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
+  const comparisonTableRef = useRef<HTMLTableElement>(null)
 
   // Add a state to control whether the report is visible on the page
   const [showReportOnPage, setShowReportOnPage] = useState(false)
@@ -124,6 +165,7 @@ function ReportContent() {
     () => Object.values(filters).some((values) => values.length > 0),
     [filters],
   )
+  const hasRequiredReportScope = filters.city.length > 0 || filters.district.length > 0
 
   const formatSelectionLabel = (values: string[], fallback: string) => {
     if (values.length === 0) return fallback
@@ -146,6 +188,8 @@ function ReportContent() {
 
   // Add a visual indicator for the report generation process
   const [reportGenerating, setReportGenerating] = useState(false)
+  const [reportGenerationError, setReportGenerationError] = useState<string | null>(null)
+  const [lastReportSourceSites, setLastReportSourceSites] = useState<SiteData[]>([])
 
   // Add a new state for tracking selection animation:
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
@@ -179,7 +223,14 @@ function ReportContent() {
 
   const calculateAveragePercentageChange = (sites: SiteData[]): number => {
     if (sites.length === 0) return 0
-    const sum = sites.reduce((acc, site) => acc + (site.averages?.percentageDifference || 0), 0)
+    const sum = sites.reduce(
+      (acc, site) =>
+        acc +
+        (comparisonPeriod === "monthly"
+          ? site.averages?.monthlyPercentageDifference || 0
+          : site.averages?.percentageDifference || 0),
+      0,
+    )
     return sum / sites.length
   }
 
@@ -228,7 +279,7 @@ function ReportContent() {
       return "In conclusion, no data is available for the selected criteria."
     }
 
-    return "In conclusion, this report provides an overview of the air quality across the AirQo network. Continued monitoring and proactive measures are essential to ensure public health."
+    return "In conclusion, this report provides an overview of the air quality across the selected monitoring network. Continued monitoring and proactive measures are essential to ensure public health."
   }
 
   const getRegionalInsights = (filters: Filters, filteredData: SiteData[]): string => {
@@ -246,7 +297,7 @@ function ReportContent() {
     }
 
     if (citySummary) {
-      return `The air quality in ${citySummary} is a concern, with PM<sub>2.5</sub> levels frequently exceeding WHO guidelines. Local authorities should implement measures to reduce emissions from traffic and industry.`
+      return `The air quality in ${citySummary} is a concern, with PM₂.₅ levels frequently exceeding WHO guidelines. Local authorities should implement measures to reduce emissions from traffic and industry.`
     }
 
     if (categorySummary) {
@@ -431,14 +482,14 @@ function ReportContent() {
 
   // Apply filters
   useEffect(() => {
-    const result = filterSites(siteData, filters)
+    const result = filterSites(customReportData ?? siteData, filters)
 
     setFilteredData(result)
     // Reset selected site if it's no longer in filtered data
     if (selectedSite && !result.some((site) => getSiteSelectionId(site) === getSiteSelectionId(selectedSite))) {
       setSelectedSite(null)
     }
-  }, [filters, siteData, selectedSite])
+  }, [customReportData, filters, siteData, selectedSite])
 
   // Handle filter changes
   const handleFilterChange = (filterType: keyof Filters, values: string[]) => {
@@ -464,8 +515,71 @@ function ReportContent() {
       category: [],
     })
     setSelectedSite(null)
+    setReportQueryRange(createDefaultReportDateRange())
+    setCustomReportData(null)
+    setReportDateRange(null)
+    setSelectedDevices([])
+    setReportTimelineGrouping("monthly")
+    setReportTimelinePeriod("all")
   }
 
+  const handleHistoricalReportReady = (reportSites: SiteData[], dateRange: ReportDateRange) => {
+    setCustomReportData(reportSites)
+    setReportAggregation(reportSites[0]?.reportAggregation || "daily")
+    setReportTimelineGrouping("monthly")
+    setReportTimelinePeriod("all")
+    setReportDateRange(dateRange)
+    setReportQueryRange(dateRange)
+    setFilteredData(reportSites)
+    setSelectedDevices(reportSites.map(getSiteSelectionId))
+    setSelectedSite(reportSites.length === 1 ? reportSites[0] : null)
+    setShowReportOnPage(true)
+    setReportGenerating(false)
+
+    window.setTimeout(() => {
+      document.getElementById("report-section")?.scrollIntoView({ behavior: "smooth" })
+    }, 100)
+  }
+
+  const generateHistoricalReport = async (sourceSites: SiteData[]) => {
+    if (!hasRequiredReportScope) {
+      setReportGenerationError("Select at least one city or district before generating a report. A country-only selection is too broad.")
+      return
+    }
+    const selectedSiteIds = sourceSites.map(getReportSiteId).filter((id): id is string => Boolean(id))
+    if (selectedSiteIds.length === 0) {
+      setReportGenerationError("Select at least one site for the report.")
+      return
+    }
+
+    const options: ReportDataOptions = {
+      selectedSiteIds,
+      startDate: reportQueryRange.startDate,
+      endDate: reportQueryRange.endDate,
+      frequency: reportAggregation,
+      dataType: "calibrated",
+      pollutants: ["pm2_5", "pm10"],
+    }
+
+    setLastReportSourceSites(sourceSites)
+    setReportGenerating(true)
+    setReportGenerationError(null)
+    try {
+      const reportSites = await retryReportRequest(() => loadHistoricalReportData(sourceSites, options))
+      handleHistoricalReportReady(reportSites, reportQueryRange)
+    } catch (error) {
+      console.error("Unable to build historical report:", error)
+      setReportGenerationError(error instanceof Error ? error.message : "Unable to build the report.")
+      setReportGenerating(false)
+    }
+  }
+
+  const clearHistoricalReport = () => {
+    setCustomReportData(null)
+    setReportDateRange(null)
+    setSelectedSite(null)
+    setSelectedDevices([])
+  }
   // Add this function after the resetFilters function
   const handleDeviceSearch = (searchTerm: string) => {
     setDeviceSearch(searchTerm)
@@ -479,8 +593,7 @@ function ReportContent() {
   }
 
   const selectAllDevices = () => {
-    const allDeviceIds = filteredData.map(getSiteSelectionId)
-    setSelectedDevices(allDeviceIds)
+    setSelectedDevices(getRandomSiteSelection(filteredData))
   }
 
   const clearDeviceSelection = () => {
@@ -529,9 +642,9 @@ function ReportContent() {
 
       const reportElement = reportRef.current
 
-      // Reduce scale to decrease file size (from 2 to 1.5)
+      // Keep enough resolution for report text while limiting the rasterized PDF size.
       const canvas = await html2canvas(reportElement, {
-        scale: 1.5, // Reduced from 2 to 1.5 to decrease file size
+        scale: 1.25,
         logging: false,
         useCORS: true,
         allowTaint: true,
@@ -634,7 +747,16 @@ function ReportContent() {
         )
 
         const renderedHeight = (sliceHeight * contentWidth) / canvas.width
-        pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", marginLeft, marginTop, contentWidth, renderedHeight)
+        pdf.addImage(
+          pageCanvas.toDataURL("image/jpeg", 0.78),
+          "JPEG",
+          marginLeft,
+          marginTop,
+          contentWidth,
+          renderedHeight,
+          undefined,
+          "FAST",
+        )
 
         pdf.setFontSize(8)
         pdf.setTextColor(100, 116, 139)
@@ -658,6 +780,7 @@ function ReportContent() {
       }
 
       pdf.save(`${filename}-${format(new Date(), "yyyy-MM-dd")}.pdf`)
+      setPdfExportError(null)
 
       // Restore original tab state if we temporarily changed it
       if (tempShowBothTabs) {
@@ -665,7 +788,7 @@ function ReportContent() {
       }
     } catch (error) {
       console.error("Error generating PDF:", error)
-      alert("Failed to generate PDF. Please try again.")
+      setPdfExportError("We couldn't create the PDF. Please try again.")
     } finally {
       setIsGeneratingPDF(false)
       setPdfMode(false)
@@ -676,7 +799,7 @@ function ReportContent() {
   const getHotspotSites = (sites: SiteData[], limit = 3): SiteData[] => {
     if (sites.length === 0) return []
 
-    // Sort sites by PM2.5 value in descending order and take the top 'limit' sites
+    // Sort sites by PM₂.₅ value in descending order and take the top 'limit' sites
     return [...sites]
       .filter((site) => site.pm2_5?.value !== undefined && site.pm2_5?.value !== null)
       .sort((a, b) => (b.pm2_5?.value || 0) - (a.pm2_5?.value || 0))
@@ -686,7 +809,7 @@ function ReportContent() {
   const getColdspotSites = (sites: SiteData[], limit = 3): SiteData[] => {
     if (sites.length === 0) return []
 
-    // Sort sites by PM2.5 value in ascending order and take the top 'limit' sites
+    // Sort sites by PM₂.₅ value in ascending order and take the top 'limit' sites
     return [...sites]
       .filter((site) => site.pm2_5?.value !== undefined && site.pm2_5?.value !== null)
       .sort((a, b) => (a.pm2_5?.value || 0) - (b.pm2_5?.value || 0))
@@ -711,30 +834,42 @@ function ReportContent() {
     sitesByCategory[category].push(site)
   })
 
-  // Generate report title based on filters or selected site
+  // Generate report title based on filters, selected sites, and historical period
+  const formatReportDate = (value: string) =>
+    format(new Date(value.slice(0, 10) + "T12:00:00Z"), "MMMM d, yyyy")
   const getReportTitle = () => {
+    let title: string
+
     if (selectedSite) {
-      return `Air Quality Report for ${selectedSite.siteDetails.name}`
+      title = `Air Quality Report for ${selectedSite.siteDetails.name}`
+    } else if (selectedDevices.length > 0 && selectedDevices.length < filteredData.length) {
+      title = `Air Quality Report for ${selectedDevices.length} Selected Devices`
+    } else {
+      const parts = []
+      if (filters.country.length) parts.push(formatSelectionLabel(filters.country, ""))
+      if (filters.city.length) parts.push(formatSelectionLabel(filters.city, ""))
+      if (filters.district.length) parts.push(formatSelectionLabel(filters.district, ""))
+      if (filters.category.length) parts.push(`${formatSelectionLabel(filters.category, "")} Sites`)
+      title = parts.length > 0 ? `Air Quality Report for ${parts.join(", ")}` : "Comprehensive Air Quality Report"
     }
 
-    if (selectedDevices.length > 0 && selectedDevices.length < filteredData.length) {
-      return `Air Quality Report for ${selectedDevices.length} Selected Devices`
-    }
+    if (!reportDateRange) return title
 
-    const parts = []
-    if (filters.country.length) parts.push(formatSelectionLabel(filters.country, ""))
-    if (filters.city.length) parts.push(formatSelectionLabel(filters.city, ""))
-    if (filters.district.length) parts.push(formatSelectionLabel(filters.district, ""))
-    if (filters.category.length) parts.push(`${formatSelectionLabel(filters.category, "")} Sites`)
-
-    return parts.length > 0 ? `Air Quality Report for ${parts.join(", ")}` : "Comprehensive Air Quality Report"
+    const startDate = format(
+      new Date(reportDateRange.startDate.slice(0, 10) + "T12:00:00Z"),
+      "MMM d, yyyy",
+    )
+    const endDate = format(
+      new Date(reportDateRange.endDate.slice(0, 10) + "T12:00:00Z"),
+      "MMM d, yyyy",
+    )
+    return `${title}: ${startDate} - ${endDate}`
   }
-
   // Add a function to toggle category collapse state
   const toggleCategoryCollapse = (category: string) => {
     setCollapsedCategories((prev) => ({
       ...prev,
-      [category]: !prev[category],
+      [category]: prev[category] === false,
     }))
   }
 
@@ -775,16 +910,94 @@ function ReportContent() {
       return `${filteredLocations.join(", ")}${categoryScope}`
     }
 
-    if (selectedDevices.length > 0 && selectedDevices.length < siteData.length) {
+    if (selectedDevices.length > 0 && selectedDevices.length < (customReportData ?? siteData).length) {
       return `${filteredData.length} selected monitoring site${filteredData.length === 1 ? "" : "s"}`
     }
 
-    return `the AirQo monitoring network${categoryScope}`
+    return `the selected monitoring network${categoryScope}`
   }
 
-  // Calculate average PM2.5 for AQI index visualization
+  // Calculate average PM₂.₅ for AQI index visualization
   const avgPM25 = calculateAveragePM25(filteredData)
   const avgAQICategory = getAverageAQICategory(filteredData)
+  const averagePercentageChange = calculateAveragePercentageChange(filteredData)
+  const comparisonReference = comparisonPeriod === "monthly" ? "previous month" : "previous week"
+  const averageChangeDescription =
+    Math.abs(averagePercentageChange) < 0.01
+      ? `was broadly unchanged from the ${comparisonReference}`
+      : `was ${Math.abs(averagePercentageChange).toFixed(1)}% ${averagePercentageChange > 0 ? "higher" : "lower"} than the ${comparisonReference}`
+  const dailyPm25Extremes = useMemo(() => getDailyPm25Extremes(filteredData), [filteredData])
+  const reportTimelinePeriodKeys = useMemo(() => {
+    const keys = new Set<string>()
+    filteredData.forEach((site) => {
+      site.reportMeasurements?.forEach((measurement) => {
+        keys.add(getAqiPeriodBucket(measurement.timestamp, reportTimelineGrouping).key)
+      })
+    })
+    return keys
+  }, [filteredData, reportTimelineGrouping])
+  const effectiveReportTimelinePeriod =
+    reportTimelinePeriod === "all" || reportTimelinePeriodKeys.has(reportTimelinePeriod)
+      ? reportTimelinePeriod
+      : "all"
+  const comparisonTableRows = useMemo(
+    () =>
+      filteredData.flatMap((site) => {
+        if (effectiveReportTimelinePeriod === "all") {
+          return [{
+            site,
+            pm25Value: site.pm2_5?.value,
+            aqiCategory: site.aqi_category || "Unknown",
+          }]
+        }
+
+        const values = (site.reportMeasurements || [])
+          .filter(
+            (measurement) =>
+              getAqiPeriodBucket(measurement.timestamp, reportTimelineGrouping).key ===
+              effectiveReportTimelinePeriod,
+          )
+          .map((measurement) => measurement.value)
+
+        if (values.length === 0) return []
+
+        const pm25Value = values.reduce((sum, value) => sum + value, 0) / values.length
+        return [{ site, pm25Value, aqiCategory: getAqiCategoryForPm25(pm25Value) }]
+      }),
+    [effectiveReportTimelinePeriod, filteredData, reportTimelineGrouping],
+  )
+  const comparisonAqiOptions = useMemo(
+    () => Array.from(new Set(comparisonTableRows.map((row) => row.aqiCategory))).sort(),
+    [comparisonTableRows],
+  )
+  const effectiveComparisonAqiFilter =
+    comparisonAqiFilter === "all" || comparisonAqiOptions.includes(comparisonAqiFilter)
+      ? comparisonAqiFilter
+      : "all"
+  const filteredComparisonTableRows = useMemo(() => {
+    const search = comparisonSearch.trim().toLowerCase()
+
+    return comparisonTableRows.filter(({ site, aqiCategory }) => {
+      if (effectiveComparisonAqiFilter !== "all" && aqiCategory !== effectiveComparisonAqiFilter) {
+        return false
+      }
+      if (!search) return true
+
+      const siteCategory = site.siteDetails?.site_category?.category || "Uncategorized"
+      const displayCategory = siteCategory === "Water Body" ? "Urban Background" : siteCategory
+      return [
+        site.siteDetails?.name,
+        site.siteDetails?.formatted_name,
+        displayCategory,
+        aqiCategory,
+        site.siteDetails?.city,
+        site.siteDetails?.district,
+        site.siteDetails?.country,
+      ]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(search))
+    })
+  }, [comparisonSearch, comparisonTableRows, effectiveComparisonAqiFilter])
 
   const getAQICategoryCounts = (sites: SiteData[]): { [key: string]: number } => {
     const categoryCounts: { [key: string]: number } = {}
@@ -923,8 +1136,89 @@ function ReportContent() {
     }
   }
 
+  const handleGenerateReport = (sourceSites?: SiteData[]) => {
+    const availableSites = filterSites(siteData, filters)
+    const reportSites =
+      sourceSites ??
+      (selectedDevices.length > 0
+        ? availableSites.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
+        : availableSites)
+
+    void generateHistoricalReport(reportSites)
+  }
+
+  const downloadComparisonTablePng = async () => {
+    if (!comparisonTableRef.current) return
+
+    setIsDownloadingComparisonPng(true)
+    try {
+      const tableCanvas = await html2canvas(comparisonTableRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        onclone: (clonedDocument) => {
+          const clonedScroller = clonedDocument.querySelector<HTMLElement>("[data-comparison-table-scroll]")
+          if (clonedScroller) {
+            clonedScroller.style.maxHeight = "none"
+            clonedScroller.style.overflow = "visible"
+          }
+        },
+      })
+      const titleHeight = 64
+      const outputCanvas = document.createElement("canvas")
+      outputCanvas.width = tableCanvas.width
+      outputCanvas.height = tableCanvas.height + titleHeight
+      const context = outputCanvas.getContext("2d")
+      if (!context) throw new Error("Canvas is unavailable")
+
+      context.fillStyle = "#ffffff"
+      context.fillRect(0, 0, outputCanvas.width, outputCanvas.height)
+      context.fillStyle = "#0f172a"
+      context.font = "600 28px Arial, sans-serif"
+      context.fillText("Device Comparison Table", 24, 42)
+      context.drawImage(tableCanvas, 0, titleHeight)
+
+      const blob = await new Promise<Blob | null>((resolve) => outputCanvas.toBlob(resolve, "image/png"))
+      if (!blob) throw new Error("PNG generation failed")
+
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = "device_comparison_table.png"
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error generating device comparison PNG:", error)
+    } finally {
+      setIsDownloadingComparisonPng(false)
+    }
+  }
+
   return (
     <div className="container mx-auto max-w-[1440px] px-4 py-6 sm:py-8">
+      {reportGenerating && <ReportLoadingScreen />}
+      <ErrorPopup
+        isOpen={Boolean(reportLoadError)}
+        message={reportLoadError || "We couldn't load the report data."}
+        onClose={() => setReportLoadError(null)}
+        onTryAgain={() => setReportLoadRequest((request) => request + 1)}
+        isRetrying={isReportDataLoading}
+      />
+      <ErrorPopup
+        isOpen={Boolean(reportGenerationError)}
+        message={reportGenerationError || "We couldn't generate the report."}
+        onClose={() => setReportGenerationError(null)}
+        onTryAgain={() => handleGenerateReport(lastReportSourceSites.length > 0 ? lastReportSourceSites : undefined)}
+        isRetrying={reportGenerating}
+      />
+      <ErrorPopup
+        isOpen={Boolean(pdfExportError)}
+        message={pdfExportError || "We couldn't create the PDF."}
+        onClose={() => setPdfExportError(null)}
+        onTryAgain={() => void generatePDF()}
+        isRetrying={isGeneratingPDF}
+      />
       <header className="mb-8 border-b border-slate-200 px-1 pb-6 text-center">
         <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">Air Quality Reports</h1>
         <p className="mx-auto mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
@@ -938,7 +1232,7 @@ function ReportContent() {
           <div>
             <h2 className="text-lg font-bold text-slate-950">Filter report visuals</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Refine every chart, map, summary, and recommendation using the same geographic selection.
+              Use one date range and geographic selection across every chart, map, summary, and recommendation.
             </p>
           </div>
           <Button variant="outline" onClick={resetFilters} disabled={!siteData.length} className="w-full rounded-xl border-slate-300 bg-white md:w-auto">
@@ -946,7 +1240,21 @@ function ReportContent() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <NexusDateRangePicker
+            value={reportQueryRange}
+            disabled={!siteData.length}
+            onApply={(range) => {
+              setReportQueryRange(range)
+              setCustomReportData(null)
+              setReportDateRange(null)
+              setSelectedSite(null)
+              setShowReportOnPage(false)
+              setReportGenerationError(null)
+              setReportTimelineGrouping("monthly")
+              setReportTimelinePeriod("all")
+            }}
+          />
           <FilterMultiSelect
             label="Country"
             placeholder="Select countries"
@@ -1009,19 +1317,6 @@ function ReportContent() {
           </div>
         </div>
       )}
-      {reportLoadError && (
-        <div className="mb-8 flex flex-col items-center justify-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-center" role="alert">
-          <p className="text-sm font-medium text-red-800">{reportLoadError}</p>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setReportLoadRequest((request) => request + 1)}
-            className="rounded-xl border-red-300 bg-white text-red-700 hover:bg-red-100"
-          >
-            Try again
-          </Button>
-        </div>
-      )}
 
       {siteData.length > 0 ? (
         <>
@@ -1054,7 +1349,7 @@ function ReportContent() {
           )}
           </div>
           <div className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white">
-            Showing {filteredData.length} of {siteData.length} sites
+            Showing {filteredData.length} of {(customReportData ?? siteData).length} sites
           </div>
         </div>
       </div>
@@ -1108,34 +1403,8 @@ function ReportContent() {
             <div className="flex justify-between items-center">
               <p className="text-blue-100">Generate a report with your selected devices</p>
               <Button
-                onClick={() => {
-                  setReportGenerating(true)
-
-                  // Filter data to only include selected devices
-                  const selectedSitesData = filteredData.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
-
-                  // Update filtered data to only show selected devices in the report
-                  setFilteredData(selectedSitesData)
-
-                  // If only one device is selected, set it as the selected site
-                  if (selectedDevices.length === 1) {
-                    const site = selectedSitesData[0]
-                    if (site) setSelectedSite(site)
-                  }
-
-                  // Show the report on page with a slight delay for visual effect
-                  setTimeout(() => {
-                    setShowReportOnPage(true)
-                    setReportGenerating(false)
-
-                    // Scroll to the report
-                    const reportElement = document.getElementById("report-section")
-                    if (reportElement) {
-                      reportElement.scrollIntoView({ behavior: "smooth" })
-                    }
-                  }, 800)
-                }}
-                disabled={reportGenerating}
+                onClick={() => handleGenerateReport()}
+                disabled={!hasRequiredReportScope || reportGenerating}
                 className="rounded-xl bg-white text-blue-600 hover:bg-blue-50"
               >
                 {reportGenerating ? (
@@ -1159,7 +1428,7 @@ function ReportContent() {
           <div className="flex gap-2">
             <Button variant="outline" onClick={selectAllDevices} size="sm" 
             className="rounded-xl border-blue-700 bg-blue-500 text-white hover:bg-blue-600">
-              Select All
+              {filteredData.length > MAX_RANDOM_SITE_SELECTION ? "Select Random 20" : "Select All"}
             </Button>
             <Button variant="outline" onClick={clearDeviceSelection} size="sm" className="rounded-xl">
               Clear All
@@ -1176,36 +1445,8 @@ function ReportContent() {
               className="h-11 flex-1 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white"
             />
             <Button
-              onClick={() => {
-                if (selectedDevices.length > 0) {
-                  setReportGenerating(true)
-
-                  // Filter data to only include selected devices
-                  const selectedSitesData = filteredData.filter((site) => selectedDevices.includes(getSiteSelectionId(site)))
-
-                  // Update filtered data to only show selected devices in the report
-                  setFilteredData(selectedSitesData)
-
-                  // If only one device is selected, set it as the selected site
-                  if (selectedDevices.length === 1) {
-                    const site = selectedSitesData[0]
-                    if (site) setSelectedSite(site)
-                  }
-
-                  // Show the report on page with a slight delay for visual effect
-                  setTimeout(() => {
-                    setShowReportOnPage(true)
-                    setReportGenerating(false)
-
-                    // Scroll to the report
-                    const reportElement = document.getElementById("report-section")
-                    if (reportElement) {
-                      reportElement.scrollIntoView({ behavior: "smooth" })
-                    }
-                  }, 800)
-                }
-              }}
-              disabled={selectedDevices.length === 0 || reportGenerating}
+              onClick={() => handleGenerateReport()}
+              disabled={!hasRequiredReportScope || reportGenerating}
               className="rounded-xl bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap"
             >
               {reportGenerating ? (
@@ -1214,7 +1455,7 @@ function ReportContent() {
                   Generating...
                 </>
               ) : (
-                "Generate Report"
+                selectedDevices.length > 0 ? "Generate selected" : "Generate Report"
               )}
             </Button>
           </div>
@@ -1250,70 +1491,123 @@ function ReportContent() {
       </div>
 
       {/* Report Action Buttons */}
-      <div className="flex justify-end mb-6">
+      <div className={`mb-4 rounded-2xl border px-4 py-3 ${
+        hasRequiredReportScope
+          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+          : "border-amber-200 bg-amber-50 text-amber-900"
+      }`}>
+        <div className="flex items-start gap-3">
+          <div className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${hasRequiredReportScope ? "bg-emerald-500" : "bg-amber-500"}`} />
+          <div>
+            <p className="text-sm font-bold">{hasRequiredReportScope ? "Report scope ready" : "Choose a report area"}</p>
+            <p className="mt-0.5 text-xs leading-5 opacity-80">
+              {hasRequiredReportScope
+                ? `The report will use ${filters.district.length ? "district" : "city"}-level data for the selected date range.`
+                : "Select at least one city or district. Country-only reports are disabled to keep results focused and meaningful."}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="mb-6 flex flex-wrap justify-end gap-2">
         <Button
-          onClick={() => setShowReportOnPage(!showReportOnPage)}
-          className="bg-green-600 hover:bg-green-700 text-white"
+          onClick={() => {
+            if (showReportOnPage) {
+              setShowReportOnPage(false)
+              return
+            }
+            if (customReportData && reportDateRange) {
+              setShowReportOnPage(true)
+              return
+            }
+            handleGenerateReport()
+          }}
+          disabled={(!showReportOnPage && !hasRequiredReportScope) || reportGenerating}
+          className="bg-green-600 text-white hover:bg-green-700"
         >
-          {showReportOnPage ? "Hide Report" : "View Report"}
+          {reportGenerating
+            ? "Generating report..."
+            : showReportOnPage
+              ? "Hide Report"
+              : customReportData && reportDateRange
+                ? "Show Report"
+                : "Generate Report"}
         </Button>
-        {showReportOnPage && selectedDevices.length > 0 && selectedDevices.length < siteData.length && (
+        <Button
+          onClick={() => setIsReportDataModalOpen(true)}
+          disabled={!hasRequiredReportScope || reportGenerating}
+          className="bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+        >
+          <CalendarRange className="mr-2 h-4 w-4" />
+          Customize data & sites
+        </Button>
+        {showReportOnPage &&
+          (customReportData !== null ||
+            (selectedDevices.length > 0 && selectedDevices.length < siteData.length)) && (
           <Button
             onClick={() => {
-              // Reset to show all filtered data based on current filters
-              setFilteredData(filterSites(siteData, filters))
+              if (customReportData) {
+                clearHistoricalReport()
+              } else {
+                setFilteredData(filterSites(siteData, filters))
+              }
             }}
-            className="bg-gray-600 hover:bg-gray-700 text-white ml-2"
+            className="bg-gray-600 text-white hover:bg-gray-700"
           >
-            Back to All Data
+            {customReportData ? "Use Latest Data" : "Back to All Data"}
           </Button>
         )}
       </div>
 
       {showReportOnPage && (
         <div id="report-section" className="mb-8 bg-white rounded-lg shadow-lg p-6 border border-gray-200">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">{getReportTitle()}</h2>
-            <div className="flex space-x-2">
-              <Button
-                onClick={generatePDF}
-                disabled={isGeneratingPDF}
-                className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {isGeneratingPDF ? (
-                  <>
-                    <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                    Generating PDF...
-                  </>
-                ) : (
-                  <>
-                    <Download className="mr-2 h-4 w-4" />
-                    Download PDF
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={() => window.print()}
-                className="flex items-center justify-center bg-gray-600 hover:bg-gray-700 text-white"
-              >
-                <Printer className="mr-2 h-4 w-4" />
-                Print
-              </Button>
-              <Button
-                onClick={() => setShowAdvancedAnalysis(!showAdvancedAnalysis)}
-                className="flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                <BrainCircuit className="mr-2 h-4 w-4" />
-                {showAdvancedAnalysis ? "Hide Advanced Analysis" : "Show Advanced Analysis"}
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end space-x-2 mb-4">
-            <Label htmlFor="advanced-mode" className="text-sm font-medium cursor-pointer">
-              Advanced Spatial Analysis
-            </Label>
-            <Switch id="advanced-mode" checked={showAdvancedAnalysis} onCheckedChange={setShowAdvancedAnalysis} />
+          <div className="mb-5 flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 pb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsReportDataModalOpen(true)}
+              className="h-9 rounded-lg border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            >
+              <CalendarRange className="mr-1.5 h-4 w-4 text-emerald-600" />
+              Change sites
+            </Button>
+            <Button
+              size="sm"
+              onClick={generatePDF}
+              disabled={isGeneratingPDF}
+              className="h-9 rounded-lg bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+            >
+              {isGeneratingPDF ? (
+                <><div className="mr-1.5 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Preparing PDF...</>
+              ) : (
+                <><Download className="mr-1.5 h-4 w-4" />Download PDF</>
+              )}
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 rounded-lg border-slate-300 bg-white text-slate-700 hover:bg-slate-50">
+                  <MoreHorizontal className="mr-1.5 h-4 w-4" />
+                  More actions
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 rounded-xl border-slate-200 p-2 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-slate-50"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Printer className="h-4 w-4" /></span>
+                  <span><span className="block text-sm font-semibold text-slate-800">Print report</span><span className="block text-xs text-slate-500">Open the browser print dialog</span></span>
+                </button>
+                <div className="my-1 border-t border-slate-100" />
+                <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600"><BrainCircuit className="h-4 w-4" /></span>
+                    <div><Label htmlFor="advanced-mode" className="cursor-pointer text-sm font-semibold text-slate-800">Advanced analysis</Label><p className="text-xs text-slate-500">Spatial statistics and clusters</p></div>
+                  </div>
+                  <Switch id="advanced-mode" checked={showAdvancedAnalysis} onCheckedChange={setShowAdvancedAnalysis} />
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div ref={reportRef} className="space-y-6">
@@ -1323,7 +1617,14 @@ function ReportContent() {
               <p className="text-gray-600 mt-2">
                 {getLocationInfo().city}, {getLocationInfo().country}
               </p>
-              <p className="text-gray-500 mt-1">Report Date: {format(new Date(), "MMMM d, yyyy")}</p>
+              {reportDateRange && (
+                <p className="mt-1 font-medium text-blue-700">
+                  Data Period: {format(new Date(reportDateRange.startDate.slice(0, 10) + "T12:00:00Z"), "MMMM d, yyyy")}
+                  {" to "}
+                  {format(new Date(reportDateRange.endDate.slice(0, 10) + "T12:00:00Z"), "MMMM d, yyyy")}
+                </p>
+              )}
+              <p className="text-gray-500 mt-1">Report Generated: {format(new Date(), "MMMM d, yyyy")}</p>
             </div>
 
             {/* Map snapshot of selected area */}
@@ -1338,12 +1639,12 @@ function ReportContent() {
                     <span>{formatSelectionList(filters.country, "All Countries")}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">City</span>
-                    <span>{formatSelectionList(filters.city, "All Cities")}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
                     <span className="font-medium">District</span>
                     <span>{formatSelectionList(filters.district, "All Districts")}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">City</span>
+                    <span>{formatSelectionList(filters.city, "All Cities")}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-medium">Sites mapped</span>
@@ -1393,7 +1694,7 @@ function ReportContent() {
                                 <span className="font-medium">{meta.label}</span>
                               </div>
                               <div className="text-sm text-gray-700">
-                                PM2.5: {(site.pm2_5?.value ?? 0).toFixed(1)} µg/m³
+                                PM₂.₅: {(site.pm2_5?.value ?? 0).toFixed(1)} µg/m³
                               </div>
                               <div className="text-xs text-gray-500">
                                 {site.siteDetails.city || "Unknown City"}, {site.siteDetails.country || "Unknown"}
@@ -1427,20 +1728,32 @@ function ReportContent() {
 
               <div className="space-y-4 px-5 py-5 text-sm leading-7 text-slate-700 sm:px-6 sm:py-6 sm:text-base">
                 <p>
-                  This report assesses recent air quality conditions across {getReportScopeDescription()}. It brings
-                  together the latest available readings from {filteredData.length} AirQo monitoring
-                  {filteredData.length === 1 ? " site" : " sites"}, with a primary focus on PM<sub>2.5</sub>, a fine
-                  particulate pollutant used to describe health-relevant air quality conditions.
-                  The analysis combines current PM<sub>2.5</sub> readings, Air Quality Index categories, week-over-week
-                  averages, and geographic patterns. It highlights higher- and lower-pollution locations, summarizes
-                  short-term changes, and provides practical health guidance; conditions may still vary with weather,
-                  traffic, local emissions, and sensor availability.
+                  This report summarizes air quality conditions across <strong>{getReportScopeDescription()}</strong>
+                  {reportDateRange && (
+                    <>
+                      {" "}from <strong>{formatReportDate(reportDateRange.startDate)}</strong> to{" "}
+                      <strong>{formatReportDate(reportDateRange.endDate)}</strong>
+                    </>
+                  )}. It brings together {reportDateRange ? "historical measurements" : "the latest available readings"} from{" "}
+                  <strong>{filteredData.length} monitoring {filteredData.length === 1 ? "site" : "sites"}</strong>.
+                  PM<sub>2.5</sub> is the primary indicator, while Air Quality Index categories translate measured
+                  concentrations into health-relevant conditions.
+                </p>
+                <p>
+                  Across the selected sites, average PM<sub>2.5</sub> was{" "}
+                  <strong>{avgPM25.toFixed(1)} {"\u00b5g/m\u00b3"}</strong>, corresponding to an overall AQI category of{" "}
+                  <strong>{avgAQICategory}</strong>. The network average {averageChangeDescription}. The sections that
+                  follow compare monitoring locations, show geographic and temporal patterns, identify higher- and
+                  lower-pollution conditions, and provide practical health guidance. Results reflect available sensor
+                  coverage and may vary with weather, traffic, local emissions, and temporary data gaps.
                 </p>
               </div>
             </section>
             {/* AQI Index Visualization */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Current Air Quality Status</h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">
+                {reportDateRange ? "Average Air Quality Status for the Selected Period" : "Current Air Quality Status"}
+              </h3>
               <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                 <AQIIndexVisual
                   aqiCategory={selectedSite ? selectedSite.aqi_category || "Unknown" : avgAQICategory}
@@ -1460,10 +1773,10 @@ function ReportContent() {
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                   <h4 className="font-semibold text-gray-700 mb-1">Average PM<sub>2.5</sub></h4>
-                  <p className="text-2xl font-bold">{calculateAveragePM25(filteredData).toFixed(2)} µg/m³</p>
+                  <p className="text-2xl font-bold">{calculateAveragePM25(filteredData).toFixed(1)} µg/m³</p>
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <h4 className="font-semibold text-gray-700 mb-1">Weekly Change</h4>
+                  <h4 className="font-semibold text-gray-700 mb-1">{comparisonPeriod === "monthly" ? "Monthly" : "Weekly"} Change</h4>
                   <p className="text-2xl font-bold flex items-center">
                     {calculateAveragePercentageChange(filteredData).toFixed(2)}%
                     {calculateAveragePercentageChange(filteredData) < 0 ? (
@@ -1480,18 +1793,155 @@ function ReportContent() {
               {/* Charts */}
               <div className="space-y-6">
                 <PM25BarChart sites={filteredData} />
+                <PM25CalendarPlot sites={filteredData} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <AQICategoryChart sites={filteredData} />
-                  <WeeklyComparisonChart sites={filteredData} />
+                  <AQICategoryChart
+                    sites={filteredData}
+                    periodGrouping={reportTimelineGrouping}
+                    selectedPeriod={reportTimelinePeriod}
+                    onPeriodGroupingChange={setReportTimelineGrouping}
+                    onSelectedPeriodChange={setReportTimelinePeriod}
+                  />
+                  <WeeklyComparisonChart
+                    sites={filteredData}
+                    comparisonPeriod={comparisonPeriod}
+                    rangeDays={reportDurationDays}
+                    timelineGrouping={reportTimelineGrouping}
+                    timelinePeriod={reportTimelinePeriod}
+                  />
                 </div>
               </div>
+
+              {/* Device comparison follows the AQI Category Distribution period selection. */}
+              <section className="pdf-keep-together mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-3 sm:px-4">
+                  <h4 className="text-base font-semibold text-slate-950">Device Comparison Table</h4>
+                  {!pdfMode && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        type="search"
+                        value={comparisonSearch}
+                        onChange={(event) => setComparisonSearch(event.target.value)}
+                        placeholder="Filter devices..."
+                        aria-label="Filter comparison table"
+                        className="h-7 w-40 rounded-md px-2.5 text-xs"
+                      />
+                      <select
+                        value={effectiveComparisonAqiFilter}
+                        onChange={(event) => setComparisonAqiFilter(event.target.value)}
+                        aria-label="Filter by AQI category"
+                        className="h-7 max-w-[210px] rounded-md border border-slate-300 bg-white px-2 text-xs font-medium text-slate-700"
+                      >
+                        <option value="all">All AQI categories</option>
+                        {comparisonAqiOptions.map((category) => (
+                          <option key={category} value={category}>{category}</option>
+                        ))}
+                      </select>
+                      <span className="text-xs font-medium text-slate-600">Show rows:</span>
+                      {([5, 10] as const).map((rowCount) => (
+                        <button
+                          key={rowCount}
+                          type="button"
+                          onClick={() => setComparisonRowsShown(rowCount)}
+                          className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition ${
+                            comparisonRowsShown === rowCount
+                              ? "border-blue-600 bg-blue-600 text-white"
+                              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                          aria-pressed={comparisonRowsShown === rowCount}
+                        >
+                          {rowCount}
+                        </button>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void downloadComparisonTablePng()}
+                        disabled={isDownloadingComparisonPng || filteredComparisonTableRows.length === 0}
+                        className="h-7 gap-1.5 rounded-md px-2.5 text-xs"
+                      >
+                        {isDownloadingComparisonPng ? (
+                          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        PNG
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div
+                  data-comparison-table-scroll
+                  className="overflow-auto border-t border-slate-100"
+                  style={{ maxHeight: pdfMode ? "none" : comparisonRowsShown === 5 ? "236px" : "436px" }}
+                >
+                  <table
+                    ref={comparisonTableRef}
+                    data-device-comparison-table
+                    className="w-full min-w-[760px] border-collapse bg-white text-left text-xs text-slate-800"
+                  >
+                    <thead className="sticky top-0 z-10 bg-slate-50 text-slate-700">
+                      <tr>
+                        <th scope="col" className="w-[38%] px-3 py-2 font-medium">Device Name</th>
+                        <th scope="col" className="w-[16%] px-3 py-2 font-medium">Category</th>
+                        <th scope="col" className="w-[11%] px-3 py-2 font-medium">
+                          PM<sub>2.5</sub>
+                        </th>
+                        <th scope="col" className="w-[27%] px-3 py-2 font-medium">AQI Category</th>
+                        <th scope="col" className="w-[8%] px-3 py-2 text-right font-medium">Location</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredComparisonTableRows.map(({ site, pm25Value, aqiCategory }, index) => {
+                        const aqiMeta = getAQIMeta(aqiCategory)
+                        const siteCategory = site.siteDetails?.site_category?.category || "Uncategorized"
+                        const displayCategory = siteCategory === "Water Body" ? "Urban Background" : siteCategory
+
+                        return (
+                          <tr
+                            key={`comparison-${getSiteSelectionId(site)}`}
+                            className={`border-t border-slate-100 ${index % 2 === 0 ? "bg-blue-50/70" : "bg-white"}`}
+                          >
+                            <th scope="row" className="px-3 py-2 font-semibold text-slate-950">
+                              {site.siteDetails?.name || site.siteDetails?.formatted_name || "Unknown Device"}
+                            </th>
+                            <td className="px-3 py-2">{displayCategory}</td>
+                            <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-950">
+                              {typeof pm25Value === "number" ? `${pm25Value.toFixed(1)} \u00b5g/m\u00b3` : "N/A"}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span
+                                className="inline-flex whitespace-nowrap rounded px-2 py-1 font-semibold text-white"
+                                style={{ backgroundColor: aqiMeta.color }}
+                              >
+                                {aqiMeta.label}
+                              </span>
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right">
+                              {site.siteDetails?.city || site.siteDetails?.district || "Unknown"}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      {filteredComparisonTableRows.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-8 text-center text-sm text-slate-500">
+                            No devices match the selected table filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
 
               <div className="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <h4 className="font-semibold text-gray-700 mb-2">Key Findings</h4>
                 <ul className="list-disc list-inside space-y-2 text-gray-700">
                   <li>
                     The average PM<sub>2.5</sub> concentration is{" "}
-                    <strong>{calculateAveragePM25(filteredData).toFixed(2)} µg/m³</strong>, which is classified as{" "}
+                    <strong>{calculateAveragePM25(filteredData).toFixed(1)} µg/m³</strong>, which is classified as{" "}
                     <strong>{avgAQICategory}</strong>.
                   </li>
                   <li>
@@ -1500,8 +1950,18 @@ function ReportContent() {
                       {Math.abs(calculateAveragePercentageChange(filteredData)).toFixed(2)}%{" "}
                       {calculateAveragePercentageChange(filteredData) < 0 ? "decrease" : "increase"}
                     </strong>{" "}
-                    in PM<sub>2.5</sub> levels compared to the previous week.
+                    in PM<sub>2.5</sub> levels compared to the previous {comparisonPeriod === "monthly" ? "month" : "week"}.
                   </li>
+                  {dailyPm25Extremes && (
+                    <li>
+                      The highest daily average PM<sub>2.5</sub> concentration was{" "}
+                      <strong>{dailyPm25Extremes.highest.value.toFixed(1)} {"\u00b5g/m\u00b3"}</strong> on{" "}
+                      <strong>{dailyPm25Extremes.highest.dates.map(formatReportDate).join(", ")}</strong>, while the
+                      lowest daily average was{" "}
+                      <strong>{dailyPm25Extremes.lowest.value.toFixed(1)} {"\u00b5g/m\u00b3"}</strong> on{" "}
+                      <strong>{dailyPm25Extremes.lowest.dates.map(formatReportDate).join(", ")}</strong>.
+                    </li>
+                  )}
                   {Object.entries(calculateAQICategoryCounts(filteredData)).length > 1 && (
                     <li>
                       The most common air quality category is{" "}
@@ -1517,7 +1977,7 @@ function ReportContent() {
                   {selectedSite && (
                     <li>
                       {selectedSite.siteDetails.name} has a PM<sub>2.5</sub> reading of{" "}
-                      <strong>{(selectedSite.pm2_5?.value || 0).toFixed(2)} µg/m³</strong>, which is{" "}
+                      <strong>{(selectedSite.pm2_5?.value || 0).toFixed(1)} µg/m³</strong>, which is{" "}
                       {compareToAverage(selectedSite.pm2_5?.value || 0, calculateAveragePM25(filteredData))} the
                       regional average.
                     </li>
@@ -1527,7 +1987,7 @@ function ReportContent() {
                       <strong>Pollution Hotspots:</strong>{" "}
                       {getHotspotSites(filteredData).map((site, index, arr) => (
                         <span key={getSiteSelectionId(site)}>
-                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(2)} µg/m³)
+                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(1)} µg/m³)
                           {index < arr.length - 1 ? ", " : ""}
                         </span>
                       ))}
@@ -1540,7 +2000,7 @@ function ReportContent() {
                       <strong>Lower-Pollution sites:</strong>{" "}
                       {getColdspotSites(filteredData).map((site, index, arr) => (
                         <span key={getSiteSelectionId(site)}>
-                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(2)} µg/m³)
+                          {site.siteDetails?.name || "Unknown Site"} ({(site.pm2_5?.value || 0).toFixed(1)} µg/m³)
                           {index < arr.length - 1 ? ", " : ""}
                         </span>
                       ))}
@@ -1628,8 +2088,8 @@ function ReportContent() {
             icon={<Globe className="h-7 w-7 text-blue-500" />}
           />
           <SummaryCard
-            title="Average PM2.5"
-            value={`${calculateAveragePM25(filteredData).toFixed(2)} \u00B5g/m\u00B3`}
+            title="Average PM₂.₅"
+            value={`${calculateAveragePM25(filteredData).toFixed(1)} \u00B5g/m\u00B3`}
             icon={<BarChart3 className="h-7 w-7 text-emerald-500" />}
           />
           <SummaryCard
@@ -1669,7 +2129,9 @@ function ReportContent() {
         <Button
           variant="outline"
           onClick={() => {
-            const allCollapsed = Object.keys(sitesByCategory).every((category) => collapsedCategories[category])
+            const allCollapsed = Object.keys(sitesByCategory).every(
+              (category) => collapsedCategories[category] !== false,
+            )
 
             if (allCollapsed) {
               // Expand all
@@ -1689,7 +2151,7 @@ function ReportContent() {
           }}
           className="h-10 shrink-0 rounded-xl border-blue-200 bg-blue-50/60 px-4 font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-100"
         >
-          {Object.keys(sitesByCategory).every((category) => collapsedCategories[category])
+          {Object.keys(sitesByCategory).every((category) => collapsedCategories[category] !== false)
             ? "Expand All Categories"
             : "Collapse All Categories"}
         </Button>
@@ -1745,7 +2207,7 @@ function ReportContent() {
               </Button>
               <div
                 onClick={() => toggleCategoryCollapse(category)}
-                className={`transform transition-transform duration-300 ${collapsedCategories[category] ? "rotate-180" : ""}`}
+                className={`transform transition-transform duration-300 ${collapsedCategories[category] !== false ? "rotate-180" : ""}`}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -1767,7 +2229,7 @@ function ReportContent() {
 
           <div
             className={`transition-all duration-500 ease-in-out overflow-hidden ${
-              collapsedCategories[category] ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
+              collapsedCategories[category] !== false ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
             }`}
           >
             <div className="grid grid-cols-1 gap-4 p-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1777,30 +2239,8 @@ function ReportContent() {
                   <SiteCard
                     key={getSiteSelectionId(site)}
                     site={site}
-                    onSelect={() => {
-                      setSelectedSite(site)
-
-                      // Generate report for this single device
-                      setReportGenerating(true)
-
-                      // Filter data to only include this device
-                      const selectedSitesData = [site]
-
-                      // Update filtered data to only show this device in the report
-                      setFilteredData(selectedSitesData)
-
-                      // Show the report on page with a slight delay for visual effect
-                      setTimeout(() => {
-                        setShowReportOnPage(true)
-                        setReportGenerating(false)
-
-                        // Scroll to the report
-                        const reportElement = document.getElementById("report-section")
-                        if (reportElement) {
-                          reportElement.scrollIntoView({ behavior: "smooth" })
-                        }
-                      }, 800)
-                    }}
+                    onSelect={() => void generateHistoricalReport([site])}
+                    reportDisabled={!hasRequiredReportScope || reportGenerating}
                     isSelected={selectedSite ? getSiteSelectionId(selectedSite) === getSiteSelectionId(site) : false}
                     isCheckboxSelected={isSiteSelected}
                     onCheckboxChange={() => toggleDeviceSelection(getSiteSelectionId(site))}
@@ -1834,7 +2274,7 @@ function ReportContent() {
             />
             <HealthTipBox
               title="For Active Individuals"
-              description="Consider indoor workouts when PM2.5 levels exceed 35.5 µg/m³."
+              description="Consider indoor workouts when PM₂.₅ levels exceed 35.5 µg/m³."
             />
           </div>
         </CardContent>
@@ -1842,6 +2282,16 @@ function ReportContent() {
       )}
         </>
       ) : null}
+      <ReportDataModal
+        isOpen={isReportDataModalOpen}
+        onClose={() => setIsReportDataModalOpen(false)}
+        sites={filterSites(siteData, filters)}
+        dateRange={reportQueryRange}
+        aggregation={reportAggregation}
+        onAggregationChange={setReportAggregation}
+        canGenerate={hasRequiredReportScope}
+        onReportReady={handleHistoricalReportReady}
+      />
     </div>
   )
 }
@@ -1985,6 +2435,7 @@ function SiteCard({
   isCheckboxSelected,
   onCheckboxChange,
   lastSelectedId,
+  reportDisabled,
 }: {
   site: SiteData
   onSelect?: () => void
@@ -1992,6 +2443,7 @@ function SiteCard({
   isCheckboxSelected?: boolean
   onCheckboxChange?: () => void
   lastSelectedId?: string | null
+  reportDisabled?: boolean
 }) {
   const pm25Value = site.pm2_5?.value ?? 0
   const aqiCategory = site.aqi_category || "Unknown"
@@ -2112,9 +2564,9 @@ function SiteCard({
 
         <div className="mt-3 grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)] gap-2">
           <div className="rounded-xl border border-white/80 bg-white/80 p-3 shadow-sm backdrop-blur">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Current PM2.5</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Current PM₂.₅</p>
             <p className={`mt-0.5 text-2xl font-bold tracking-tight ${theme.metric}`}>
-              {pm25Value.toFixed(2)} <span className="text-sm font-semibold">µg/m³</span>
+              {pm25Value.toFixed(1)} <span className="text-sm font-semibold">µg/m³</span>
             </p>
           </div>
           <div className="flex flex-col justify-between rounded-xl border border-white/80 bg-white/70 p-3 shadow-sm backdrop-blur">
@@ -2146,7 +2598,7 @@ function SiteCard({
           <div className="mt-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Previous</p>
-              <p className="text-sm font-bold text-slate-700">{previousWeek.toFixed(2)}</p>
+              <p className="text-sm font-bold text-slate-700">{previousWeek.toFixed(1)}</p>
               <p className="hidden">µg/m³</p>
             </div>
             <div className={`flex h-8 w-8 items-center justify-center rounded-full ${theme.soft}`}>
@@ -2154,7 +2606,7 @@ function SiteCard({
             </div>
             <div className="text-right">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Current</p>
-              <p className="text-sm font-bold text-slate-900">{currentWeek.toFixed(2)}</p>
+              <p className="text-sm font-bold text-slate-900">{currentWeek.toFixed(1)}</p>
               <p className="hidden">µg/m³</p>
             </div>
           </div>
@@ -2164,6 +2616,7 @@ function SiteCard({
           <Button
             variant={isSelected ? "default" : "outline"}
             size="sm"
+            disabled={reportDisabled}
             onClick={(e) => {
               e.stopPropagation()
               onSelect()
@@ -2174,7 +2627,7 @@ function SiteCard({
                 : "border-blue-200 bg-white/80 text-blue-700 hover:border-blue-300 hover:bg-blue-50"
             }`}
           >
-            {isSelected ? "Selected for report" : "View detailed report"}
+            {reportDisabled ? "Select a city or district first" : isSelected ? "Selected for report" : "View detailed report"}
           </Button>
         )}
       </CardContent>
@@ -2234,6 +2687,35 @@ function HealthTipBox({ title, description }: { title: string; description: stri
 // Modify the AdvancedAnalysisSection component to make it more compact for PDF
 function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteData[]; activeTab?: string }) {
   const [localActiveTab, setLocalActiveTab] = useState(activeTab)
+  const moranChartRef = useRef<HTMLDivElement>(null)
+  const getisOrdChartRef = useRef<HTMLDivElement>(null)
+
+  const downloadSpatialChartPng = async (element: HTMLDivElement | null, filename: string) => {
+    if (!element) return
+    try {
+      const canvas = await html2canvas(element, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        onclone: (clonedDocument) => {
+          clonedDocument.querySelectorAll<HTMLElement>("[data-chart-export-control]").forEach((control) => {
+            control.style.display = "none"
+          })
+        },
+      })
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"))
+      if (!blob) return
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = filename
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error exporting spatial chart:", error)
+    }
+  }
 
   // Use the passed activeTab if it's "both", otherwise use local state
   const effectiveTab = activeTab === "both" ? "both" : localActiveTab
@@ -2247,7 +2729,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
     {
       type: "HH (High-High)",
       count: Math.floor(sites.length * 0.25),
-      description: "Areas with high PM2.5 values surrounded by areas with high values",
+      description: "Areas with high PM₂.₅ values surrounded by areas with high values",
       devices: sites
         .slice(0, Math.floor(sites.length * 0.25))
         .map((site) => site.siteDetails?.name || site.siteDetails?.formatted_name || "Unknown Site"),
@@ -2255,7 +2737,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
     {
       type: "LL (Low-Low)",
       count: Math.floor(sites.length * 0.3),
-      description: "Areas with low PM2.5 values surrounded by areas with low values",
+      description: "Areas with low PM₂.₅ values surrounded by areas with low values",
       devices: sites
         .slice(Math.floor(sites.length * 0.25), Math.floor(sites.length * 0.25) + Math.floor(sites.length * 0.3))
         .map((site) => site.siteDetails?.name || site.siteDetails?.formatted_name || "Unknown Site"),
@@ -2263,7 +2745,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
     {
       type: "HL (High-Low)",
       count: Math.floor(sites.length * 0.15),
-      description: "Areas with high PM2.5 values surrounded by areas with low values (potential outliers)",
+      description: "Areas with high PM₂.₅ values surrounded by areas with low values (potential outliers)",
       devices: sites
         .slice(
           Math.floor(sites.length * 0.25) + Math.floor(sites.length * 0.3),
@@ -2274,7 +2756,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
     {
       type: "LH (Low-High)",
       count: Math.floor(sites.length * 0.1),
-      description: "Areas with low PM2.5 values surrounded by areas with high values (potential outliers)",
+      description: "Areas with low PM₂.₅ values surrounded by areas with high values (potential outliers)",
       devices: sites
         .slice(
           Math.floor(sites.length * 0.25) + Math.floor(sites.length * 0.3) + Math.floor(sites.length * 0.15),
@@ -2423,9 +2905,20 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="py-3">
+        <Card ref={moranChartRef}>
+          <CardHeader className="flex-row items-center justify-between space-y-0 py-3">
             <CardTitle className="text-base">Cluster and Outlier Analysis</CardTitle>
+            <Button
+              data-chart-export-control
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void downloadSpatialChartPng(moranChartRef.current, "moran_cluster_analysis.png")}
+              className="h-8 gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              PNG
+            </Button>
           </CardHeader>
           <CardContent className="h-[250px] p-3">
             <ResponsiveContainer width="100%" height="100%">
@@ -2474,7 +2967,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
         <h4 className="font-semibold text-gray-700 mb-2">Key Insights from Local Moran&apos;s I Analysis</h4>
         <ul className="list-disc list-inside space-y-1 text-gray-700 text-sm">
           <li>
-            <strong>High-High Clusters:</strong> {moranData[0].count} sites show high PM2.5 values clustered together,
+            <strong>High-High Clusters:</strong> {moranData[0].count} sites show high PM₂.₅ values clustered together,
             indicating potential pollution hotspots that require immediate attention.
           </li>
           <li>
@@ -2482,7 +2975,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
             or LH), suggesting localized emission sources or unique geographical factors affecting air quality.
           </li>
           <li>
-            <strong>Low-Low Clusters:</strong> {moranData[1].count} sites show low PM2.5 values clustered together,
+            <strong>Low-Low Clusters:</strong> {moranData[1].count} sites show low PM₂.₅ values clustered together,
             representing areas with consistently better air quality.
           </li>
         </ul>
@@ -2538,9 +3031,20 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="py-3">
+        <Card ref={getisOrdChartRef}>
+          <CardHeader className="flex-row items-center justify-between space-y-0 py-3">
             <CardTitle className="text-base">Hot Spot Analysis</CardTitle>
+            <Button
+              data-chart-export-control
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void downloadSpatialChartPng(getisOrdChartRef.current, "getis_ord_hot_spot_analysis.png")}
+              className="h-8 gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              PNG
+            </Button>
           </CardHeader>
           <CardContent className="h-[250px] p-3">
             <ResponsiveContainer width="100%" height="100%">
@@ -2687,4 +3191,42 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
       )}
     </div>
   )
+}
+type DailyPm25Extreme = {
+  dates: string[]
+  value: number
+}
+
+const getDailyPm25Extremes = (sites: SiteData[]): { highest: DailyPm25Extreme; lowest: DailyPm25Extreme } | null => {
+  const valuesByDate = new Map<string, number[]>()
+
+  sites.forEach((site) => {
+    site.reportMeasurements?.forEach((measurement) => {
+      const date = new Date(measurement.timestamp)
+      if (Number.isNaN(date.getTime()) || !Number.isFinite(measurement.value)) return
+      const dateKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`
+      valuesByDate.set(dateKey, [...(valuesByDate.get(dateKey) || []), measurement.value])
+    })
+  })
+
+  const dailyValues = Array.from(valuesByDate.entries()).map(([date, values]) => ({
+    date,
+    value: values.reduce((sum, value) => sum + value, 0) / values.length,
+  }))
+  if (dailyValues.length === 0) return null
+
+  const highestValue = Math.max(...dailyValues.map(({ value }) => value))
+  const lowestValue = Math.min(...dailyValues.map(({ value }) => value))
+  const matchesValue = (value: number, target: number) => Math.abs(value - target) < 0.000001
+
+  return {
+    highest: {
+      dates: dailyValues.filter(({ value }) => matchesValue(value, highestValue)).map(({ date }) => date),
+      value: highestValue,
+    },
+    lowest: {
+      dates: dailyValues.filter(({ value }) => matchesValue(value, lowestValue)).map(({ date }) => date),
+      value: lowestValue,
+    },
+  }
 }
