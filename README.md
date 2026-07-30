@@ -12,11 +12,25 @@ This monorepo is organized into subfolders, each containing code samples for a s
 
 3. **php**: Code samples demonstrating how to access the Air Quality API with PHP.
 
-4. **python**: Code samples for Python applications
+4. **python**: Code samples for Python applications 
 
 ## Getting Started
 
 To get started with any of the code samples, navigate to the respective subfolder and follow the instructions provided in the README or code comments. Each subfolder contains code examples and explanations specific to the programming language or framework.
+
+### Run the Leaflet forecast sample
+
+Node.js 18 or newer is required. From the repository root, configure your AirQo credentials and start the server in PowerShell:
+
+```powershell
+$env:AIRQO_API_TOKEN = "your-access-token"
+$env:AIRQO_GRID_ID = "your-grid-id"
+
+copy this in the terminal
+node .\javascript\leaflet-forecast-server.js
+```
+
+Keep the terminal running, then open <http://127.0.0.1:8080/> in a browser. Do not open `leaflet-with-forecast.html` directly as a `file://` URL because the server-side proxy is required for the AirQo API requests.
 
 ## Code Samples
 
