@@ -112,6 +112,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   const [seriesMode, setSeriesMode] = useState<"separate" | "merged">("separate")
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
   const [sortOrder, setSortOrder] = useState<"highest" | "lowest" | "none">("none")
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(() => new Set())
   const [aggregation, setAggregation] = useState<"daily" | "weekly" | "monthly">(
     () => sites.find((site) => site.reportAggregation)?.reportAggregation || "daily",
   )
@@ -120,6 +121,21 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
   useEffect(() => {
     setAggregation(sites.find((site) => site.reportAggregation)?.reportAggregation || "daily")
   }, [sites])
+
+  useEffect(() => {
+    setHiddenSeries(new Set())
+  }, [siteLimit, aggregation, xAxisView, seriesMode, sortOrder])
+
+  const handleLegendClick = (entry: { dataKey?: unknown }) => {
+    if (typeof entry.dataKey !== "string" && typeof entry.dataKey !== "number") return
+    const dataKey = String(entry.dataKey)
+    setHiddenSeries((current) => {
+      const next = new Set(current)
+      if (next.has(dataKey)) next.delete(dataKey)
+      else next.add(dataKey)
+      return next
+    })
+  }
 
   const handleSiteLimitChange = (value: string) => {
     setSiteLimit(value === "all" ? sites.length : Number.parseInt(value, 10))
@@ -449,7 +465,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 />
                 {hasTemporalData ? (
                   activeSeries.map((series) => (
-                    <Bar key={series.dataKey} dataKey={series.dataKey} name={series.name} fill={series.color} radius={[3, 3, 0, 0]}>
+                    <Bar key={series.dataKey} dataKey={series.dataKey} name={series.name} fill={series.color} hide={hiddenSeries.has(series.dataKey)} radius={[3, 3, 0, 0]}>
                       {useMergedSeries && mergedTemporalData.map((row, index) => (
                         <Cell key={`merged-aqi-${index}`} fill={String(row.color)} />
                       ))}
@@ -480,7 +496,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                     label={{ value: "NEMA Uganda 24h standard: 35 \u00b5g/m\u00b3", position: "insideTopRight", fill: "#1d4ed8", fontSize: 9, fontWeight: 700, stroke: "#ffffff", strokeWidth: 3, paintOrder: "stroke" }}
                   />
                 )}
-                {hasTemporalData && !useMergedSeries && <Legend iconSize={9} wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />}
+                {hasTemporalData && !useMergedSeries && <Legend iconSize={9} onClick={handleLegendClick} wrapperStyle={{ cursor: "pointer", fontSize: 11, lineHeight: "18px" }} />}
               </BarChart>
             ) : (
               <LineChart key={`pm-line-${aggregation}-${xAxisView}-${seriesMode}`} data={hasTemporalData ? activeChartData : displaySites} margin={{ top: 20, right: 10, left: 0, bottom: 70 }}>
@@ -501,7 +517,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 />
                 {hasTemporalData ? (
                   activeSeries.map((series) => (
-                    <Line key={series.dataKey} type="monotone" dataKey={series.dataKey} name={series.name} stroke={series.color} strokeWidth={2} connectNulls />
+                    <Line key={series.dataKey} type="monotone" dataKey={series.dataKey} name={series.name} stroke={series.color} strokeWidth={2} hide={hiddenSeries.has(series.dataKey)} connectNulls />
                   ))
                 ) : (
                   <Line type="monotone" dataKey="pm25" name="PM₂.₅ Level" stroke="#3b82f6" strokeWidth={2} dot={<CustomDot />} activeDot={{ r: 6 }} />
@@ -526,7 +542,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                     label={{ value: "NEMA Uganda 24h standard: 35 \u00b5g/m\u00b3", position: "insideTopRight", fill: "#1d4ed8", fontSize: 9, fontWeight: 700, stroke: "#ffffff", strokeWidth: 3, paintOrder: "stroke" }}
                   />
                 )}
-                {hasTemporalData && <Legend iconSize={9} wrapperStyle={{ fontSize: 11, lineHeight: "18px" }} />}
+                {hasTemporalData && !useMergedSeries && <Legend iconSize={9} onClick={handleLegendClick} wrapperStyle={{ cursor: "pointer", fontSize: 11, lineHeight: "18px" }} />}
               </LineChart>
             )}
           </ResponsiveContainer>
