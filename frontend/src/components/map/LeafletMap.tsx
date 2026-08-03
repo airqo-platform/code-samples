@@ -62,6 +62,8 @@ const MAP_HOURLY_FORECAST_ENABLED_KEY = "map-hourly-forecast-enabled"
 const MAP_API_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000
 const MAP_ACTIVE_FIRES_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
 const DAILY_FORECAST_REFRESH_HOUR_UTC = 3
+const DEFAULT_MAP_CENTER: [number, number] = [1.5, 17.5]
+const DEFAULT_MAP_ZOOM = 4
 
 const isDailyForecastCacheCurrent = (
   cached: BrowserApiCacheEntry<DailyForecastResponse> | null | undefined,
@@ -165,12 +167,23 @@ interface SatelliteData {
   longitude: number
   pm2_5_prediction: number
   timestamp: string
+  date?: string
   aqi_category?: string
   aqi_color?: string
   data_source?: string
   disclaimer?: string
   requested_date?: string
   place_name?: string
+  weather_date?: string
+  weather_source?: string
+  features?: {
+    air_temperature?: number
+    temperature?: number
+    relative_humidity?: number
+    humidity?: number
+    weather_date?: string
+    weather_source?: string
+  }
 }
 
 const unwrapSatelliteData = (data: any): any => {
@@ -185,6 +198,15 @@ const unwrapSatelliteData = (data: any): any => {
   }
 
   return current
+}
+
+const getTodayDate = () => {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, "0")
+  const day = String(today.getDate()).padStart(2, "0")
+
+  return `${year}-${month}-${day}`
 }
 
 // Add type guard for API response
@@ -255,6 +277,10 @@ const PopupContent: React.FC<{
   const { level, image, color } = getAirQualityInfo(data.pm2_5_prediction ?? null)
   const aqiCategory = data.aqi_category || level
   const isSatelliteEstimate = Boolean(data.data_source || data.disclaimer)
+  const temperature = data.features?.air_temperature ?? data.features?.temperature
+  const humidity = data.features?.relative_humidity ?? data.features?.humidity
+  const weatherDate = data.weather_date || data.features?.weather_date
+  const weatherSource = data.weather_source || data.features?.weather_source
 
   // Safely format timestamp
   const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : "Unknown"
@@ -282,11 +308,33 @@ const PopupContent: React.FC<{
         pm25={data.pm2_5_prediction}
         category={aqiCategory}
         color={data.aqi_color}
+        valueLabel="Estimated"
         className="mt-1"
       />
       {isSatelliteEstimate && (
         <div className="mt-2 rounded-md bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-600">
-          Source: Satellite-based PM2.5 estimate
+          Source: Satellite-based PM<sub>2.5</sub> estimate
+        </div>
+      )}
+      {(typeof temperature === "number" || typeof humidity === "number") && (
+        <div className="mt-2 grid grid-cols-2 gap-2 rounded-md bg-sky-50 p-2 text-slate-700">
+          {typeof temperature === "number" && (
+            <div>
+              <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Temperature</div>
+              <div className="text-sm font-semibold">{temperature.toFixed(1)} °C</div>
+            </div>
+          )}
+          {typeof humidity === "number" && (
+            <div>
+              <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Humidity</div>
+              <div className="text-sm font-semibold">{humidity.toFixed(1)}%</div>
+            </div>
+          )}
+        </div>
+      )}
+      {(weatherSource || weatherDate) && (
+        <div className="mt-1 text-[10px] text-slate-500">
+          Weather{weatherSource ? ` from ${weatherSource}` : ""}{weatherDate ? ` (${weatherDate})` : ""}
         </div>
       )}
       <div className="text-xs text-gray-500 mt-2">Updated {timestamp}</div>
@@ -299,20 +347,31 @@ const LoadingPopupContent: React.FC<{
   label: string
   onClose: () => void
 }> = ({ label, onClose }) => (
-  <div className="min-w-[200px] p-3 rounded-lg bg-white border">
+  <div className="min-w-[220px] rounded-lg border bg-white p-3" role="status" aria-live="polite">
     <div className="flex items-center justify-between mb-2">
-      <div className="w-8 h-8">
-        <div className="animate-pulse bg-gray-200 h-full w-full rounded-full" />
-      </div>
-      <button className="text-gray-500 hover:text-gray-700" onClick={onClose}>
+      <div className="h-12 w-12 animate-pulse rounded-full bg-slate-200" />
+      <button className="text-gray-500 hover:text-gray-700" onClick={onClose} aria-label="Close loading popup">
         x
       </button>
     </div>
-    <div className="text-sm font-medium mb-2">{label}</div>
-    <div className="animate-pulse space-y-2">
-      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+    <div className="text-sm font-semibold leading-tight text-slate-950">{label}</div>
+    <div className="mt-1 text-xs text-slate-500">Loading satellite PM<sub>2.5</sub> estimate…</div>
+    <div className="mt-3 animate-pulse space-y-2">
+      <div className="h-5 w-3/4 rounded bg-slate-200" />
+      <div className="h-7 w-full rounded-md bg-slate-100" />
+      <div className="grid grid-cols-2 gap-2 rounded-md bg-sky-50 p-2">
+        <div className="space-y-2">
+          <div className="h-2.5 w-16 rounded bg-slate-200" />
+          <div className="h-4 w-12 rounded bg-slate-200" />
+        </div>
+        <div className="space-y-2">
+          <div className="h-2.5 w-14 rounded bg-slate-200" />
+          <div className="h-4 w-10 rounded bg-slate-200" />
+        </div>
+      </div>
+      <div className="h-3 w-2/3 rounded bg-slate-100" />
     </div>
+    <span className="sr-only">Satellite prediction is loading</span>
   </div>
 )
 
@@ -422,14 +481,15 @@ const SearchControl: React.FC<{
     }
 
     // Event listener to clear markers and reset the map when search is cleared
-    map.on("geosearch/marker/clear", () => {
+    const handleMarkerClear = () => {
       markersRef.current.forEach((marker) => marker.remove())
       markersRef.current = []
       map.setView(defaultCenter, defaultZoom)
-    })
+    }
+    map.on("geosearch/marker/clear", handleMarkerClear)
 
     // Event listener for when a location is found
-    map.on("geosearch/showlocation", async (result: any) => {
+    const handleShowLocation = async (result: any) => {
       try {
         const { x, y, label } = result.location
 
@@ -470,6 +530,7 @@ const SearchControl: React.FC<{
           const response = await getSatelliteData({
             latitude: y,
             longitude: x,
+            timestamp: getTodayDate(),
           })
           const prediction = unwrapSatelliteData(response)
 
@@ -509,21 +570,27 @@ const SearchControl: React.FC<{
           <ErrorPopupContent label="Location Error" onClose={() => {}} errorMessage="Invalid location data received" />,
         )
       }
-    })
+    }
+    map.on("geosearch/showlocation", handleShowLocation)
 
     // Event listener for search input cancel or clear
-    const searchInput = document.querySelector(".leaflet-control-geosearch input")
+    const searchInput = document.querySelector<HTMLInputElement>(".leaflet-control-geosearch input")
+    const handleSearchInput = (event: Event) => {
+      const target = event.target as HTMLInputElement
+      if (!target.value) {
+        map.setView(defaultCenter, defaultZoom)
+        markersRef.current.forEach((marker) => marker.remove())
+        markersRef.current = []
+      }
+    }
     if (searchInput) {
-      searchInput.addEventListener("input", (event: any) => {
-        if (!event.target.value) {
-          map.setView(defaultCenter, defaultZoom)
-          markersRef.current.forEach((marker) => marker.remove())
-          markersRef.current = []
-        }
-      })
+      searchInput.addEventListener("input", handleSearchInput)
     }
 
     return () => {
+      map.off("geosearch/marker/clear", handleMarkerClear)
+      map.off("geosearch/showlocation", handleShowLocation)
+      searchInput?.removeEventListener("input", handleSearchInput)
       map.removeControl(searchControl)
     }
   }, [map, defaultCenter, defaultZoom])
@@ -783,11 +850,13 @@ function AqiStatusLine({
   pm25,
   category,
   color,
+  valueLabel = "Current",
   className = "",
 }: {
   pm25?: number | null
   category?: string | null
   color?: string | null
+  valueLabel?: string
   className?: string
 }) {
   const badgeStyle = getAqiBadgeStyle(category, normalizeHexColor(color))
@@ -796,7 +865,7 @@ function AqiStatusLine({
   return (
     <div className={["flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-700", className].join(" ")}>
       <span className="whitespace-nowrap font-medium text-slate-600">
-        Current <Pm25Label />: <span className="font-semibold text-slate-950">{formatForecastMetric(pm25, 0)}</span> <Pm25Unit />
+        {valueLabel} <Pm25Label />: <span className="font-semibold text-slate-950">{formatForecastMetric(pm25, 0)}</span> <Pm25Unit />
       </span>
       <span className="relative h-2.5 w-2.5 shrink-0" aria-hidden="true">
         <span className="absolute inset-0 rounded-full opacity-60 animate-ping" style={{ backgroundColor: badgeStyle.dotColor }} />
@@ -3338,8 +3407,8 @@ const LeafletMap: React.FC = () => {
   const heatmapEnabled = siteSettings.features.find((feature) => feature.id === "heatmap")?.enabled ?? true
   const captureViewEnabled =
     siteSettings.features.find((feature) => feature.id === "capture-view")?.enabled ?? true
-  const defaultCenter: [number, number] = [1.5, 17.5]
-  const defaultZoom = 4
+  const defaultCenter = DEFAULT_MAP_CENTER
+  const defaultZoom = DEFAULT_MAP_ZOOM
   const [loadingState, setLoadingState] = useState<LoadingState>({
     isLoading: false,
     error: null,

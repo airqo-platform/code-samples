@@ -9,6 +9,7 @@ const removeTrailingSlash = (url: string): string => {
 const BASE_URL = "/api/airqo"
 const RETRYABLE_API_STATUSES = new Set([429, 500, 502, 503, 504])
 const MAX_API_ATTEMPTS = 3
+const MAX_SATELLITE_API_ATTEMPTS = 5
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & { _airqoRetryCount?: number }
@@ -226,14 +227,28 @@ interface SiteHistoricalItem {
   pm2_5_raw_value?: number | null
 }
 
+export interface SatellitePredictionRequest {
+  latitude: number
+  longitude: number
+  timestamp: string
+}
+
 // Satellite API service to fetch data with POST request
-export const getSatelliteData = async (body = {}) => {
-  try {
-    const response = await apiService.post("/spatial/satellite_prediction", body)
-    return response.data
-  } catch (error: any) {
-    console.error(error)
+export const getSatelliteData = async (body: SatellitePredictionRequest) => {
+  for (let attempt = 1; attempt <= MAX_SATELLITE_API_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await apiService.post("/spatial/satellite_prediction", body)
+      return response.data
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
+      const shouldRetry = status === 502 && attempt < MAX_SATELLITE_API_ATTEMPTS
+
+      if (!shouldRetry) throw error
+      await delay(500 * attempt)
+    }
   }
+
+  throw new Error("Satellite prediction failed after five attempts.")
 }
 
 // Map and Reports use the same readings endpoint. Keep one shared request/cache so
