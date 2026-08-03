@@ -379,8 +379,9 @@ const LoadingPopupContent: React.FC<{
 const ErrorPopupContent: React.FC<{
   label: string
   onClose: () => void
+  onRetry?: () => void
   errorMessage?: string
-}> = ({ label, onClose, errorMessage = "Error loading air quality data" }) => (
+}> = ({ label, onClose, onRetry, errorMessage = "Error loading air quality data" }) => (
   <div className="min-w-[200px] p-3 rounded-lg bg-gray-100 border border-gray-200">
     <div className="flex items-center justify-between mb-2">
       <div className="w-12 h-12 relative">
@@ -400,6 +401,15 @@ const ErrorPopupContent: React.FC<{
     </div>
     <div className="text-sm font-medium mb-2">{label}</div>
     <div className="text-sm text-gray-700">{errorMessage}</div>
+    {onRetry && (
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-3 w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      >
+        Try again
+      </button>
+    )}
   </div>
 )
 
@@ -526,41 +536,64 @@ const SearchControl: React.FC<{
 
         marker.bindPopup(container, { ...customPopupOptions, offset: [0, 0] }).openPopup()
 
-        try {
-          const response = await getSatelliteData({
-            latitude: y,
-            longitude: x,
-            timestamp: getTodayDate(),
-          })
-          const prediction = unwrapSatelliteData(response)
-
-          // Validate API response
-          if (!prediction || !isSatelliteData(prediction)) {
-            throw new Error("Invalid API response format")
-          }
-
-          // Update with actual data
+        const loadSatellitePrediction = async (): Promise<void> => {
           root.render(
-            <PopupContent
-              label={prediction.place_name || label}
-              data={prediction}
+            <LoadingPopupContent
+              label={label}
               onClose={() => {
                 marker.closePopup()
                 root.unmount()
               }}
             />,
           )
-        } catch (error) {
-          console.error("Error fetching air quality data:", error)
-          // Show error state with specific error message
-          root.render(
-            <ErrorPopupContent
-              label={label}
-              onClose={() => marker.closePopup()}
-              errorMessage={error instanceof Error ? error.message : "Failed to load air quality data"}
-            />,
-          )
+
+          try {
+            const response = await getSatelliteData({
+              latitude: y,
+              longitude: x,
+              timestamp: getTodayDate(),
+            })
+            const prediction = unwrapSatelliteData(response)
+
+            if (!prediction || !isSatelliteData(prediction)) {
+              throw new Error("Invalid API response format")
+            }
+
+            root.render(
+              <PopupContent
+                label={prediction.place_name || label}
+                data={prediction}
+                onClose={() => {
+                  marker.closePopup()
+                  root.unmount()
+                }}
+              />,
+            )
+          } catch (error) {
+            console.error("Error fetching air quality data:", error)
+            const responseStatus =
+              typeof error === "object" && error !== null && "response" in error
+                ? (error as { response?: { status?: number } }).response?.status
+                : undefined
+
+            root.render(
+              <ErrorPopupContent
+                label={label}
+                onClose={() => marker.closePopup()}
+                onRetry={responseStatus === 401 ? () => void loadSatellitePrediction() : undefined}
+                errorMessage={
+                  responseStatus === 401
+                    ? "The satellite request was not authorized."
+                    : error instanceof Error
+                      ? error.message
+                      : "Failed to load air quality data"
+                }
+              />,
+            )
+          }
         }
+
+        await loadSatellitePrediction()
       } catch (error) {
         console.error("Error handling location:", error)
         // Handle location processing errors
