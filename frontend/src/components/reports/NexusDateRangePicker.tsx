@@ -38,6 +38,7 @@ type Preset = {
 }
 
 const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+const MAX_REPORT_RANGE_MONTHS = 3
 
 const dateFromIso = (value: string) => {
   const datePart = value.slice(0, 10)
@@ -179,14 +180,14 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
   const [startTime, setStartTime] = useState(format(initialStart, "HH:mm"))
   const [endTime, setEndTime] = useState(format(initialEnd, "HH:mm"))
   const maximumEndDate = useMemo(
-    () => endOfDay(subDays(addMonths(startOfDay(draftStart), 3), 1)),
+    () => endOfDay(subDays(addMonths(startOfDay(draftStart), MAX_REPORT_RANGE_MONTHS), 1)),
     [draftStart],
   )
 
   const rangeError = useMemo(() => {
     if (!draftEnd) return "Choose an end date."
     if (isAfter(draftEnd, maximumEndDate)) {
-      return "Reports support a maximum range of 3 months."
+      return `Reports support a maximum range of ${MAX_REPORT_RANGE_MONTHS} months.`
     }
     if (includeTime && isSameDay(draftStart, draftEnd) && startTime >= endTime) {
       return "Start time must be before end time."
@@ -348,7 +349,7 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
           </div>
         </PopoverContent>
       </Popover>
-      <p className="mt-2 min-h-8 text-xs leading-4 text-slate-500">Choose up to 3 months, then select a city or district to generate the report.</p>
+      <p className="mt-2 min-h-8 text-xs leading-4 text-slate-500">Choose up to {MAX_REPORT_RANGE_MONTHS} months, then select a city or district to generate the report.</p>
     </div>
   )
 }
