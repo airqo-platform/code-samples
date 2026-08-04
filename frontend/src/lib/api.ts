@@ -19,6 +19,7 @@ class ApiRequestError extends Error {
 }
 
 const RETRYABLE_API_STATUSES = new Set([429, 500, 502, 503, 504])
+const CATEGORIZE_UNAUTHORIZED_RETRIES = 5
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function baseFetch<T>(
@@ -113,10 +114,22 @@ export async function getSiteCategory(
   try {
     if (includeSatellite) {
       try {
-        const response = await baseFetch<unknown>("spatial/source_metadata", {
-          queryParams: { latitude, longitude, include_satellite: true },
-        })
-        return unwrapSourceMetadataResponse(response)
+        for (let retryCount = 0; ; retryCount += 1) {
+          try {
+            const response = await baseFetch<unknown>("spatial/source_metadata", {
+              queryParams: { latitude, longitude, include_satellite: true },
+            })
+            return unwrapSourceMetadataResponse(response)
+          } catch (error) {
+            const shouldRetry =
+              error instanceof ApiRequestError
+              && error.status === 401
+              && retryCount < CATEGORIZE_UNAUTHORIZED_RETRIES
+
+            if (!shouldRetry) throw error
+            await delay(500 * (retryCount + 1))
+          }
+        }
       } catch (error) {
         if (!(error instanceof ApiRequestError) || error.status !== 401) throw error
         console.warn("Source metadata returned 401. Falling back to OSM-only site categorization.")
