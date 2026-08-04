@@ -1,4 +1,4 @@
-import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios"
+import axios, { AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from "axios"
 import type { DataDownloadRecord, DataDownloadRequest, DataDownloadResponse, ReportDataOptions, SiteData } from "@/lib/types"
 
 // Remove the incorrect import and add the utility function directly
@@ -12,7 +12,10 @@ const MAX_API_ATTEMPTS = 3
 const MAX_SATELLITE_API_ATTEMPTS = 5
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-type RetryableRequestConfig = InternalAxiosRequestConfig & { _airqoRetryCount?: number }
+type RetryableRequestConfig = InternalAxiosRequestConfig & {
+  _airqoRetryCount?: number
+  _airqoMaxAttempts?: number
+}
 const ACTIVE_FIRES_PATH = "/spatial/active_fires/africa"
 // Axios instance with a base URL and default headers
 const apiService = axios.create({
@@ -29,13 +32,14 @@ apiService.interceptors.response.use(
     const config = error.config as RetryableRequestConfig | undefined
     const method = config?.method?.toUpperCase() || "GET"
     const retryCount = config?._airqoRetryCount || 0
+    const maxAttempts = config?._airqoMaxAttempts || MAX_API_ATTEMPTS
     const isRetryableFailure = !status || RETRYABLE_API_STATUSES.has(status)
 
     if (
       config &&
       method === "GET" &&
       isRetryableFailure &&
-      retryCount < MAX_API_ATTEMPTS - 1
+      retryCount < maxAttempts - 1
     ) {
       config._airqoRetryCount = retryCount + 1
       await delay(500 * config._airqoRetryCount)
@@ -254,8 +258,33 @@ export const getSatelliteData = async (body: SatellitePredictionRequest) => {
 // Map and Reports use the same readings endpoint. Keep one shared request/cache so
 // the app-level warm-up can be reused when either page is opened later.
 const MAP_READINGS_CACHE_MAX_AGE_MS = 5 * 60 * 1000
+const MAP_LOAD_MAX_ATTEMPTS = 5
 let mapReadingsRequest: Promise<MapNode[]> | null = null
 let mapReadingsCache: { data: MapNode[]; cachedAt: number } | null = null
+
+const withoutInterceptorRetries = { _airqoMaxAttempts: 1 } as AxiosRequestConfig
+
+const runMapLoadWithRetries = async <T,>(
+  request: () => Promise<T>,
+  hasUsableData: (result: T) => boolean,
+): Promise<T> => {
+  let lastResult: T | undefined
+
+  for (let attempt = 1; attempt <= MAP_LOAD_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      lastResult = await request()
+      if (hasUsableData(lastResult) || attempt === MAP_LOAD_MAX_ATTEMPTS) return lastResult
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
+      const isRetryableFailure = !status || RETRYABLE_API_STATUSES.has(status)
+      if (!isRetryableFailure || attempt === MAP_LOAD_MAX_ATTEMPTS) throw error
+    }
+
+    await delay(500 * attempt)
+  }
+
+  return lastResult as T
+}
 
 const fetchMapReadings = (): Promise<MapNode[]> => {
   if (mapReadingsCache && Date.now() - mapReadingsCache.cachedAt < MAP_READINGS_CACHE_MAX_AGE_MS) {
@@ -263,8 +292,10 @@ const fetchMapReadings = (): Promise<MapNode[]> => {
   }
   if (mapReadingsRequest) return mapReadingsRequest
 
-  mapReadingsRequest = apiService
-    .get("/devices/readings/map")
+  mapReadingsRequest = runMapLoadWithRetries(
+    () => apiService.get("/devices/readings/map", withoutInterceptorRetries),
+    (response) => Array.isArray(response.data?.measurements) && response.data.measurements.length > 0,
+  )
     .then((response) => {
       const data = Array.isArray(response.data?.measurements) ? response.data.measurements : []
       if (data.length > 0) mapReadingsCache = { data, cachedAt: Date.now() }
@@ -429,7 +460,19 @@ export const getDailyForecastCollection = async (): Promise<DailyForecastRespons
 
   dailyForecastRequest = (async () => {
     try {
-      const response = await apiService.get("/predict/daily-forecasting")
+      const response = await runMapLoadWithRetries(
+        () => apiService.get("/predict/daily-forecasting", withoutInterceptorRetries),
+        (result) => {
+          const payload = unwrapForecastPayload(result.data)
+          const data = payload?.data ? unwrapForecastPayload(payload.data) : payload
+          return Boolean(
+            data &&
+            typeof data === "object" &&
+            Array.isArray((data as DailyForecastResponse).forecasts) &&
+            (data as DailyForecastResponse).forecasts.length > 0
+          )
+        },
+      )
       const payload = unwrapForecastPayload(response.data)
       const data = payload?.data ? unwrapForecastPayload(payload.data) : payload
 

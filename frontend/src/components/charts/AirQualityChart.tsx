@@ -39,8 +39,14 @@ const SITE_COLORS = ["#2563eb", "#dc2626", "#059669", "#7c3aed", "#ea580c", "#08
 const WHO_PM25_DAILY_GUIDELINE = 15
 const UGANDA_NEMA_PM25_DAILY_STANDARD = 35
 
-const getReportBucket = (timestamp: string, aggregation: "daily" | "weekly" | "monthly") => {
+const getReportBucket = (
+  timestamp: string,
+  aggregation: "daily" | "weekly" | "monthly",
+  language: ReportLanguage = "en",
+) => {
   const date = new Date(timestamp)
+  const locale = language === "en" ? "en-US" : language === "luo" ? "luo-KE" : language
+  const copy = getReportChartCopy(language)
   if (aggregation === "weekly") {
     const dayOfWeek = date.getUTCDay()
     date.setUTCDate(date.getUTCDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
@@ -51,13 +57,13 @@ const getReportBucket = (timestamp: string, aggregation: "daily" | "weekly" | "m
   if (aggregation === "monthly") {
     return {
       key: `${year}-${String(month + 1).padStart(2, "0")}`,
-      label: date.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
+      label: date.toLocaleDateString(locale, { month: "short", year: "numeric", timeZone: "UTC" }),
       sortValue: Date.UTC(year, month, 1),
     }
   }
 
   const day = date.getUTCDate()
-  const label = date.toLocaleDateString("en-US", {
+  const label = date.toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -65,16 +71,22 @@ const getReportBucket = (timestamp: string, aggregation: "daily" | "weekly" | "m
   })
   return {
     key: `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
-    label: aggregation === "weekly" ? `Week of ${label}` : label,
+    label: aggregation === "weekly" ? `${language === "en" ? "Week of" : copy.week} ${label}` : label,
     sortValue: Date.UTC(year, month, day),
   }
 }
 
-export const getAqiPeriodBucket = (timestamp: string, grouping: "monthly" | "weekly") => {
+export const getAqiPeriodBucket = (
+  timestamp: string,
+  grouping: "monthly" | "weekly",
+  language: ReportLanguage = "en",
+) => {
   const date = new Date(timestamp)
+  const locale = language === "en" ? "en-US" : language === "luo" ? "luo-KE" : language
+  const copy = getReportChartCopy(language)
   const year = date.getUTCFullYear()
   const month = date.getUTCMonth()
-  const monthLabel = date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
+  const monthLabel = date.toLocaleDateString(locale, { month: "long", year: "numeric", timeZone: "UTC" })
   if (grouping === "monthly") {
     return {
       key: `${year}-${String(month + 1).padStart(2, "0")}`,
@@ -86,7 +98,7 @@ export const getAqiPeriodBucket = (timestamp: string, grouping: "monthly" | "wee
   const weekOfMonth = Math.ceil(date.getUTCDate() / 7)
   return {
     key: `${year}-${String(month + 1).padStart(2, "0")}-week-${weekOfMonth}`,
-    label: `Week ${weekOfMonth}, ${monthLabel}`,
+    label: `${copy.week} ${weekOfMonth}, ${monthLabel}`,
     sortValue: Date.UTC(year, month, (weekOfMonth - 1) * 7 + 1),
   }
 }
@@ -231,7 +243,7 @@ export function PM25BarChart({ sites, language = "en" }: { sites: SiteData[]; la
   const bucketMap = new Map<string, { period: string; sortValue: number; values: Record<string, number[]> }>()
   selectedSites.forEach((site, index) => {
     site.reportMeasurements?.forEach((measurement) => {
-      const bucket = getReportBucket(measurement.timestamp, aggregation)
+      const bucket = getReportBucket(measurement.timestamp, aggregation, language)
       const row = bucketMap.get(bucket.key) || { period: bucket.label, sortValue: bucket.sortValue, values: {} }
       const dataKey = `site_${index}`
       row.values[dataKey] = [...(row.values[dataKey] || []), measurement.value]
@@ -584,20 +596,13 @@ export function AQICategoryChart({
   const periodMap = new Map<string, { key: string; label: string; sortValue: number }>()
   sites.forEach((site) => {
     site.reportMeasurements?.forEach((measurement) => {
-      const bucket = getAqiPeriodBucket(measurement.timestamp, periodGrouping)
+      const bucket = getAqiPeriodBucket(measurement.timestamp, periodGrouping, language)
       periodMap.set(bucket.key, bucket)
     })
   })
   const periodOptions = Array.from(periodMap.values()).sort((a, b) => a.sortValue - b.sortValue)
   const localizePeriodLabel = (period?: { key: string; label: string }) => {
-    if (!period || language === "en") return period?.label || copy.selectedPeriod
-    const [year, month, , weekNumber] = period.key.split("-")
-    const monthLabel = new Intl.DateTimeFormat(language === "luo" ? "luo-KE" : language, {
-      month: "long",
-      year: "numeric",
-      timeZone: "UTC",
-    }).format(new Date(Date.UTC(Number(year), Number(month) - 1, 1)))
-    return weekNumber ? `${copy.week} ${weekNumber}, ${monthLabel}` : monthLabel
+    return period?.label || copy.selectedPeriod
   }
   const effectivePeriod = selectedPeriod === "all" || periodMap.has(selectedPeriod) ? selectedPeriod : "all"
   const selectedPeriodLabel = effectivePeriod === "all"
@@ -609,7 +614,7 @@ export function AQICategoryChart({
     let category = site.aqi_category || "Unknown"
     if (effectivePeriod !== "all") {
       const values = (site.reportMeasurements || [])
-        .filter((measurement) => getAqiPeriodBucket(measurement.timestamp, periodGrouping).key === effectivePeriod)
+        .filter((measurement) => getAqiPeriodBucket(measurement.timestamp, periodGrouping, language).key === effectivePeriod)
         .map((measurement) => measurement.value)
       if (values.length === 0) return
       category = getAqiCategoryForPm25(values.reduce((sum, value) => sum + value, 0) / values.length)
@@ -844,16 +849,16 @@ export function WeeklyComparisonChart({
   const isMonthly = effectiveComparisonPeriod === "monthly"
   const periodLabel = isMonthly ? copy.month : copy.week
   const matchesTimeline = (timestamp: string) =>
-    timelinePeriod === "all" || getAqiPeriodBucket(timestamp, timelineGrouping).key === timelinePeriod
+    timelinePeriod === "all" || getAqiPeriodBucket(timestamp, timelineGrouping, language).key === timelinePeriod
   let timelineLabel = "the selected reporting period"
   const allPeriodBucketMap = new Map<string, { key: string; label: string; sortValue: number }>()
   sites.forEach((site) => {
     site.reportMeasurements?.forEach((measurement) => {
       if (timelinePeriod !== "all") {
-        const timelineBucket = getAqiPeriodBucket(measurement.timestamp, timelineGrouping)
+        const timelineBucket = getAqiPeriodBucket(measurement.timestamp, timelineGrouping, language)
         if (timelineBucket.key === timelinePeriod) timelineLabel = timelineBucket.label
       }
-      const bucket = getAqiPeriodBucket(measurement.timestamp, isMonthly ? "monthly" : "weekly")
+      const bucket = getAqiPeriodBucket(measurement.timestamp, isMonthly ? "monthly" : "weekly", language)
       allPeriodBucketMap.set(bucket.key, bucket)
     })
   })
@@ -862,7 +867,7 @@ export function WeeklyComparisonChart({
   let comparisonMode: "all" | "within-selection" | "adjacent" | "daily-fallback" | "weekly-fallback" =
     timelinePeriod === "all" ? "all" : "within-selection"
   let bucketForMeasurement = (timestamp: string) =>
-    getAqiPeriodBucket(timestamp, isMonthly ? "monthly" : "weekly")
+    getAqiPeriodBucket(timestamp, isMonthly ? "monthly" : "weekly", language)
   let periodDefinitions = allPeriodDefinitions.filter((period) => {
     if (timelinePeriod === "all") return true
     return sites.some((site) => site.reportMeasurements?.some((measurement) =>
@@ -883,7 +888,7 @@ export function WeeklyComparisonChart({
       comparisonMode = "adjacent"
     } else if (selectedDefinition) {
       const fallbackGrouping = isMonthly ? "weekly" : "daily"
-      bucketForMeasurement = (timestamp: string) => getReportBucket(timestamp, fallbackGrouping)
+      bucketForMeasurement = (timestamp: string) => getReportBucket(timestamp, fallbackGrouping, language)
       const fallbackBucketMap = new Map<string, { key: string; label: string; sortValue: number }>()
       sites.forEach((site) => {
         site.reportMeasurements?.forEach((measurement) => {
