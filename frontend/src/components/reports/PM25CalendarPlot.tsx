@@ -4,6 +4,8 @@ import { CalendarDays, Download } from "lucide-react"
 import type { ReactNode } from "react"
 import { useRef, useState } from "react"
 import type { SiteData } from "@/lib/types"
+import { translateReport, type ReportLanguage } from "@/lib/report-translations"
+import { getLocalizedCalendarLabels, getReportChartCopy, translateAqiCategory } from "@/lib/report-chart-translations"
 import html2canvas from "html2canvas"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
 
@@ -80,7 +82,12 @@ const LegendItem = ({ color, children }: { color: string; children: ReactNode })
   </div>
 )
 
-export function PM25CalendarPlot({ sites }: { sites: SiteData[] }) {
+export function PM25CalendarPlot({ sites, language = "en" }: { sites: SiteData[]; language?: ReportLanguage }) {
+  const t = (key: Parameters<typeof translateReport>[1]) => translateReport(language, key)
+  const copy = getReportChartCopy(language)
+  const localizedCalendarLabels = getLocalizedCalendarLabels(language)
+  const monthNames = language === "en" ? MONTH_NAMES : localizedCalendarLabels.months
+  const weekdays = language === "en" ? WEEKDAYS : localizedCalendarLabels.weekdays
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
   const chartRef = useRef<HTMLElement>(null)
   const dailyAverages = getDailyAverages(sites)
@@ -97,7 +104,7 @@ export function PM25CalendarPlot({ sites }: { sites: SiteData[] }) {
   const handleDownload = async (type: "csv" | "json" | "png") => {
     if (type === "csv") {
       const csv = [
-        "Date,Daily Average PM2.5 (ug/m3)",
+        `${copy.date},${copy.dailyAverage}`,
         ...dailyAverages.map((average) => `${average.dateKey},${average.value.toFixed(1)}`),
       ].join("\n")
       downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8;" }), "pm25_calendar_plot.csv")
@@ -167,21 +174,21 @@ export function PM25CalendarPlot({ sites }: { sites: SiteData[] }) {
               <div className="text-center sm:text-left">
                 <h4 className="flex items-center justify-center gap-2 text-lg font-bold text-blue-800 sm:justify-start md:text-xl">
                   <CalendarDays className="h-5 w-5" />
-                  Calendar Plot of Daily Average PM<sub>2.5</sub>: {year}
+                  {t("calendarPlot")}: {year}
                 </h4>
-                <p className="mt-1 text-xs text-slate-600">Daily averages across the selected monitoring sites</p>
+                <p className="mt-1 text-xs text-slate-600">{t("dailyAverages")}</p>
               </div>
               {yearIndex === 0 && (
                 <div data-chart-export-control>
                   <Select value={downloadValue} onValueChange={handleDownloadChange}>
                     <SelectTrigger className="h-9 w-full rounded-xl bg-white sm:w-[130px]">
-                      <SelectValue placeholder="Export" />
+                      <SelectValue placeholder={copy.export} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">
                         <div className="flex items-center gap-2">
                           <Download className="h-4 w-4" />
-                          Export
+                          {copy.export}
                         </div>
                       </SelectItem>
                       <SelectItem value="csv">CSV</SelectItem>
@@ -194,19 +201,19 @@ export function PM25CalendarPlot({ sites }: { sites: SiteData[] }) {
             </div>
 
             <div className="flex flex-wrap justify-center gap-x-4 gap-y-5 p-4">
-              {MONTH_NAMES.map((monthName, month) => ({ monthName, month }))
+              {monthNames.map((monthName, month) => ({ monthName, month }))
                 .filter(({ month }) => monthsWithData.has(month))
                 .map(({ monthName, month }) => (
                 <div key={monthName} className="w-full min-w-0 sm:w-[calc(50%-0.5rem)] lg:w-[calc(25%-0.75rem)]">
                   <h5 className="mb-1 text-center text-sm font-bold text-blue-800">{monthName}</h5>
                   <div className="grid grid-cols-7 gap-px overflow-hidden rounded bg-white">
-                    {WEEKDAYS.map((weekday) => <div key={weekday} className="pb-1 text-center text-[9px] font-semibold text-slate-600">{weekday}</div>)}
+                    {weekdays.map((weekday) => <div key={weekday} className="pb-1 text-center text-[9px] font-semibold text-slate-600">{weekday}</div>)}
                     {getCalendarCells(year, month, valuesByDate).map((cell, index) => cell ? (
                       <div
                         key={cell.dateKey}
                         className="flex min-h-10 flex-col justify-between p-1 text-[8px] leading-none"
                         style={getCellStyle(cell.value)}
-                        title={cell.value === null ? `${cell.dateKey}: No data` : `${cell.dateKey}: ${cell.value.toFixed(1)} \u00b5g/m\u00b3`}
+                        title={cell.value === null ? `${cell.dateKey}: ${copy.missingData}` : `${cell.dateKey}: ${cell.value.toFixed(1)} \u00b5g/m\u00b3`}
                       >
                         <span className="font-semibold">{cell.day}</span>
                         {cell.value !== null && (
@@ -221,18 +228,20 @@ export function PM25CalendarPlot({ sites }: { sites: SiteData[] }) {
 
             <div className="space-y-3 border-t border-gray-100 px-4 py-4 text-xs text-slate-700">
               <div className="mx-auto w-fit rounded-lg border border-blue-500 px-3 py-1.5 text-center">
-                Days with data: {yearValues.length}&nbsp; | &nbsp;Missing days: {missingDays}
+                {copy.daysWithData}: {yearValues.length}&nbsp; | &nbsp;{copy.missingDays}: {missingDays}
               </div>
               <div className="flex flex-nowrap items-center justify-start gap-x-2 overflow-x-auto pb-1 text-[8px] leading-none sm:justify-center sm:text-[9px] lg:gap-x-3">
                 {visibleAqiLevels.map((level) => (
                   <LegendItem key={level.label} color={level.color}>
-                    {level.label}: {level.range} {"\u00b5g/m\u00b3"}
+                    {translateAqiCategory(level.label, language)}: {level.range} {"\u00b5g/m\u00b3"}
                   </LegendItem>
                 ))}
-                {missingDays > 0 && <LegendItem color="#e5e7eb">Missing data</LegendItem>}
+                {missingDays > 0 && <LegendItem color="#e5e7eb">{copy.missingData}</LegendItem>}
               </div>
               <p className="text-center text-[10px] text-slate-500">
+                {language !== "en" ? copy.calendarExplanation : <>
                 Values inside calendar cells are daily average calibrated PM<sub>2.5</sub> concentrations in {"\u00b5g/m\u00b3"}. Missing days are counted between the first and last available dates shown for the year.
+                </>}
               </p>
             </div>
           </div>
