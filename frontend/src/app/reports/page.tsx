@@ -939,10 +939,16 @@ function ReportContent() {
       ? `was broadly unchanged from the ${comparisonReference}`
       : `was ${Math.abs(averagePercentageChange).toFixed(1)}% ${averagePercentageChange > 0 ? "higher" : "lower"} than the ${comparisonReference}`
   const dailyPm25Extremes = useMemo(() => getDailyPm25Extremes(filteredData), [filteredData])
+  const formatFindingSites = (sites: SiteData[]) =>
+    sites
+      .map((site) =>
+        `${site.siteDetails?.name || t("unknownSite")} (${(site.pm2_5?.value || 0).toFixed(1)} µg/m³)`,
+      )
+      .join(", ")
   const localizedKeyFindings = [
     t("findingAverage", {
       value: `${calculateAveragePM25(filteredData).toFixed(1)} µg/m³`,
-      category: avgAQICategory,
+      category: translateAqiCategory(avgAQICategory, reportLanguage),
     }),
     t("findingChange", {
       value: Math.abs(calculateAveragePercentageChange(filteredData)).toFixed(2),
@@ -959,6 +965,23 @@ function ReportContent() {
       category: calculateMostCommonCategory(filteredData),
       percent: ((calculateAQICategoryCounts(filteredData)[calculateMostCommonCategory(filteredData)] / filteredData.length) * 100).toFixed(0),
     })] : []),
+    ...(selectedSite ? [t("findingSelectedSite", {
+      site: selectedSite.siteDetails.name,
+      value: `${(selectedSite.pm2_5?.value || 0).toFixed(1)} µg/m³`,
+      comparison: t(
+        (selectedSite.pm2_5?.value || 0) > calculateAveragePM25(filteredData)
+          ? "higherThan"
+          : (selectedSite.pm2_5?.value || 0) < calculateAveragePM25(filteredData)
+            ? "lowerThan"
+            : "equalTo",
+      ),
+    })] : []),
+    ...(filteredData.length > 1 && getHotspotSites(filteredData).length > 0
+      ? [t("findingHotspots", { sites: formatFindingSites(getHotspotSites(filteredData)) })]
+      : []),
+    ...(filteredData.length > 1 && getColdspotSites(filteredData).length > 0
+      ? [t("findingLowerPollution", { sites: formatFindingSites(getColdspotSites(filteredData)) })]
+      : []),
   ]
   const reportTimelinePeriodKeys = useMemo(() => {
     const keys = new Set<string>()
@@ -1805,7 +1828,7 @@ function ReportContent() {
                     })}</p>
                     <p>{t("introTwo", {
                       value: `${avgPM25.toFixed(1)} µg/m³`,
-                      category: avgAQICategory,
+                      category: translateAqiCategory(avgAQICategory, reportLanguage),
                     })}</p>
                   </>
                 ) : (
