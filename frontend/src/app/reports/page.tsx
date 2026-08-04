@@ -9,12 +9,14 @@ import {
   BrainCircuit,
   CalendarRange,
   ChevronDown,
+  CloudDownload,
   Download,
   Globe,
   HeartPulse,
   Layers,
   LoaderCircle,
   MapPin,
+  MapPinned,
   Minus,
   MoreHorizontal,
   Printer,
@@ -27,6 +29,12 @@ import type { ReactNode } from "react"
 import { getReportData, loadHistoricalReportData } from "@/services/apiService"
 import { Button } from "@/ui/button"
 import type { SiteData, Filters, ReportDataOptions, ReportDateRange } from "@/lib/types"
+import {
+  REPORT_LANGUAGES,
+  formatReportDateForLanguage,
+  translateReport,
+  type ReportLanguage,
+} from "@/lib/report-translations"
 import { jsPDF } from "jspdf"
 import html2canvas from "html2canvas"
 import { differenceInCalendarDays, format } from "date-fns"
@@ -42,11 +50,13 @@ import {
 import { Input } from "@/ui/input"
 import { Checkbox } from "@/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
 import ReportDataModal from "@/components/reports/ReportDataModal"
 import ErrorPopup from "@/components/reports/ErrorPopup"
 import ReportLoadingScreen from "@/components/reports/ReportLoadingScreen"
 import NexusDateRangePicker, { createDefaultReportDateRange } from "@/components/reports/NexusDateRangePicker"
 import { PM25CalendarPlot } from "@/components/reports/PM25CalendarPlot"
+import { translateAqiCategory, translateSiteCategory } from "@/lib/report-chart-translations"
 import { REPORT_REQUEST_RETRIES, REPORT_RETRY_DELAY_MS, retryReportRequest } from "@/lib/report-retry"
 import "leaflet/dist/leaflet.css"
 
@@ -129,10 +139,13 @@ function ReportContent() {
   const comparisonPeriod: "weekly" | "monthly" = reportDurationDays > 31 ? "monthly" : "weekly"
   const [selectedSite, setSelectedSite] = useState<SiteData | null>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [reportLanguage, setReportLanguage] = useState<ReportLanguage>("en")
   const [pdfExportError, setPdfExportError] = useState<string | null>(null)
   const [isReportDataModalOpen, setIsReportDataModalOpen] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
   const comparisonTableRef = useRef<HTMLTableElement>(null)
+  const t = (key: Parameters<typeof translateReport>[1], values?: Record<string, string | number>) =>
+    translateReport(reportLanguage, key, values)
 
   // Add a state to control whether the report is visible on the page
   const [showReportOnPage, setShowReportOnPage] = useState(false)
@@ -268,18 +281,18 @@ function ReportContent() {
 
   const getConclusion = (selectedSite: SiteData | null, filters: Filters, filteredData: SiteData[]): string => {
     if (selectedSite) {
-      return `In conclusion, the air quality at ${selectedSite.siteDetails.name} requires attention. Further investigation and mitigation strategies are recommended.`
+      return t("conclusionSite", { site: selectedSite.siteDetails.name })
     }
 
     if (hasActiveFilters) {
-      return `In conclusion, the air quality in the selected region requires attention. Further investigation and mitigation strategies are recommended.`
+      return t("conclusionRegion")
     }
 
     if (filteredData.length === 0) {
-      return "In conclusion, no data is available for the selected criteria."
+      return t("conclusionNoData")
     }
 
-    return "In conclusion, this report provides an overview of the air quality across the selected monitoring network. Continued monitoring and proactive measures are essential to ensure public health."
+    return t("conclusionNetwork")
   }
 
   const getRegionalInsights = (filters: Filters, filteredData: SiteData[]): string => {
@@ -289,11 +302,15 @@ function ReportContent() {
     const categorySummary = summarizeSelection(filters.category, "categories")
 
     if (countrySummary) {
-      return `The air quality in ${countrySummary} shows varying levels of pollution, with some areas exceeding recommended limits. Targeted interventions are needed to address specific pollution sources.`
+      return t("regionalCountry", { scope: countrySummary })
     }
 
     if (districtSummary) {
-      return `The air quality across ${districtSummary} reflects localised patterns that should guide targeted interventions and enforcement.`
+      return t("regionalDistrict", { scope: districtSummary })
+    }
+
+    if (citySummary && reportLanguage !== "en") {
+      return t("regionalCity", { scope: citySummary })
     }
 
     if (citySummary) {
@@ -301,35 +318,32 @@ function ReportContent() {
     }
 
     if (categorySummary) {
-      return `The air quality across ${categorySummary} site categories is generally poorer than at other locations. Specific measures should be taken to protect vulnerable populations in these areas.`
+      return t("regionalCategory", { scope: categorySummary })
     }
 
     if (filteredData.length === 0) {
-      return "No regional insights are available due to lack of data."
+      return t("regionalNoData")
     }
 
-    return "Regional insights indicate that air pollution is a widespread problem, with significant variations across different areas. A coordinated approach is needed to tackle this issue effectively."
+    return t("regionalNetwork")
   }
 
   const getHealthRecommendations = (aqiCategory: string): string[] => {
     switch (aqiCategory.toLowerCase()) {
       case "good":
-        return ["Enjoy your usual outdoor activities."]
+        return [t("healthGood")]
       case "moderate":
-        return ["Sensitive groups should reduce prolonged or heavy outdoor exertion."]
+        return [t("healthModerate")]
       case "unhealthy for sensitive groups":
-        return [
-          "Sensitive groups should avoid prolonged outdoor exertion.",
-          "Everyone else should reduce prolonged or heavy outdoor exertion.",
-        ]
+        return [t("healthSensitiveOne"), t("healthSensitiveTwo")]
       case "unhealthy":
-        return ["Sensitive groups should avoid all outdoor exertion.", "Everyone else should reduce outdoor exertion."]
+        return [t("healthUnhealthyOne"), t("healthUnhealthyTwo")]
       case "very unhealthy":
-        return ["Everyone should avoid all outdoor exertion.", "Sensitive groups should remain indoors."]
+        return [t("healthVeryOne"), t("healthVeryTwo")]
       case "hazardous":
-        return ["Everyone should remain indoors.", "Keep windows and doors closed.", "Use air purifiers if available."]
+        return [t("healthHazardOne"), t("healthHazardTwo"), t("healthHazardThree")]
       default:
-        return ["Air quality data is unavailable. Please check later."]
+        return [t("healthUnavailable")]
     }
   }
 
@@ -760,7 +774,7 @@ function ReportContent() {
 
         pdf.setFontSize(8)
         pdf.setTextColor(100, 116, 139)
-        pdf.text(`Page ${pageIndex + 1} of ${pageSlices.length}`, pageWidth / 2, pageHeight - 8, {
+        pdf.text(`${t("page")} ${pageIndex + 1} ${t("of")} ${pageSlices.length}`, pageWidth / 2, pageHeight - 8, {
           align: "center",
         })
       })
@@ -779,7 +793,7 @@ function ReportContent() {
         }
       }
 
-      pdf.save(`${filename}-${format(new Date(), "yyyy-MM-dd")}.pdf`)
+      pdf.save(`${filename}-${reportLanguage}-${format(new Date(), "yyyy-MM-dd")}.pdf`)
       setPdfExportError(null)
 
       // Restore original tab state if we temporarily changed it
@@ -836,32 +850,30 @@ function ReportContent() {
 
   // Generate report title based on filters, selected sites, and historical period
   const formatReportDate = (value: string) =>
-    format(new Date(value.slice(0, 10) + "T12:00:00Z"), "MMMM d, yyyy")
+    formatReportDateForLanguage(new Date(value.slice(0, 10) + "T12:00:00Z"), reportLanguage)
   const getReportTitle = () => {
     let title: string
 
     if (selectedSite) {
-      title = `Air Quality Report for ${selectedSite.siteDetails.name}`
+      title = t("reportFor", { scope: selectedSite.siteDetails.name })
     } else if (selectedDevices.length > 0 && selectedDevices.length < filteredData.length) {
-      title = `Air Quality Report for ${selectedDevices.length} Selected Devices`
+      title = t("reportFor", { scope: t("selectedDevices", { count: selectedDevices.length }) })
     } else {
       const parts = []
       if (filters.country.length) parts.push(formatSelectionLabel(filters.country, ""))
       if (filters.city.length) parts.push(formatSelectionLabel(filters.city, ""))
       if (filters.district.length) parts.push(formatSelectionLabel(filters.district, ""))
       if (filters.category.length) parts.push(`${formatSelectionLabel(filters.category, "")} Sites`)
-      title = parts.length > 0 ? `Air Quality Report for ${parts.join(", ")}` : "Comprehensive Air Quality Report"
+      title = parts.length > 0 ? t("reportFor", { scope: parts.join(", ") }) : t("comprehensiveReport")
     }
 
     if (!reportDateRange) return title
 
-    const startDate = format(
-      new Date(reportDateRange.startDate.slice(0, 10) + "T12:00:00Z"),
-      "MMM d, yyyy",
+    const startDate = formatReportDateForLanguage(
+      new Date(reportDateRange.startDate.slice(0, 10) + "T12:00:00Z"), reportLanguage, true,
     )
-    const endDate = format(
-      new Date(reportDateRange.endDate.slice(0, 10) + "T12:00:00Z"),
-      "MMM d, yyyy",
+    const endDate = formatReportDateForLanguage(
+      new Date(reportDateRange.endDate.slice(0, 10) + "T12:00:00Z"), reportLanguage, true,
     )
     return `${title}: ${startDate} - ${endDate}`
   }
@@ -927,6 +939,27 @@ function ReportContent() {
       ? `was broadly unchanged from the ${comparisonReference}`
       : `was ${Math.abs(averagePercentageChange).toFixed(1)}% ${averagePercentageChange > 0 ? "higher" : "lower"} than the ${comparisonReference}`
   const dailyPm25Extremes = useMemo(() => getDailyPm25Extremes(filteredData), [filteredData])
+  const localizedKeyFindings = [
+    t("findingAverage", {
+      value: `${calculateAveragePM25(filteredData).toFixed(1)} µg/m³`,
+      category: avgAQICategory,
+    }),
+    t("findingChange", {
+      value: Math.abs(calculateAveragePercentageChange(filteredData)).toFixed(2),
+      direction: t(calculateAveragePercentageChange(filteredData) < 0 ? "decrease" : "increase"),
+      period: t(comparisonPeriod === "monthly" ? "month" : "week"),
+    }),
+    ...(dailyPm25Extremes ? [t("findingExtremes", {
+      high: `${dailyPm25Extremes.highest.value.toFixed(1)} µg/m³`,
+      highDate: dailyPm25Extremes.highest.dates.map(formatReportDate).join(", "),
+      low: `${dailyPm25Extremes.lowest.value.toFixed(1)} µg/m³`,
+      lowDate: dailyPm25Extremes.lowest.dates.map(formatReportDate).join(", "),
+    })] : []),
+    ...(Object.entries(calculateAQICategoryCounts(filteredData)).length > 1 ? [t("findingCommon", {
+      category: calculateMostCommonCategory(filteredData),
+      percent: ((calculateAQICategoryCounts(filteredData)[calculateMostCommonCategory(filteredData)] / filteredData.length) * 100).toFixed(0),
+    })] : []),
+  ]
   const reportTimelinePeriodKeys = useMemo(() => {
     const keys = new Set<string>()
     filteredData.forEach((site) => {
@@ -1560,33 +1593,65 @@ function ReportContent() {
 
       {showReportOnPage && (
         <div id="report-section" className="mb-8 bg-white rounded-lg shadow-lg p-6 border border-gray-200">
-          <div className="mb-5 flex flex-wrap items-center justify-end gap-2 border-b border-slate-100 pb-4">
+          <div className="mb-5 flex w-full flex-wrap items-stretch justify-end gap-2.5 border-b border-slate-100 pb-4 lg:flex-nowrap">
+            <div className="group order-last flex h-12 w-fit max-w-full flex-none items-center gap-2.5 rounded-xl border border-slate-300 bg-white px-4 text-slate-600 shadow-sm transition hover:border-slate-400 hover:shadow-md focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 lg:ml-auto">
+              <Globe className="h-6 w-6 shrink-0 stroke-[1.7] text-slate-600" />
+              <span className="whitespace-nowrap text-sm font-medium sm:text-base">{t("reportLanguage")}:</span>
+              <Select
+                value={reportLanguage}
+                onValueChange={(value) => setReportLanguage(value as ReportLanguage)}
+              >
+                <SelectTrigger
+                  aria-label={t("reportLanguage")}
+                  className="h-9 w-auto min-w-[108px] gap-2 border-0 bg-transparent p-0 text-sm font-bold text-slate-950 shadow-none ring-offset-0 hover:text-blue-700 focus:ring-0 focus:ring-offset-0 sm:text-base [&>svg]:h-4 [&>svg]:w-4 [&>svg]:text-slate-500 [&>svg]:opacity-100"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  align="end"
+                  sideOffset={10}
+                  className="min-w-[190px] rounded-xl border-slate-200 bg-white p-1.5 shadow-xl"
+                >
+                  {REPORT_LANGUAGES.map((language) => (
+                    <SelectItem
+                      key={language.value}
+                      value={language.value}
+                      className="cursor-pointer rounded-lg py-2.5 pl-9 pr-3 text-sm font-medium text-slate-700 focus:bg-blue-50 focus:text-blue-800"
+                    >
+                      {language.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => setIsReportDataModalOpen(true)}
-              className="h-9 rounded-lg border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              className="h-12 flex-1 rounded-xl border-0 bg-slate-100 px-4 text-sm font-semibold text-slate-600 shadow-none hover:bg-slate-200 hover:text-slate-800 sm:flex-none sm:text-base"
             >
-              <CalendarRange className="mr-1.5 h-4 w-4 text-emerald-600" />
-              Change sites
+              <MapPinned className="mr-1.5 h-5 w-5 shrink-0 stroke-[1.7] text-slate-600" />
+              {t("changeSites")}
             </Button>
             <Button
-              size="sm"
               onClick={generatePDF}
               disabled={isGeneratingPDF}
-              className="h-9 rounded-lg bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+              className="h-12 flex-1 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg disabled:translate-y-0 sm:flex-none sm:text-base"
             >
               {isGeneratingPDF ? (
-                <><div className="mr-1.5 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Preparing PDF...</>
+                <><div className="mr-1.5 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />{t("preparingPdf")}</>
               ) : (
-                <><Download className="mr-1.5 h-4 w-4" />Download PDF</>
+                <><CloudDownload className="mr-1.5 h-5 w-5 shrink-0 stroke-[1.8]" />{t("downloadPdf")}</>
               )}
             </Button>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 rounded-lg border-slate-300 bg-white text-slate-700 hover:bg-slate-50">
-                  <MoreHorizontal className="mr-1.5 h-4 w-4" />
-                  More actions
+                <Button
+                  variant="outline"
+                  aria-label={t("moreActions")}
+                  title={t("moreActions")}
+                  className="h-12 w-12 shrink-0 rounded-full border-slate-300 bg-white p-0 text-slate-500 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 hover:text-slate-700 hover:shadow-md"
+                >
+                  <MoreHorizontal className="h-6 w-6" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-72 rounded-xl border-slate-200 p-2 shadow-xl">
@@ -1610,7 +1675,7 @@ function ReportContent() {
             </Popover>
           </div>
 
-          <div ref={reportRef} className="space-y-6">
+          <div ref={reportRef} lang={reportLanguage} className="space-y-6">
             {/* Report Header */}
             <div className="text-center mb-6 border-b pb-6">
               <h2 className="text-2xl font-bold text-gray-800">{getReportTitle()}</h2>
@@ -1619,35 +1684,35 @@ function ReportContent() {
               </p>
               {reportDateRange && (
                 <p className="mt-1 font-medium text-blue-700">
-                  Data Period: {format(new Date(reportDateRange.startDate.slice(0, 10) + "T12:00:00Z"), "MMMM d, yyyy")}
-                  {" to "}
-                  {format(new Date(reportDateRange.endDate.slice(0, 10) + "T12:00:00Z"), "MMMM d, yyyy")}
+                  {t("dataPeriod")}: {formatReportDate(reportDateRange.startDate)}
+                  {` ${t("to")} `}
+                  {formatReportDate(reportDateRange.endDate)}
                 </p>
               )}
-              <p className="text-gray-500 mt-1">Report Generated: {format(new Date(), "MMMM d, yyyy")}</p>
+              <p className="text-gray-500 mt-1">{t("reportGenerated")}: {formatReportDateForLanguage(new Date(), reportLanguage)}</p>
             </div>
 
             {/* Map snapshot of selected area */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
               <Card className="h-full border-blue-100 shadow-sm">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base text-blue-800">Area snapshot</CardTitle>
+                  <CardTitle className="text-base text-blue-800">{t("areaSnapshot")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm text-gray-700">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">Country</span>
-                    <span>{formatSelectionList(filters.country, "All Countries")}</span>
+                    <span className="font-medium">{t("country")}</span>
+                    <span>{formatSelectionList(filters.country, t("allCountries"))}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">District</span>
-                    <span>{formatSelectionList(filters.district, "All Districts")}</span>
+                    <span className="font-medium">{t("district")}</span>
+                    <span>{formatSelectionList(filters.district, t("allDistricts"))}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">City</span>
-                    <span>{formatSelectionList(filters.city, "All Cities")}</span>
+                    <span className="font-medium">{t("city")}</span>
+                    <span>{formatSelectionList(filters.city, t("allCities"))}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">Sites mapped</span>
+                    <span className="font-medium">{t("sitesMapped")}</span>
                     <span>{mapSites.length}</span>
                   </div>
                   <div className="pt-2 border-t text-xs text-blue-700">
@@ -1723,10 +1788,28 @@ function ReportContent() {
             {/* Introduction */}
             <section className="pdf-keep-together mb-8 overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/80 via-white to-cyan-50/60">
               <div className="border-b border-blue-100 px-5 py-4 sm:px-6">
-                <h3 className="mt-1 text-xl font-semibold text-slate-900">Introduction</h3>
+                <h3 className="mt-1 text-xl font-semibold text-slate-900">{t("introduction")}</h3>
               </div>
 
               <div className="space-y-4 px-5 py-5 text-sm leading-7 text-slate-700 sm:px-6 sm:py-6 sm:text-base">
+                {reportLanguage !== "en" ? (
+                  <>
+                    <p>{t("introOne", {
+                      scope: getReportScopeDescription(),
+                      period: reportDateRange
+                        ? t("periodFrom", { start: formatReportDate(reportDateRange.startDate), end: formatReportDate(reportDateRange.endDate) })
+                        : "",
+                      source: reportDateRange ? t("historicalMeasurements") : t("latestReadings"),
+                      count: filteredData.length,
+                      sites: filteredData.length === 1 ? t("site") : t("sites"),
+                    })}</p>
+                    <p>{t("introTwo", {
+                      value: `${avgPM25.toFixed(1)} µg/m³`,
+                      category: avgAQICategory,
+                    })}</p>
+                  </>
+                ) : (
+                  <>
                 <p>
                   This report summarizes air quality conditions across <strong>{getReportScopeDescription()}</strong>
                   {reportDateRange && (
@@ -1747,15 +1830,18 @@ function ReportContent() {
                   lower-pollution conditions, and provide practical health guidance. Results reflect available sensor
                   coverage and may vary with weather, traffic, local emissions, and temporary data gaps.
                 </p>
+                  </>
+                )}
               </div>
             </section>
             {/* AQI Index Visualization */}
             <div className="mb-8">
               <h3 className="text-xl font-semibold text-gray-800 mb-3">
-                {reportDateRange ? "Average Air Quality Status for the Selected Period" : "Current Air Quality Status"}
+                {reportDateRange ? t("averageStatus") : t("currentStatus")}
               </h3>
               <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                 <AQIIndexVisual
+                  language={reportLanguage}
                   aqiCategory={selectedSite ? selectedSite.aqi_category || "Unknown" : avgAQICategory}
                   pm25Value={selectedSite ? selectedSite.pm2_5?.value || 0 : avgPM25}
                 />
@@ -1764,19 +1850,19 @@ function ReportContent() {
 
             {/* Results Section with Charts */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Results</h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">{t("results")}</h3>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <h4 className="font-semibold text-gray-700 mb-1">Sites Analyzed</h4>
+                  <h4 className="font-semibold text-gray-700 mb-1">{t("sitesAnalyzed")}</h4>
                   <p className="text-2xl font-bold">{filteredData.length}</p>
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <h4 className="font-semibold text-gray-700 mb-1">Average PM<sub>2.5</sub></h4>
+                  <h4 className="font-semibold text-gray-700 mb-1">{t("averagePm25")}</h4>
                   <p className="text-2xl font-bold">{calculateAveragePM25(filteredData).toFixed(1)} µg/m³</p>
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <h4 className="font-semibold text-gray-700 mb-1">{comparisonPeriod === "monthly" ? "Monthly" : "Weekly"} Change</h4>
+                  <h4 className="font-semibold text-gray-700 mb-1">{comparisonPeriod === "monthly" ? t("monthly") : t("weekly")} {t("change")}</h4>
                   <p className="text-2xl font-bold flex items-center">
                     {calculateAveragePercentageChange(filteredData).toFixed(2)}%
                     {calculateAveragePercentageChange(filteredData) < 0 ? (
@@ -1792,11 +1878,12 @@ function ReportContent() {
 
               {/* Charts */}
               <div className="space-y-6">
-                <PM25BarChart sites={filteredData} />
-                <PM25CalendarPlot sites={filteredData} />
+                <PM25BarChart sites={filteredData} language={reportLanguage} />
+                <PM25CalendarPlot sites={filteredData} language={reportLanguage} />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <AQICategoryChart
                     sites={filteredData}
+                    language={reportLanguage}
                     periodGrouping={reportTimelineGrouping}
                     selectedPeriod={reportTimelinePeriod}
                     onPeriodGroupingChange={setReportTimelineGrouping}
@@ -1804,6 +1891,7 @@ function ReportContent() {
                   />
                   <WeeklyComparisonChart
                     sites={filteredData}
+                    language={reportLanguage}
                     comparisonPeriod={comparisonPeriod}
                     rangeDays={reportDurationDays}
                     timelineGrouping={reportTimelineGrouping}
@@ -1815,7 +1903,7 @@ function ReportContent() {
               {/* Device comparison follows the AQI Category Distribution period selection. */}
               <section className="pdf-keep-together mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-3 sm:px-4">
-                  <h4 className="text-base font-semibold text-slate-950">Device Comparison Table</h4>
+                  <h4 className="text-base font-semibold text-slate-950">{t("deviceComparison")}</h4>
                   {!pdfMode && (
                     <div className="flex flex-wrap items-center gap-2">
                       <Input
@@ -1834,7 +1922,7 @@ function ReportContent() {
                       >
                         <option value="all">All AQI categories</option>
                         {comparisonAqiOptions.map((category) => (
-                          <option key={category} value={category}>{category}</option>
+                          <option key={category} value={category}>{translateAqiCategory(category, reportLanguage)}</option>
                         ))}
                       </select>
                       <span className="text-xs font-medium text-slate-600">Show rows:</span>
@@ -1883,13 +1971,13 @@ function ReportContent() {
                   >
                     <thead className="sticky top-0 z-10 bg-slate-50 text-slate-700">
                       <tr>
-                        <th scope="col" className="w-[38%] px-3 py-2 font-medium">Device Name</th>
-                        <th scope="col" className="w-[16%] px-3 py-2 font-medium">Category</th>
+                        <th scope="col" className="w-[38%] px-3 py-2 font-medium">{t("deviceName")}</th>
+                        <th scope="col" className="w-[16%] px-3 py-2 font-medium">{t("category")}</th>
                         <th scope="col" className="w-[11%] px-3 py-2 font-medium">
                           PM<sub>2.5</sub>
                         </th>
-                        <th scope="col" className="w-[27%] px-3 py-2 font-medium">AQI Category</th>
-                        <th scope="col" className="w-[8%] px-3 py-2 text-right font-medium">Location</th>
+                        <th scope="col" className="w-[27%] px-3 py-2 font-medium">{t("aqiCategory")}</th>
+                        <th scope="col" className="w-[8%] px-3 py-2 text-right font-medium">{t("location")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1906,7 +1994,7 @@ function ReportContent() {
                             <th scope="row" className="px-3 py-2 font-semibold text-slate-950">
                               {site.siteDetails?.name || site.siteDetails?.formatted_name || "Unknown Device"}
                             </th>
-                            <td className="px-3 py-2">{displayCategory}</td>
+                            <td className="px-3 py-2">{translateSiteCategory(displayCategory, reportLanguage)}</td>
                             <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-950">
                               {typeof pm25Value === "number" ? `${pm25Value.toFixed(1)} \u00b5g/m\u00b3` : "N/A"}
                             </td>
@@ -1915,7 +2003,7 @@ function ReportContent() {
                                 className="inline-flex whitespace-nowrap rounded px-2 py-1 font-semibold text-white"
                                 style={{ backgroundColor: aqiMeta.color }}
                               >
-                                {aqiMeta.label}
+                                {translateAqiCategory(aqiMeta.label, reportLanguage)}
                               </span>
                             </td>
                             <td className="whitespace-nowrap px-3 py-2 text-right">
@@ -1937,7 +2025,12 @@ function ReportContent() {
               </section>
 
               <div className="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <h4 className="font-semibold text-gray-700 mb-2">Key Findings</h4>
+                <h4 className="font-semibold text-gray-700 mb-2">{t("keyFindings")}</h4>
+                {reportLanguage !== "en" ? (
+                  <ul className="list-disc list-inside space-y-2 text-gray-700">
+                    {localizedKeyFindings.map((finding, index) => <li key={index}>{finding}</li>)}
+                  </ul>
+                ) : (
                 <ul className="list-disc list-inside space-y-2 text-gray-700">
                   <li>
                     The average PM<sub>2.5</sub> concentration is{" "}
@@ -2008,6 +2101,7 @@ function ReportContent() {
                     </li>
                   )}
                 </ul>
+                )}
               </div>
             </div>
 
@@ -2019,7 +2113,7 @@ function ReportContent() {
 
             {/* Conclusion */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Conclusion</h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">{t("conclusion")}</h3>
               <p className="text-gray-700 mb-4">{getConclusion(selectedSite, filters, filteredData)}</p>
 
               <p className="text-gray-700">{getRegionalInsights(filters, filteredData)}</p>
@@ -2027,10 +2121,10 @@ function ReportContent() {
 
             {/* Recommendations */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Recommendations</h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-3">{t("recommendations")}</h3>
 
               <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                <h4 className="font-semibold text-yellow-800 mb-2">Health Recommendations</h4>
+                <h4 className="font-semibold text-yellow-800 mb-2">{t("healthRecommendations")}</h4>
                 <ul className="list-disc list-inside text-yellow-700 space-y-2">
                   {getHealthRecommendations(
                     selectedSite ? selectedSite.aqi_category : getAverageAQICategory(filteredData),

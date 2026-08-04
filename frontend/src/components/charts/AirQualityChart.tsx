@@ -20,6 +20,8 @@ import { useEffect, useState, useRef } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
 import html2canvas from "html2canvas"
 import type { SiteData } from "@/lib/types"
+import { translateReport, type ReportLanguage } from "@/lib/report-translations"
+import { getReportChartCopy, translateAqiCategory } from "@/lib/report-chart-translations"
 import { BarChart3, LineChartIcon, PieChartIcon, Download, TrendingUp, TrendingDown, ArrowUpDown } from "lucide-react"
 
 // AQI colors
@@ -105,7 +107,9 @@ const CustomDot = ({ cx, cy, payload }: { cx?: number; cy?: number; payload?: an
 }
 
 // PM₂.₅ Bar Chart
-export function PM25BarChart({ sites }: { sites: SiteData[] }) {
+export function PM25BarChart({ sites, language = "en" }: { sites: SiteData[]; language?: ReportLanguage }) {
+  const t = (key: Parameters<typeof translateReport>[1]) => translateReport(language, key)
+  const copy = getReportChartCopy(language)
   const [siteLimit, setSiteLimit] = useState(7)
   const [chartType, setChartType] = useState<"bar" | "line">("bar")
   const [xAxisView, setXAxisView] = useState<"time" | "site">("time")
@@ -145,12 +149,12 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
     if (type === "csv") {
       const dataStr = hasTemporalData
         ? [
-            [xAxisView === "site" ? "Site" : "Period", ...activeSeries.map((series) => series.name)].join(","),
+            [xAxisView === "site" ? copy.site : copy.period, ...activeSeries.map((series) => series.name)].join(","),
             ...activeChartData.map((row) =>
               [row[activeXAxisKey], ...activeSeries.map((series) => row[series.dataKey] ?? "")].join(","),
             ),
           ].join("\n")
-        : "Name,PM₂.₅,Category\n" + displaySites.map((s) => `${s.name},${s.pm25},${s.category}`).join("\n")
+        : `${copy.name},PM₂.₅,${copy.category}\n` + displaySites.map((s) => `${s.name},${s.pm25},${translateAqiCategory(s.category, language)}`).join("\n")
       const blob = new Blob([dataStr], { type: "text/csv;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -257,7 +261,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
       color: AQI_COLORS[getAqiCategoryForPm25(mergedValue)],
     }
   })
-  const mergedSeries = [{ dataKey: "merged", name: "All sites average", color: "#2563eb" }]
+  const mergedSeries = [{ dataKey: "merged", name: copy.allSitesAverage, color: "#2563eb" }]
 
   const siteAxisSeries = temporalData.map((row, index) => ({
     dataKey: `period_${index}`,
@@ -265,7 +269,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
     color: SITE_COLORS[index % SITE_COLORS.length],
   }))
   const siteAxisData = selectedSites.map((site, siteIndex) => {
-    const row: Record<string, string | number> = { name: site.siteDetails?.name || `Site ${siteIndex + 1}` }
+    const row: Record<string, string | number> = { name: site.siteDetails?.name || `${copy.site} ${siteIndex + 1}` }
     temporalData.forEach((period, periodIndex) => {
       const value = period[`site_${siteIndex}`]
       if (typeof value === "number") row[`period_${periodIndex}`] = value
@@ -289,22 +293,24 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
       <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:p-5">
         <CardTitle className="flex items-center gap-2 text-base text-gray-800 md:text-lg">
           <BarChart3 className="h-4 w-4 text-blue-600" />
+          {language !== "en" ? `${t("averagePm25")} — ${t("results")}` : <>
           PM<sub>2.5</sub>{" "}
           {hasTemporalData
             ? `${aggregation[0].toUpperCase()}${aggregation.slice(1)} Averages ${useMergedSeries ? "\u2014 All Sites Combined" : "by Site"}`
             : "Levels by Site"}
+          </>}
         </CardTitle>
         <div className="flex flex-col gap-2.5 pt-3 md:flex-row md:flex-wrap md:items-center">
           {hasTemporalData && (
             <div className="flex items-center gap-2">
-              <span className="min-w-fit text-xs font-medium text-gray-600">Display:</span>
+              <span className="min-w-fit text-xs font-medium text-gray-600">{copy.display}:</span>
               <Select value={seriesMode} onValueChange={(value: "separate" | "merged") => setSeriesMode(value)}>
                 <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[145px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="separate">Separate sites</SelectItem>
-                  <SelectItem value="merged">Merge all sites</SelectItem>
+                  <SelectItem value="separate">{copy.separateSites}</SelectItem>
+                  <SelectItem value="merged">{copy.mergeSites}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -312,71 +318,71 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
 
           {seriesMode === "separate" && (
           <div className="flex items-center gap-2">
-            <span className="min-w-fit text-xs font-medium text-gray-600">Sites:</span>
+            <span className="min-w-fit text-xs font-medium text-gray-600">{copy.sites}:</span>
             <Select onValueChange={handleSiteLimitChange} defaultValue="7">
               <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[125px]">
-                <SelectValue placeholder="Sites to display" />
+                <SelectValue placeholder={copy.sites} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="7">7 sites</SelectItem>
-                <SelectItem value="10">10 sites</SelectItem>
-                <SelectItem value="15">15 sites</SelectItem>
-                <SelectItem value="20">20 sites</SelectItem>
-                <SelectItem value="all">All ({sites.length})</SelectItem>
+                <SelectItem value="7">7 {copy.sites}</SelectItem>
+                <SelectItem value="10">10 {copy.sites}</SelectItem>
+                <SelectItem value="15">15 {copy.sites}</SelectItem>
+                <SelectItem value="20">20 {copy.sites}</SelectItem>
+                <SelectItem value="all">{copy.all} ({sites.length})</SelectItem>
               </SelectContent>
             </Select>
           </div>
           )}
 
           <div className="flex items-center gap-2">
-            <span className="min-w-fit text-xs font-medium text-gray-600">Average:</span>
+            <span className="min-w-fit text-xs font-medium text-gray-600">{copy.average}:</span>
             <Select
               value={aggregation}
               onValueChange={(value: "daily" | "weekly" | "monthly") => setAggregation(value)}
             >
               <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[130px]">
-                <SelectValue placeholder="Average period" />
+                <SelectValue placeholder={copy.average} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="daily">{copy.daily}</SelectItem>
+                <SelectItem value="weekly">{copy.weekly}</SelectItem>
+                <SelectItem value="monthly">{copy.monthly}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {seriesMode === "separate" && (
             <div className="flex items-center gap-2">
-              <span className="min-w-fit text-xs font-medium text-gray-600">X-axis:</span>
+              <span className="min-w-fit text-xs font-medium text-gray-600">{copy.xAxis}:</span>
             <Select value={xAxisView} onValueChange={(value: "time" | "site") => setXAxisView(value)}>
               <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[125px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="time">Time period</SelectItem>
-                <SelectItem value="site">Site name</SelectItem>
+                <SelectItem value="time">{copy.timePeriod}</SelectItem>
+                <SelectItem value="site">{copy.siteName}</SelectItem>
               </SelectContent>
             </Select>
             </div>
           )}
 
           <div className="flex items-center gap-2">
-            <span className="min-w-fit text-xs font-medium text-gray-600">Type:</span>
+            <span className="min-w-fit text-xs font-medium text-gray-600">{copy.type}:</span>
             <Select onValueChange={(v: string) => setChartType(v as "bar" | "line")} defaultValue="bar">
               <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[105px]">
-                <SelectValue placeholder="Chart type" />
+                <SelectValue placeholder={copy.type} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="bar">
                   <div className="flex items-center gap-2">
                     <BarChart3 className="h-4 w-4" />
-                    Bar
+                    {copy.bar}
                   </div>
                 </SelectItem>
                 <SelectItem value="line">
                   <div className="flex items-center gap-2">
                     <LineChartIcon className="h-4 w-4" />
-                    Line
+                    {copy.line}
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -385,28 +391,28 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
 
           {seriesMode === "separate" && (
             <div className="flex items-center gap-2">
-              <span className="min-w-fit text-xs font-medium text-gray-600">Sort:</span>
+              <span className="min-w-fit text-xs font-medium text-gray-600">{copy.sort}:</span>
             <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
               <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[125px]">
-                <SelectValue placeholder="Sort order" />
+                <SelectValue placeholder={copy.sort} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">
                   <div className="flex items-center gap-2">
                     <ArrowUpDown className="h-4 w-4" />
-                    No Sort
+                    {copy.noSorting}
                   </div>
                 </SelectItem>
                 <SelectItem value="highest">
                   <div className="flex items-center gap-2">
                     <TrendingDown className="h-4 w-4" />
-                    High to Low
+                    {copy.highestFirst}
                   </div>
                 </SelectItem>
                 <SelectItem value="lowest">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4" />
-                    Low to High
+                    {copy.lowestFirst}
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -415,16 +421,16 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
           )}
 
           <div className="flex items-center gap-2">
-            <span className="min-w-fit text-xs font-medium text-gray-600">Export:</span>
+            <span className="min-w-fit text-xs font-medium text-gray-600">{copy.export}:</span>
             <Select value={downloadValue} onValueChange={handleDownloadChange}>
               <SelectTrigger className="h-8 w-full rounded-lg border-gray-300 text-xs focus:border-blue-500 md:w-[105px]">
-                <SelectValue placeholder="Download" />
+                <SelectValue placeholder={copy.download} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">
                   <div className="flex items-center gap-2">
                     <Download className="h-4 w-4" />
-                    Export
+                    {copy.export}
                   </div>
                 </SelectItem>
                 <SelectItem value="csv">CSV</SelectItem>
@@ -440,7 +446,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <p className="text-amber-700 text-sm flex items-center gap-2">
               <span className="text-amber-600">⚠️</span>
-              Displaying more than 7 sites may affect chart readability on smaller screens.
+              {language === "en" ? "Displaying more than 7 sites may affect chart readability on smaller screens." : `${copy.sites}: 7+`}
             </p>
           </div>
         )}
@@ -458,7 +464,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 />
                 <Tooltip
                   formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]}
-                  labelFormatter={(label) => useSiteXAxis || !hasTemporalData ? `Site: ${label}` : `Period: ${label}`}
+                  labelFormatter={(label) => useSiteXAxis || !hasTemporalData ? `${copy.site}: ${label}` : `${copy.period}: ${label}`}
                   contentStyle={{ borderRadius: 10, fontSize: 11 }}
                   labelStyle={{ fontSize: 11, fontWeight: 600 }}
                   itemStyle={{ fontSize: 11 }}
@@ -510,7 +516,7 @@ export function PM25BarChart({ sites }: { sites: SiteData[] }) {
                 />
                 <Tooltip
                   formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]}
-                  labelFormatter={(label) => useSiteXAxis || !hasTemporalData ? `Site: ${label}` : `Period: ${label}`}
+                  labelFormatter={(label) => useSiteXAxis || !hasTemporalData ? `${copy.site}: ${label}` : `${copy.period}: ${label}`}
                   contentStyle={{ borderRadius: 10, fontSize: 11 }}
                   labelStyle={{ fontSize: 11, fontWeight: 600 }}
                   itemStyle={{ fontSize: 11 }}
@@ -556,17 +562,21 @@ export type ReportTimelineGrouping = "monthly" | "weekly"
 
 export function AQICategoryChart({
   sites,
+  language = "en",
   periodGrouping,
   selectedPeriod,
   onPeriodGroupingChange,
   onSelectedPeriodChange,
 }: {
   sites: SiteData[]
+  language?: ReportLanguage
   periodGrouping: ReportTimelineGrouping
   selectedPeriod: string
   onPeriodGroupingChange: (grouping: ReportTimelineGrouping) => void
   onSelectedPeriodChange: (period: string) => void
 }) {
+  const t = (key: Parameters<typeof translateReport>[1]) => translateReport(language, key)
+  const copy = getReportChartCopy(language)
   const [chartType, setChartType] = useState<"pie" | "bar">("pie")
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
   const chartRef = useRef<HTMLDivElement>(null)
@@ -579,10 +589,20 @@ export function AQICategoryChart({
     })
   })
   const periodOptions = Array.from(periodMap.values()).sort((a, b) => a.sortValue - b.sortValue)
+  const localizePeriodLabel = (period?: { key: string; label: string }) => {
+    if (!period || language === "en") return period?.label || copy.selectedPeriod
+    const [year, month, , weekNumber] = period.key.split("-")
+    const monthLabel = new Intl.DateTimeFormat(language === "luo" ? "luo-KE" : language, {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(Date.UTC(Number(year), Number(month) - 1, 1)))
+    return weekNumber ? `${copy.week} ${weekNumber}, ${monthLabel}` : monthLabel
+  }
   const effectivePeriod = selectedPeriod === "all" || periodMap.has(selectedPeriod) ? selectedPeriod : "all"
   const selectedPeriodLabel = effectivePeriod === "all"
-    ? "Entire reporting period"
-    : periodMap.get(effectivePeriod)?.label || "Selected period"
+    ? copy.entirePeriod
+    : localizePeriodLabel(periodMap.get(effectivePeriod))
 
   const categoryCount: Record<string, number> = {}
   sites.forEach((site) => {
@@ -598,7 +618,7 @@ export function AQICategoryChart({
   })
 
   const chartData = Object.entries(categoryCount).map(([name, value]) => ({
-    name,
+    name: translateAqiCategory(name, language),
     value,
     color: AQI_COLORS[name] || "#CCCCCC",
   }))
@@ -607,7 +627,7 @@ export function AQICategoryChart({
 
   const handleDownload = async (type: "csv" | "json" | "png") => {
     if (type === "csv") {
-      const dataStr = "Period,Category,Count\n" + chartData.map((d) => `${selectedPeriodLabel},${d.name},${d.value}`).join("\n")
+      const dataStr = `${copy.period},${copy.category},${copy.count}\n` + chartData.map((d) => `${selectedPeriodLabel},${d.name},${d.value}`).join("\n")
       const blob = new Blob([dataStr], { type: "text/csv;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -664,27 +684,27 @@ export function AQICategoryChart({
       <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-gray-100">
         <CardTitle className="flex items-center gap-2 text-base text-gray-800 md:text-lg">
           <PieChartIcon className="h-5 w-5 text-green-600" />
-          AQI Category Distribution
+          {t("aqiDistribution")}
         </CardTitle>
-        <p className="mt-1 text-sm text-slate-600">{selectedPeriodLabel} · {sitesWithData} site{sitesWithData === 1 ? "" : "s"} with data</p>
+        <p className="mt-1 text-sm text-slate-600">{selectedPeriodLabel} · {sitesWithData} {sitesWithData === 1 ? copy.site : copy.sites} {copy.withData}</p>
         <div className="flex flex-col gap-3 pt-4 md:flex-row md:flex-wrap md:items-center">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600 min-w-fit">Type:</span>
+            <span className="text-sm font-medium text-gray-600 min-w-fit">{copy.type}:</span>
             <Select onValueChange={(v: string) => setChartType(v as "pie" | "bar")} defaultValue="pie">
               <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-green-500 md:w-[120px]">
-                <SelectValue placeholder="Chart type" />
+                <SelectValue placeholder={copy.type} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pie">
                   <div className="flex items-center gap-2">
                     <PieChartIcon className="h-4 w-4" />
-                    Pie
+                    {copy.pie}
                   </div>
                 </SelectItem>
                 <SelectItem value="bar">
                   <div className="flex items-center gap-2">
                     <BarChart3 className="h-4 w-4" />
-                    Bar
+                    {copy.bar}
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -692,7 +712,7 @@ export function AQICategoryChart({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="min-w-fit text-sm font-medium text-gray-600">View by:</span>
+            <span className="min-w-fit text-sm font-medium text-gray-600">{copy.viewBy}:</span>
             <Select
               value={periodGrouping}
               onValueChange={(value: "monthly" | "weekly") => {
@@ -704,38 +724,38 @@ export function AQICategoryChart({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="monthly">Month</SelectItem>
-                <SelectItem value="weekly">Week</SelectItem>
+                <SelectItem value="monthly">{copy.month}</SelectItem>
+                <SelectItem value="weekly">{copy.week}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="min-w-fit text-sm font-medium text-gray-600">Period:</span>
+            <span className="min-w-fit text-sm font-medium text-gray-600">{copy.period}:</span>
             <Select value={effectivePeriod} onValueChange={onSelectedPeriodChange}>
               <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-green-500 md:w-[210px]">
-                <SelectValue placeholder="Select period" />
+                <SelectValue placeholder={copy.selectPeriod} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Entire reporting period</SelectItem>
+                <SelectItem value="all">{copy.entirePeriod}</SelectItem>
                 {periodOptions.map((period) => (
-                  <SelectItem key={period.key} value={period.key}>{period.label}</SelectItem>
+                  <SelectItem key={period.key} value={period.key}>{localizePeriodLabel(period)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600 min-w-fit">Export:</span>
+            <span className="text-sm font-medium text-gray-600 min-w-fit">{copy.export}:</span>
             <Select value={downloadValue} onValueChange={handleDownloadChange}>
               <SelectTrigger className="h-9 w-full rounded-xl border-gray-300 focus:border-green-500 md:w-[120px]">
-                <SelectValue placeholder="Download" />
+                <SelectValue placeholder={copy.download} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">
                   <div className="flex items-center gap-2">
                     <Download className="h-4 w-4" />
-                    Export
+                    {copy.export}
                   </div>
                 </SelectItem>
                 <SelectItem value="csv">CSV</SelectItem>
@@ -766,22 +786,22 @@ export function AQICategoryChart({
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => [`${value} sites`, "Count"]} />
+                <Tooltip formatter={(value) => [`${value} ${copy.sites}`, copy.count]} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
               </PieChart>
             ) : (
               <BarChart key={`aqi-bar-${periodGrouping}-${effectivePeriod}`} data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 60 }}>
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
                 <YAxis
-                  label={{ value: "Count", angle: -90, position: "insideLeft", fontSize: 10 }}
+                  label={{ value: copy.count, angle: -90, position: "insideLeft", fontSize: 10 }}
                   tick={{ fontSize: 10 }}
                   tickCount={10}
                 />
                 <Tooltip
-                  formatter={(value) => [`${value} sites`, "Count"]}
-                  labelFormatter={(label) => `Category: ${label}`}
+                  formatter={(value) => [`${value} ${copy.sites}`, copy.count]}
+                  labelFormatter={(label) => `${copy.category}: ${label}`}
                 />
-                <Bar dataKey="value" name="Count" fill="#8884d8" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="value" name={copy.count} fill="#8884d8" radius={[4, 4, 0, 0]}>
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -798,17 +818,21 @@ export function AQICategoryChart({
 // Weekly Comparison Line Chart
 export function WeeklyComparisonChart({
   sites,
+  language = "en",
   comparisonPeriod = "weekly",
   rangeDays,
   timelineGrouping,
   timelinePeriod,
 }: {
   sites: SiteData[]
+  language?: ReportLanguage
   comparisonPeriod?: "weekly" | "monthly"
   rangeDays?: number
   timelineGrouping: ReportTimelineGrouping
   timelinePeriod: string
 }) {
+  const t = (key: Parameters<typeof translateReport>[1]) => translateReport(language, key)
+  const copy = getReportChartCopy(language)
   const [siteLimit, setSiteLimit] = useState(7)
   const [chartType, setChartType] = useState<"line" | "bar">("line")
   const [downloadValue, setDownloadValue] = useState<"none" | "csv" | "json" | "png">("none")
@@ -818,7 +842,7 @@ export function WeeklyComparisonChart({
     ? "weekly"
     : comparisonPeriod
   const isMonthly = effectiveComparisonPeriod === "monthly"
-  const periodLabel = isMonthly ? "Month" : "Week"
+  const periodLabel = isMonthly ? copy.month : copy.week
   const matchesTimeline = (timestamp: string) =>
     timelinePeriod === "all" || getAqiPeriodBucket(timestamp, timelineGrouping).key === timelinePeriod
   let timelineLabel = "the selected reporting period"
@@ -881,8 +905,8 @@ export function WeeklyComparisonChart({
         bucketKey: period.key,
       }))
     : [
-        { dataKey: "previous", name: `Previous ${periodLabel}`, color: "#111827", bucketKey: "previous" },
-        { dataKey: "current", name: `Current ${periodLabel}`, color: "#2563eb", bucketKey: "current" },
+        { dataKey: "previous", name: `${copy.previous} ${periodLabel}`, color: "#111827", bucketKey: "previous" },
+        { dataKey: "current", name: `${copy.current} ${periodLabel}`, color: "#2563eb", bucketKey: "current" },
       ]
 
   const siteRows = sites.flatMap((site) => {
@@ -920,7 +944,7 @@ export function WeeklyComparisonChart({
   const handleDownload = async (type: "csv" | "json" | "png") => {
     if (type === "csv") {
       const dataStr =
-        ["Site", ...periodSeries.map((series) => series.name)].join(",") + "\n" +
+        [copy.site, ...periodSeries.map((series) => series.name)].join(",") + "\n" +
         chartData.map((row) => [row.name, ...periodSeries.map((series) => row[series.dataKey] ?? "")].join(",")).join("\n")
       const blob = new Blob([dataStr], { type: "text/csv;charset=utf-8;" })
       const url = URL.createObjectURL(blob)
@@ -997,9 +1021,10 @@ export function WeeklyComparisonChart({
     <Card className="w-full font-sans">
       <CardHeader className="p-4 sm:p-5">
         <CardTitle className="text-base md:text-lg">
-          {comparisonHeading} PM<sub>2.5</sub> Comparison
+          {language === "en" ? comparisonHeading : t(isMonthly ? "monthly" : "weekly")} PM<sub>2.5</sub> {t("comparison")}
         </CardTitle>
         <p className="text-xs leading-5 text-slate-500 md:text-sm">
+          {language !== "en" ? `${t("comparison")}: ${copy.entirePeriod}.` : <>
           {comparisonMode === "adjacent"
             ? `Comparing ${periodSeries[periodSeries.length - 1]?.name} with the previous available ${periodLabel.toLowerCase()}, ${periodSeries[0]?.name}.`
             : comparisonMode === "daily-fallback"
@@ -1011,73 +1036,74 @@ export function WeeklyComparisonChart({
                 : isMonthly
                   ? `Each series represents one calendar month within ${timelineLabel}.`
                   : `${periodSeries.length} week${periodSeries.length === 1 ? "" : "s"} with data ${timelinePeriod === "all" ? "are shown for the reporting period" : `are shown within ${timelineLabel}`}.`}
+          </>}
         </p>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">
             <SelectTrigger className="w-full rounded-xl md:w-[160px]">
-              <SelectValue placeholder="Sites to display" />
+              <SelectValue placeholder={copy.sites} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="7">7</SelectItem>
               <SelectItem value="10">10</SelectItem>
               <SelectItem value="15">15</SelectItem>
               <SelectItem value="20">20</SelectItem>
-              <SelectItem value="all">All ({sitesWithData.length})</SelectItem>
+              <SelectItem value="all">{copy.all} ({sitesWithData.length})</SelectItem>
             </SelectContent>
           </Select>
           <Select onValueChange={(v: string) => setChartType(v as "line" | "bar")} defaultValue="line">
             <SelectTrigger className="w-full rounded-xl md:w-[160px]">
-              <SelectValue placeholder="Chart type" />
+              <SelectValue placeholder={copy.type} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="bar">
                 <div className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
-                  Bar
+                  {copy.bar}
                 </div>
               </SelectItem>
               <SelectItem value="line">
                 <div className="flex items-center gap-2">
                   <LineChartIcon className="h-4 w-4" />
-                  Line
+                  {copy.line}
                 </div>
               </SelectItem>
             </SelectContent>
           </Select>
           <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
             <SelectTrigger className="w-full rounded-xl md:w-[160px]">
-              <SelectValue placeholder="Sort order" />
+              <SelectValue placeholder={copy.sort} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">
                 <div className="flex items-center gap-2">
                   <ArrowUpDown className="h-4 w-4" />
-                  No Sort
+                  {copy.noSorting}
                 </div>
               </SelectItem>
               <SelectItem value="highest">
                 <div className="flex items-center gap-2">
                   <TrendingDown className="h-4 w-4" />
-                  High to Low
+                  {copy.highestFirst}
                 </div>
               </SelectItem>
               <SelectItem value="lowest">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
-                  Low to High
+                  {copy.lowestFirst}
                 </div>
               </SelectItem>
             </SelectContent>
           </Select>
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
             <SelectTrigger className="w-full rounded-xl md:w-[160px]">
-              <SelectValue placeholder="Download" />
+              <SelectValue placeholder={copy.download} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">
                 <div className="flex items-center gap-2">
                   <Download className="h-4 w-4" />
-                  Export
+                  {copy.export}
                 </div>
               </SelectItem>
               <SelectItem value="csv">CSV</SelectItem>
@@ -1090,7 +1116,7 @@ export function WeeklyComparisonChart({
       <CardContent>
         {siteLimit > 7 && (
           <p className="text-yellow-600 text-xs md:text-sm mb-2">
-            Warning: Displaying more than 7 sites may affect readability.
+            {language === "en" ? "Warning: Displaying more than 7 sites may affect readability." : `${copy.sites}: 7+`}
           </p>
         )}
         <div className="h-[250px] md:h-[300px]" ref={chartRef}>
@@ -1105,7 +1131,7 @@ export function WeeklyComparisonChart({
                   tick={{ fontSize: 10 }}
                   tickCount={10}
                 />
-                <Tooltip formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]} labelFormatter={(label) => `Site: ${label}`} contentStyle={{ fontSize: 11 }} />
+                <Tooltip formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]} labelFormatter={(label) => `${copy.site}: ${label}`} contentStyle={{ fontSize: 11 }} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
                 {periodSeries.map((series) => (
                   <Line
@@ -1131,7 +1157,7 @@ export function WeeklyComparisonChart({
                   tick={{ fontSize: 10 }}
                   tickCount={10}
                 />
-                <Tooltip formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]} labelFormatter={(label) => `Site: ${label}`} contentStyle={{ fontSize: 11 }} />
+                <Tooltip formatter={(value, name) => [`${Number(value).toFixed(1)} µg/m³`, name]} labelFormatter={(label) => `${copy.site}: ${label}`} contentStyle={{ fontSize: 11 }} />
                 <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ fontSize: 10 }} />
                 {periodSeries.map((series) => (
                   <Bar key={series.dataKey} dataKey={series.dataKey} name={series.name} fill={series.color} radius={[3, 3, 0, 0]} />
@@ -1146,7 +1172,9 @@ export function WeeklyComparisonChart({
 }
 
 // AQI Index Visualization
-export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string; pm25Value: number }) {
+export function AQIIndexVisual({ aqiCategory, pm25Value, language = "en" }: { aqiCategory: string; pm25Value: number; language?: ReportLanguage }) {
+  const t = (key: Parameters<typeof translateReport>[1]) => translateReport(language, key)
+  const copy = getReportChartCopy(language)
   const [downloadValue, setDownloadValue] = useState<"none" | "png">("none")
   const chartRef = useRef<HTMLDivElement>(null)
 
@@ -1202,17 +1230,17 @@ export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string
   return (
     <Card className="w-full font-sans">
       <CardHeader className="p-4 sm:p-5">
-        <CardTitle className="text-base md:text-lg">Air Quality Index</CardTitle>
+        <CardTitle className="text-base md:text-lg">{t("airQualityIndex")}</CardTitle>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
             <SelectTrigger className="w-full rounded-xl md:w-[160px]">
-              <SelectValue placeholder="Download" />
+              <SelectValue placeholder={copy.download} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">
                 <div className="flex items-center gap-2">
                   <Download className="h-4 w-4" />
-                  Export
+                  {copy.export}
                 </div>
               </SelectItem>
               <SelectItem value="png">PNG</SelectItem>
@@ -1230,12 +1258,12 @@ export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string
           </div>
 
           <div className="w-full flex justify-between text-[10px] md:text-xs text-gray-600 mb-4 flex-wrap gap-1">
-            <span>Good</span>
-            <span>Moderate</span>
-            <span>Unhealthy for Sensitive Groups</span>
-            <span>Unhealthy</span>
-            <span>Very Unhealthy</span>
-            <span>Hazardous</span>
+            <span>{copy.good}</span>
+            <span>{copy.moderate}</span>
+            <span>{copy.sensitiveGroups}</span>
+            <span>{copy.unhealthy}</span>
+            <span>{copy.veryUnhealthy}</span>
+            <span>{copy.hazardous}</span>
           </div>
 
           <div className="flex items-center justify-center gap-4 mt-2">
@@ -1246,7 +1274,7 @@ export function AQIIndexVisual({ aqiCategory, pm25Value }: { aqiCategory: string
               {pm25Value.toFixed(1)}
             </div>
             <div className="text-center">
-              <p className="text-base md:text-lg font-bold">{aqiCategory}</p>
+              <p className="text-base md:text-lg font-bold">{translateAqiCategory(aqiCategory, language)}</p>
               <p className="text-xs md:text-sm text-gray-600">{pm25Value.toFixed(1)} µg/m³</p>
             </div>
           </div>
