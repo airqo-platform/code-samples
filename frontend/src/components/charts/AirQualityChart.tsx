@@ -45,7 +45,7 @@ const getReportBucket = (
   language: ReportLanguage = "en",
 ) => {
   const date = new Date(timestamp)
-  const locale = language === "en" ? "en-US" : language === "luo" ? "luo-KE" : language
+  const locale = language === "en" ? "en-US" : language === "alz" ? "alz-UG" : language
   const copy = getReportChartCopy(language)
   if (aggregation === "weekly") {
     const dayOfWeek = date.getUTCDay()
@@ -82,7 +82,7 @@ export const getAqiPeriodBucket = (
   language: ReportLanguage = "en",
 ) => {
   const date = new Date(timestamp)
-  const locale = language === "en" ? "en-US" : language === "luo" ? "luo-KE" : language
+  const locale = language === "en" ? "en-US" : language === "alz" ? "alz-UG" : language
   const copy = getReportChartCopy(language)
   const year = date.getUTCFullYear()
   const month = date.getUTCMonth()

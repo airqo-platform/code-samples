@@ -30,14 +30,14 @@ const copies: Record<ReportLanguage, ReportChartCopy> = {
     display: 'Affichage', separateSites: 'Sites séparés', mergeSites: 'Regrouper tous les sites', sites: 'Sites', site: 'Site', period: 'Période', name: 'Nom', category: 'Catégorie', allSitesAverage: 'Moyenne de tous les sites', all: 'Tous', average: 'Moyenne', daily: 'Quotidien', weekly: 'Hebdomadaire', monthly: 'Mensuel', xAxis: 'Axe X', timePeriod: 'Période', siteName: 'Nom du site', type: 'Type', bar: 'Barres', line: 'Courbe', pie: 'Secteurs', sort: 'Trier', noSorting: 'Sans tri', highestFirst: 'Plus élevé en premier', lowestFirst: 'Plus faible en premier', export: 'Exporter', download: 'Télécharger', viewBy: 'Afficher par', month: 'Mois', week: 'Semaine', selectPeriod: 'Sélectionner une période', entirePeriod: 'Toute la période du rapport', selectedPeriod: 'Période sélectionnée', count: 'Nombre', withData: 'avec données', previous: 'Précédent', current: 'Actuel', unknown: 'Inconnu', good: 'Bon', moderate: 'Modéré', sensitiveGroups: 'Mauvais pour les groupes sensibles', unhealthy: 'Mauvais', veryUnhealthy: 'Très mauvais', hazardous: 'Dangereux', date: 'Date', dailyAverage: 'Moyenne quotidienne de PM2.5 (ug/m3)', daysWithData: 'Jours avec données', missingDays: 'Jours manquants', missingData: 'Données manquantes', calendarExplanation: 'Les valeurs du calendrier sont les concentrations moyennes quotidiennes calibrées de PM₂.₅ en µg/m³. Les jours manquants sont comptés entre la première et la dernière date disponible.' }),
   lg: withEnglish({
     display: 'Endabika', separateSites: 'Ebifo ebyawukana', mergeSites: 'Gatta ebifo byonna', sites: 'Ebifo', site: 'Ekifo', period: 'Ekiseera', name: 'Erinnya', category: 'Ekika', allSitesAverage: 'Wakati w’ebifo byonna', all: 'Byonna', average: 'Wakati', daily: 'Buli lunaku', weekly: 'Buli wiiki', monthly: 'Buli mwezi', xAxis: 'Lukoloboze X', timePeriod: 'Ekiseera', siteName: 'Erinnya ly’ekifo', type: 'Ekika', bar: 'Emitendera', line: 'Olukoloboze', pie: 'Enkulungo', sort: 'Tegeka', noSorting: 'Totegeka', highestFirst: 'Ekisinga waggulu kisooke', lowestFirst: 'Ekisinga wansi kisooke', export: 'Fulumya', download: 'Wanula', viewBy: 'Laba nga', month: 'Mwezi', week: 'Wiiki', selectPeriod: 'Londa ekiseera', entirePeriod: 'Ekiseera kyonna eky’alipoota', selectedPeriod: 'Ekiseera ekirondeddwa', count: 'Omuwendo', withData: 'ebirina data', previous: 'Ekyayita', current: 'Ekiriwo', unknown: 'Tekimanyiddwa', good: 'Kirungi', moderate: 'Kya wakati', sensitiveGroups: 'Kibi eri Abantu Abateeseteese', unhealthy: 'Kibi eri Obulamu', veryUnhealthy: 'Kibi Nnyo eri Obulamu', hazardous: 'Kya Bulabe', date: 'Olunaku', dailyAverage: 'PM2.5 eya wakati eya buli lunaku (ug/m3)', daysWithData: 'Ennaku ezirina data', missingDays: 'Ennaku ezibula', missingData: 'Data ebula', calendarExplanation: 'Emiwendo mu kalenda ye PM₂.₅ eya wakati eya buli lunaku mu µg/m³. Ennaku ezibula zibalibwa wakati w’olunaku olusooka n’olusembayo oluliko data.' }),
-  luo: withEnglish({
-    display: 'Nyisruok', separateSites: 'Kuonde mopogore', mergeSites: 'Riw kuonde duto', sites: 'Kuonde', site: 'Kar nonro', period: 'Kinde', name: 'Nying', category: 'Kit', allSitesAverage: 'Kadirom mar kuonde duto', all: 'Duto', average: 'Kadirom', daily: 'Pile', weekly: 'Mar juma', monthly: 'Mar dwe', xAxis: 'Yo X', timePeriod: 'Kinde', siteName: 'Nying kar nonro', type: 'Kit', bar: 'Migepe', line: 'Rek', pie: 'Duara', sort: 'Rie', noSorting: 'Kik irie', highestFirst: 'Malo mokwongo', lowestFirst: 'Piny mokwongo', export: 'Gol oko', download: 'Gam', viewBy: 'Ne gi', month: 'Dwe', week: 'Juma', selectPeriod: 'Yier kinde', entirePeriod: 'Kinde duto mar ripot', selectedPeriod: 'Kinde moyier', count: 'Kwan', withData: 'man gi data', previous: 'Mokalo', current: 'Makoro', unknown: 'Ok ong’ere', good: 'Ber', moderate: 'Kadirom', sensitiveGroups: 'Rach ne ji ma yot hinyore', unhealthy: 'Rach ne ngima', veryUnhealthy: 'Rach ahinya ne ngima', hazardous: 'Marach matek', date: 'Tarik', dailyAverage: 'Kadirom pile mar PM2.5 (ug/m3)', daysWithData: 'Ndalo man gi data', missingDays: 'Ndalo ma data onge', missingData: 'Data onge', calendarExplanation: 'Namba manie kalenda gin kadirom pile mar PM₂.₅ e µg/m³. Ndalo ma data onge ikwano chakre tarik mokwongo nyaka tarik mogik man gi data.' }),
+  alz: withEnglish({
+    display: 'Nyuthi', separateSites: 'Kabedo matung tung', mergeSites: 'Med kabedo zo', sites: 'Kabedo', site: 'Kabedo', period: 'Sawa', name: 'Nying', category: 'Kit', allSitesAverage: 'Kabedo zo rwom', all: 'Ceke', average: 'Idyere', daily: 'Kubang nindo', weekly: 'Kubang yenga', monthly: 'Dwi ku dwi', xAxis: 'X-axis', timePeriod: 'Kare mi kare', siteName: 'Nying kabedo', type: 'Kyeo', bar: 'Klap', line: 'Iatira', pie: 'Pie', sort: 'Yer', noSorting: 'Poko ope', highestFirst: 'Ma malu mir acel', lowestFirst: 'Ma piny loyo mir acel', export: 'Cwalo woko', download: 'Telo', viewBy: 'Nen ku', month: 'Dwi', week: 'Yenga', selectPeriod: 'Yer kare', entirePeriod: 'Kare mi ripot zo', selectedPeriod: 'Kare ma juyeru', count: 'Kwan', withData: 'ku lembe', previous: 'Mapodi', current: 'Makawoni', unknown: 'Ngeyire ngo', good: 'Ber', moderate: 'Idyere', sensitiveGroups: 'Ber ungo pi ju ma remo migi nyai', unhealthy: 'Ku yot kum', veryUnhealthy: 'Ku yot kum marac', hazardous: 'Peko', date: 'Nindo', dailyAverage: 'Piny ma romo kubang ceng PM2.5 (ug/m3)', daysWithData: 'Nindu ku lembe', missingDays: 'Nindu ma rwinyo', missingData: 'Lembe ma rwinyo', calendarExplanation: 'Piny ma nwangre i calendar cells utiye PM₂.₅ ma jupimo kubang ceng i µg/m3. Nindu ma rwinyo ju kwanu ikind nindo mir acel ku mir ajiki ma ju nyuthu pi oro.' }),
 }
 
 export const getReportChartCopy = (language: ReportLanguage) => copies[language]
 
 export const getLocalizedCalendarLabels = (language: ReportLanguage) => {
-  const locale = language === 'luo' ? 'luo-KE' : language
+  const locale = language === 'alz' ? 'alz-UG' : language
   const months = Array.from({ length: 12 }, (_, month) =>
     new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, month, 1))),
   )
@@ -123,15 +123,15 @@ const siteCategoryLabels: Record<ReportLanguage, Record<string, string>> = {
     Rural: 'Mu byalo',
     Uncategorized: 'Tekinnateekebwa mu kika',
   },
-  luo: {
-    'Urban Commercial': 'Ohala mar dala maduong’',
-    'Background Site': 'Kar nonro mar chien',
-    'Urban Background': 'Chien mar dala maduong’',
-    Background: 'Chien',
-    Urban: 'Dala maduong’',
-    Industrial: 'Karuoth',
-    Rural: 'Gwenge',
-    Uncategorized: 'Ok oket e kit',
+  alz: {
+    'Urban Commercial': 'Urban Commercial',
+    'Background Site': 'Kabedo mi ngeye',
+    'Urban Background': 'Kabedo mi adhura',
+    Background: 'Ingei lembe eni',
+    Urban: 'Taun',
+    Industrial: 'Tic mi yiku piny',
+    Rural: 'Caro',
+    Uncategorized: 'Uncategorized',
   },
 }
 
