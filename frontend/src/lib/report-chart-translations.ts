@@ -131,7 +131,7 @@ const siteCategoryLabels: Record<ReportLanguage, Record<string, string>> = {
     Urban: 'Taun',
     Industrial: 'Tic mi yiku piny',
     Rural: 'Caro',
-    Uncategorized: 'Uncategorized',
+    Uncategorized: 'mbe ku kare.',
   },
 }
 
