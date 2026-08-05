@@ -7,7 +7,7 @@ export const REPORT_LANGUAGES: Array<{ value: ReportLanguage; label: string }> =
   { value: 'pt', label: 'Português' },
   { value: 'fr', label: 'Français' },
   { value: 'lg', label: 'Luganda' },
-  { value: 'alz', label: 'Alur' },
+  { value: 'alz', label: 'Luo' },
 ]
 
 const baseMessages = {
