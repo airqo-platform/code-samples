@@ -19,7 +19,7 @@ class ApiRequestError extends Error {
 }
 
 const RETRYABLE_API_STATUSES = new Set([429, 500, 502, 503, 504])
-const CATEGORIZE_UNAUTHORIZED_RETRIES = 5
+const RESILIENT_API_MAX_ATTEMPTS = 5
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function baseFetch<T>(
@@ -28,6 +28,7 @@ async function baseFetch<T>(
     method?: string
     queryParams?: Record<string, string | number | boolean>
     json?: unknown
+    maxAttempts?: number
   } = {},
 ): Promise<T> {
   const normalizedEndpoint = endpoint.replace(/^\/+/, "")
@@ -57,7 +58,7 @@ async function baseFetch<T>(
   if (options.json) console.log("Request payload:", options.json)
 
   const method = options.method || "GET"
-  const maxAttempts = method === "GET" ? 3 : 1
+  const maxAttempts = options.maxAttempts ?? (method === "GET" ? 3 : 1)
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     let response: Response
@@ -69,7 +70,7 @@ async function baseFetch<T>(
         cache: "no-store",
       })
     } catch (error) {
-      if (method === "GET" && attempt < maxAttempts) {
+      if (attempt < maxAttempts) {
         await delay(500 * attempt)
         continue
       }
@@ -99,6 +100,7 @@ export async function submitLocations(payload: SiteLocatorPayload): Promise<Site
     return await baseFetch<SiteLocatorResponse>("spatial/site_location", {
       method: "POST",
       json: payload,
+      maxAttempts: RESILIENT_API_MAX_ATTEMPTS,
     })
   } catch (error) {
     console.error("Error submitting locations:", error)
@@ -114,7 +116,7 @@ export async function getSiteCategory(
   try {
     if (includeSatellite) {
       try {
-        for (let retryCount = 0; ; retryCount += 1) {
+        for (let attempt = 1; attempt <= RESILIENT_API_MAX_ATTEMPTS; attempt += 1) {
           try {
             const response = await baseFetch<unknown>("spatial/source_metadata", {
               queryParams: { latitude, longitude, include_satellite: true },
@@ -124,10 +126,10 @@ export async function getSiteCategory(
             const shouldRetry =
               error instanceof ApiRequestError
               && error.status === 401
-              && retryCount < CATEGORIZE_UNAUTHORIZED_RETRIES
+              && attempt < RESILIENT_API_MAX_ATTEMPTS
 
             if (!shouldRetry) throw error
-            await delay(500 * (retryCount + 1))
+            await delay(500 * attempt)
           }
         }
       } catch (error) {
