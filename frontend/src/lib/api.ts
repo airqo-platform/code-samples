@@ -19,7 +19,8 @@ class ApiRequestError extends Error {
 }
 
 const RETRYABLE_API_STATUSES = new Set([429, 500, 502, 503, 504])
-const RESILIENT_API_MAX_ATTEMPTS = 5
+const SPATIAL_RETRYABLE_STATUSES = new Set([401, 500])
+const EXTENDED_API_MAX_ATTEMPTS = 5
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function baseFetch<T>(
@@ -29,6 +30,7 @@ async function baseFetch<T>(
     queryParams?: Record<string, string | number | boolean>
     json?: unknown
     maxAttempts?: number
+    retryableStatuses?: ReadonlySet<number>
   } = {},
 ): Promise<T> {
   const normalizedEndpoint = endpoint.replace(/^\/+/, "")
@@ -59,6 +61,7 @@ async function baseFetch<T>(
 
   const method = options.method || "GET"
   const maxAttempts = options.maxAttempts ?? (method === "GET" ? 3 : 1)
+  const retryableStatuses = options.retryableStatuses ?? RETRYABLE_API_STATUSES
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     let response: Response
@@ -70,7 +73,7 @@ async function baseFetch<T>(
         cache: "no-store",
       })
     } catch (error) {
-      if (attempt < maxAttempts) {
+      if (method === "GET" && attempt < maxAttempts) {
         await delay(500 * attempt)
         continue
       }
@@ -84,7 +87,7 @@ async function baseFetch<T>(
     const errorData = await response.text()
     console.error("API Error Response:", errorData)
 
-    if (attempt < maxAttempts && RETRYABLE_API_STATUSES.has(response.status)) {
+    if (attempt < maxAttempts && retryableStatuses.has(response.status)) {
       await delay(500 * attempt)
       continue
     }
@@ -100,7 +103,8 @@ export async function submitLocations(payload: SiteLocatorPayload): Promise<Site
     return await baseFetch<SiteLocatorResponse>("spatial/site_location", {
       method: "POST",
       json: payload,
-      maxAttempts: RESILIENT_API_MAX_ATTEMPTS,
+      maxAttempts: EXTENDED_API_MAX_ATTEMPTS,
+      retryableStatuses: SPATIAL_RETRYABLE_STATUSES,
     })
   } catch (error) {
     console.error("Error submitting locations:", error)
@@ -116,22 +120,12 @@ export async function getSiteCategory(
   try {
     if (includeSatellite) {
       try {
-        for (let attempt = 1; attempt <= RESILIENT_API_MAX_ATTEMPTS; attempt += 1) {
-          try {
-            const response = await baseFetch<unknown>("spatial/source_metadata", {
-              queryParams: { latitude, longitude, include_satellite: true },
-            })
-            return unwrapSourceMetadataResponse(response)
-          } catch (error) {
-            const shouldRetry =
-              error instanceof ApiRequestError
-              && error.status === 401
-              && attempt < RESILIENT_API_MAX_ATTEMPTS
-
-            if (!shouldRetry) throw error
-            await delay(500 * attempt)
-          }
-        }
+        const response = await baseFetch<unknown>("spatial/source_metadata", {
+          queryParams: { latitude, longitude, include_satellite: true },
+          maxAttempts: EXTENDED_API_MAX_ATTEMPTS,
+          retryableStatuses: SPATIAL_RETRYABLE_STATUSES,
+        })
+        return unwrapSourceMetadataResponse(response)
       } catch (error) {
         if (!(error instanceof ApiRequestError) || error.status !== 401) throw error
         console.warn("Source metadata returned 401. Falling back to OSM-only site categorization.")
