@@ -10,6 +10,7 @@ const BASE_URL = "/api/airqo"
 const RETRYABLE_API_STATUSES = new Set([429, 500, 502, 503, 504])
 const MAX_API_ATTEMPTS = 3
 const MAX_SATELLITE_API_ATTEMPTS = 5
+const ACTIVE_FIRES_FAILURE_COOLDOWN_MS = 30 * 1000
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
@@ -428,8 +429,8 @@ export const getActiveFires = async (): Promise<ActiveFire[] | null> => {
 
       return deduplicateActiveFires(validFires)
     } catch (error) {
-      activeFiresBlockedUntil = Date.now() + 5 * 60 * 1000
-      console.error("Active-fire request failed. Skipping retries for 5 minutes:", error)
+      activeFiresBlockedUntil = Date.now() + ACTIVE_FIRES_FAILURE_COOLDOWN_MS
+      console.error("Active-fire request failed. Pausing new requests for 30 seconds:", error)
       return null
     } finally {
       activeFiresRequest = null
