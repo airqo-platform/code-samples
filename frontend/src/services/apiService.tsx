@@ -345,6 +345,7 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
   heatmapDataRequest = (async () => {
     try {
       const response = await apiService.get("/spatial/heatmaps", {
+        _airqoMaxAttempts: MAP_LOAD_MAX_ATTEMPTS,
         _airqoRetryableStatuses: MAP_RETRYABLE_API_STATUSES,
       } as AxiosRequestConfig)
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
@@ -355,7 +356,7 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
       return null
     } catch (error) {
       heatmapRetryBlockedUntil = Date.now() + 5 * 60 * 1000
-      console.error("Heatmap fetch failed after 3 attempts. Skipping retries for 5 minutes:", error)
+      console.error("Heatmap fetch failed after 5 attempts. Skipping retries for 5 minutes:", error)
       return null
     }
   })()
