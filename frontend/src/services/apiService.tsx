@@ -8,13 +8,16 @@ const removeTrailingSlash = (url: string): string => {
 
 const BASE_URL = "/api/airqo"
 const RETRYABLE_API_STATUSES = new Set([429, 500, 502, 503, 504])
+const MAP_RETRYABLE_API_STATUSES = new Set([401, ...RETRYABLE_API_STATUSES])
 const MAX_API_ATTEMPTS = 3
 const MAX_SATELLITE_API_ATTEMPTS = 5
+const ACTIVE_FIRES_FAILURE_COOLDOWN_MS = 30 * 1000
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
   _airqoRetryCount?: number
   _airqoMaxAttempts?: number
+  _airqoRetryableStatuses?: ReadonlySet<number>
 }
 const ACTIVE_FIRES_PATH = "/spatial/active_fires/africa"
 // Axios instance with a base URL and default headers
@@ -33,7 +36,8 @@ apiService.interceptors.response.use(
     const method = config?.method?.toUpperCase() || "GET"
     const retryCount = config?._airqoRetryCount || 0
     const maxAttempts = config?._airqoMaxAttempts || MAX_API_ATTEMPTS
-    const isRetryableFailure = !status || RETRYABLE_API_STATUSES.has(status)
+    const retryableStatuses = config?._airqoRetryableStatuses || RETRYABLE_API_STATUSES
+    const isRetryableFailure = !status || retryableStatuses.has(status)
 
     if (
       config &&
@@ -267,6 +271,7 @@ const withoutInterceptorRetries = { _airqoMaxAttempts: 1 } as AxiosRequestConfig
 const runMapLoadWithRetries = async <T,>(
   request: () => Promise<T>,
   hasUsableData: (result: T) => boolean,
+  retryableStatuses: ReadonlySet<number> = RETRYABLE_API_STATUSES,
 ): Promise<T> => {
   let lastResult: T | undefined
 
@@ -276,7 +281,7 @@ const runMapLoadWithRetries = async <T,>(
       if (hasUsableData(lastResult) || attempt === MAP_LOAD_MAX_ATTEMPTS) return lastResult
     } catch (error) {
       const status = axios.isAxiosError(error) ? error.response?.status : undefined
-      const isRetryableFailure = !status || RETRYABLE_API_STATUSES.has(status)
+      const isRetryableFailure = !status || retryableStatuses.has(status)
       if (!isRetryableFailure || attempt === MAP_LOAD_MAX_ATTEMPTS) throw error
     }
 
@@ -295,6 +300,7 @@ const fetchMapReadings = (): Promise<MapNode[]> => {
   mapReadingsRequest = runMapLoadWithRetries(
     () => apiService.get("/devices/readings/map", withoutInterceptorRetries),
     (response) => Array.isArray(response.data?.measurements) && response.data.measurements.length > 0,
+    MAP_RETRYABLE_API_STATUSES,
   )
     .then((response) => {
       const data = Array.isArray(response.data?.measurements) ? response.data.measurements : []
@@ -338,7 +344,10 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
 
   heatmapDataRequest = (async () => {
     try {
-      const response = await apiService.get("/spatial/heatmaps")
+      const response = await apiService.get("/spatial/heatmaps", {
+        _airqoMaxAttempts: MAP_LOAD_MAX_ATTEMPTS,
+        _airqoRetryableStatuses: MAP_RETRYABLE_API_STATUSES,
+      } as AxiosRequestConfig)
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         return response.data
       }
@@ -347,7 +356,7 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
       return null
     } catch (error) {
       heatmapRetryBlockedUntil = Date.now() + 5 * 60 * 1000
-      console.error("Heatmap fetch failed after 3 attempts. Skipping retries for 5 minutes:", error)
+      console.error("Heatmap fetch failed after 5 attempts. Skipping retries for 5 minutes:", error)
       return null
     }
   })()
@@ -428,8 +437,8 @@ export const getActiveFires = async (): Promise<ActiveFire[] | null> => {
 
       return deduplicateActiveFires(validFires)
     } catch (error) {
-      activeFiresBlockedUntil = Date.now() + 5 * 60 * 1000
-      console.error("Active-fire request failed. Skipping retries for 5 minutes:", error)
+      activeFiresBlockedUntil = Date.now() + ACTIVE_FIRES_FAILURE_COOLDOWN_MS
+      console.error("Active-fire request failed. Pausing new requests for 30 seconds:", error)
       return null
     } finally {
       activeFiresRequest = null
@@ -472,6 +481,7 @@ export const getDailyForecastCollection = async (): Promise<DailyForecastRespons
             (data as DailyForecastResponse).forecasts.length > 0
           )
         },
+        MAP_RETRYABLE_API_STATUSES,
       )
       const payload = unwrapForecastPayload(response.data)
       const data = payload?.data ? unwrapForecastPayload(payload.data) : payload
@@ -483,7 +493,7 @@ export const getDailyForecastCollection = async (): Promise<DailyForecastRespons
       return null
     } catch (error) {
       console.error("Error fetching daily forecast collection after retries:", error)
-      return null
+      throw error
     }
   })()
 

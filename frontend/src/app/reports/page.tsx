@@ -1739,8 +1739,7 @@ function ReportContent() {
                     <span>{mapSites.length}</span>
                   </div>
                   <div className="pt-2 border-t text-xs text-blue-700">
-                    Map is filtered to the area described above. Markers show the selected devices; circles indicate a
-                    500m context radius.
+                    {t("mapContextNote")}
                   </div>
                 </CardContent>
               </Card>
