@@ -27,13 +27,13 @@ const Home: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
                 <Link
                   href="/map"
-                  className="flex items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-6 py-3 font-medium text-blue-700 transition-colors hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-300 dark:hover:bg-slate-700"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-blue-100 bg-white px-6 py-3 font-medium text-blue-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-300 dark:hover:border-slate-600 dark:hover:bg-slate-700"
                 >
                   Explore Air Quality Map <ArrowRight size={18} />
                 </Link>
                 <Link
                   href="/locate"
-                  className="bg-blue-700 text-white hover:bg-blue-600 border border-blue-500 px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-blue-600 bg-blue-700 px-6 py-3 font-medium text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-blue-600 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                 >
                   Try Site Locator
                 </Link>
@@ -166,13 +166,13 @@ const Home: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/map"
-              className="rounded-lg border border-blue-100 bg-white px-8 py-4 font-medium text-blue-700 transition-colors hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-300 dark:hover:bg-slate-700"
+              className="flex items-center justify-center gap-2 rounded-xl border border-blue-100 bg-white px-6 py-3 font-medium text-blue-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-300 dark:hover:border-slate-600 dark:hover:bg-slate-700"
             >
               Explore the Map
             </Link>
             <Link
               href="/locate"
-              className="bg-blue-700 text-white hover:bg-blue-600 border border-blue-500 px-8 py-4 rounded-lg font-medium transition-colors"
+              className="flex items-center justify-center gap-2 rounded-xl border border-blue-600 bg-blue-700 px-6 py-3 font-medium text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-blue-600 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
             >
               Try Site Locator
             </Link>
