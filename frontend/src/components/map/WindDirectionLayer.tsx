@@ -5,25 +5,13 @@ import { createPortal } from "react-dom"
 import { useMap } from "react-leaflet"
 import L from "leaflet"
 import { LoaderCircle, Pause, Play, RotateCw, Wind } from "lucide-react"
-import { sampleWind, wrapLongitude, WIND_COLORS, type WindField } from "@/lib/wind-field"
+import { sampleWind, WIND_COLORS, type WindField } from "@/lib/wind-field"
 import { renderWind } from "./wind-renderer"
+import { weatherViewportQuery } from "./weather-viewport"
 
 const FRESH_FOR = 15 * 60 * 1000
 const fields = new Map<string, { field: WindField; fetched: number }>()
 const compass = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
-
-function viewportKey(map: L.Map) {
-  const bounds = map.getBounds().pad(0.12)
-  // Quantize buffered extents for cache reuse; preserve unwrapped date-line spans.
-  const step = Math.max(0.02, Math.pow(2, Math.floor(Math.log2(Math.max(bounds.getEast() - bounds.getWest(), 0.02) / 24))))
-  const west = Math.floor(bounds.getWest() / step) * step
-  const east = Math.ceil(bounds.getEast() / step) * step
-  const span = Math.min(360, east - west)
-  const normalizedWest = span === 360 ? -180 : wrapLongitude(west)
-  const south = Math.max(-85, Math.min(84.98, Math.floor(bounds.getSouth() / step) * step))
-  const north = Math.min(85, Math.max(south + 0.02, Math.ceil(bounds.getNorth() / step) * step))
-  return new URLSearchParams({ west: normalizedWest.toFixed(4), east: (normalizedWest + span).toFixed(4), south: south.toFixed(4), north: north.toFixed(4) }).toString()
-}
 
 export default function WindDirectionLayer({ enabled }: { enabled: boolean }) {
   const map = useMap()
@@ -77,7 +65,7 @@ export default function WindDirectionLayer({ enabled }: { enabled: boolean }) {
     const load = async () => {
       const version = ++generation
       controller?.abort()
-      const key = viewportKey(map)
+      const key = weatherViewportQuery(map)
       const cached = fields.get(key)
       setError(null)
       if (cached && Date.now() - cached.fetched < FRESH_FOR) {
@@ -149,7 +137,7 @@ export default function WindDirectionLayer({ enabled }: { enabled: boolean }) {
     return () => { map.off("mousemove", inspect); map.off("click", inspect); map.off("mouseout", clear) }
   }, [map, enabled, field])
 
-  return container ? createPortal(
+  return container && enabled ? createPortal(
     <div className="mb-3 mr-2 flex max-w-[calc(100vw-32px)] flex-col items-end gap-2">
       {enabled && <div className="w-72 max-w-full overflow-hidden rounded-2xl border border-white/20 bg-slate-950/90 text-white shadow-xl backdrop-blur-md">
         <div className="flex items-center justify-between px-4 pt-3">

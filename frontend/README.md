@@ -93,6 +93,28 @@ toward the provider's quota; see [Open-Meteo pricing](https://open-meteo.com/en/
 
 Run wind interpolation and API checks with `node --test tests/wind.test.cjs`.
 
+### City temperature on /map
+
+Select the thermometer beside wind and heatmap to display forecast air temperature
+at 2 metres, with a Celsius legend, opacity control and a 24-hour time slider.
+Hover for a reading or click to keep a point selected while changing the hour.
+Temperature switches off wind shading and the AQI heatmap to avoid mixing scales;
+air-quality markers and fires remain available.
+
+`/api/temperature` samples Open-Meteo's best-match forecast on a buffered 13 × 9
+viewport grid. The colour scale uses the range across all 24 hours and stays fixed
+when moving the time slider. Missing grid cells remain transparent. UTC timestamps
+are displayed in the viewer's timezone, with a visible timezone label.
+
+This regional weather-model layer does **not** resolve street-level urban heat
+islands like Meteoblue Urban Maps. Zooming changes the area sampled, not the native
+weather-model resolution. No synthetic neighbourhood hot/cold spots are added.
+It shares the wind layer's Open-Meteo account configuration and usage limitations.
+If the provider reaches its minute/hour/day request quota, the temperature service
+respects its cooldown and shows a retry time instead of repeatedly calling it.
+
+Run checks with `node --test tests/wind.test.cjs tests/temperature.test.cjs`.
+
 ### Locate Page
 Use the Site Locator tool to find optimal locations for new air quality sensors:
 1. Draw a polygon on the map to define the area of interest
