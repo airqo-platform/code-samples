@@ -52,6 +52,7 @@ import {
 import { useSiteSettings } from "@/hooks/use-site-settings"
 import { Switch } from "@/ui/switch"
 import { MapLayerControl } from "./MapLayerControl"
+import WindDirectionLayer from "./WindDirectionLayer"
 
 const MAP_NODES_CACHE_KEY = "map-nodes"
 const MAP_HEATMAPS_CACHE_KEY = "map-heatmaps"
@@ -2972,6 +2973,8 @@ interface HeatmapData {
 
 // Combined Map Controls Component
 const MapControls: React.FC<{
+  showWind: boolean
+  setShowWind: (value: boolean) => void
   showHeatmaps: boolean
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
@@ -2981,6 +2984,8 @@ const MapControls: React.FC<{
   heatmapEnabled: boolean
   captureViewEnabled: boolean
 }> = ({
+  showWind,
+  setShowWind,
   showHeatmaps,
   setShowHeatmaps,
   showEmojis,
@@ -3094,6 +3099,23 @@ const MapControls: React.FC<{
           })
         }
 
+        const windButton = L.DomUtil.create("button", "", container)
+        windButton.innerHTML = iconSvg(`
+          <path d="M3 8h12a3 3 0 1 0-3-3" />
+          <path d="M2 12h17a3 3 0 1 1-3 3" />
+          <path d="M4 16h5a3 3 0 1 1-3 3" />
+        `)
+        styleIconButton(windButton)
+        windButton.style.background = showWind ? "#e0f2fe" : "transparent"
+        windButton.style.color = showWind ? "#0369a1" : "#374151"
+        windButton.title = showWind ? "Hide wind" : "Show wind direction"
+        windButton.setAttribute("aria-label", windButton.title)
+        windButton.setAttribute("aria-pressed", String(showWind))
+        L.DomEvent.on(windButton, "click", (e) => {
+          L.DomEvent.stopPropagation(e)
+          setShowWind(!showWind)
+        })
+
         // Emoji toggle button
         const emojiButton = L.DomUtil.create("button", "", container)
         emojiButton.innerHTML = iconSvg(`
@@ -3160,6 +3182,8 @@ const MapControls: React.FC<{
     }
   }, [
     map,
+    showWind,
+    setShowWind,
     showHeatmaps,
     setShowHeatmaps,
     showEmojis,
@@ -3174,6 +3198,8 @@ const MapControls: React.FC<{
 }
 
 const HeatmapOverlays: React.FC<{
+  showWind: boolean
+  setShowWind: (value: boolean) => void
   onLoadingChange: (state: LoadingState) => void
   showHeatmaps: boolean
   setShowHeatmaps: (value: boolean) => void
@@ -3184,6 +3210,8 @@ const HeatmapOverlays: React.FC<{
   heatmapEnabled: boolean
   captureViewEnabled: boolean
 }> = ({
+  showWind,
+  setShowWind,
   onLoadingChange,
   showHeatmaps,
   setShowHeatmaps,
@@ -3312,6 +3340,8 @@ const HeatmapOverlays: React.FC<{
 
   return (
     <MapControls
+      showWind={showWind}
+      setShowWind={setShowWind}
       showHeatmaps={showHeatmaps}
       setShowHeatmaps={setShowHeatmaps}
       showEmojis={showEmojis}
@@ -3449,6 +3479,7 @@ const LeafletMap: React.FC = () => {
   const [showEmojis, setShowEmojis] = useState(true)
   const [showHeatmaps, setShowHeatmaps] = useState(false)
   const [showFires, setShowFires] = useState(true)
+  const [showWind, setShowWind] = useState(false)
   const [selectedNode, setSelectedNode] = useState<MapNode | null>(null)
   const [hourlyForecastEnabled, setHourlyForecastEnabled] = useState(false)
   const [hourlyForecastPreferenceLoaded, setHourlyForecastPreferenceLoaded] = useState(false)
@@ -3644,7 +3675,10 @@ const LeafletMap: React.FC = () => {
             <ClearSelectionOnMapClick onClear={() => setSelectedNode(null)} />
             <MapNodes onLoadingChange={setLoadingState} showEmojis={showEmojis} onNodeSelect={setSelectedNode} />
             <ActiveFireMarkers showFires={showFires} />
+            <WindDirectionLayer enabled={showWind} />
             <HeatmapOverlays
+              showWind={showWind}
+              setShowWind={setShowWind}
               onLoadingChange={setLoadingState}
               showHeatmaps={heatmapEnabled && showHeatmaps}
               setShowHeatmaps={setShowHeatmaps}

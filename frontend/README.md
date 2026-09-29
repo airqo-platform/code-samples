@@ -71,6 +71,28 @@ The home page displays an interactive map with real-time air quality data. Users
 - View air quality information for different sites
 - Toggle between street and satellite map views
 
+### Wind overlay on /map
+
+The **Wind direction** button shows animated flow trails and a speed colour layer
+across the visible map. Pan or zoom to load the surrounding region, hover (or tap)
+to inspect speed/direction, and use Pause to stop motion. Reduced-motion preferences
+start the layer paused with direction arrows.
+
+`/api/wind` samples current GFS 10-metre wind from Open-Meteo on a 13 × 9 grid
+covering a buffered viewport, then the browser interpolates east/north components.
+This is an overview of modelled wind, not station observations or Windy's native
+high-resolution weather tiles. Zooming in resamples the smaller area. Missing data
+stays blank. The timestamp and provider attribution appear in the wind legend.
+Requests are debounced, cancelled on navigation, deduplicated, and cached for
+15 minutes; the layer refreshes while open and stops animation when hidden.
+
+The default [Open-Meteo API](https://open-meteo.com/en/docs) is rate-limited and for
+non-commercial use. For commercial deployment, set the server-only
+`OPEN_METEO_API_KEY` to use the customer endpoint. Multi-location requests count
+toward the provider's quota; see [Open-Meteo pricing](https://open-meteo.com/en/pricing).
+
+Run wind interpolation and API checks with `node --test tests/wind.test.cjs`.
+
 ### Locate Page
 Use the Site Locator tool to find optimal locations for new air quality sensors:
 1. Draw a polygon on the map to define the area of interest
