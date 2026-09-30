@@ -18,7 +18,7 @@ This monorepo is organized into subfolders, each containing code samples for a s
 
 To get started with any of the code samples, navigate to the respective subfolder and follow the instructions provided in the README or code comments. Each subfolder contains code examples and explanations specific to the programming language or framework.
 
-### Run the Leaflet forecast sample
+### Run the JavaScript Leaflet forecast sample
 
 Node.js 18 or newer is required. From the repository root, configure your AirQo credentials and start the server in PowerShell:
 
@@ -26,11 +26,24 @@ Node.js 18 or newer is required. From the repository root, configure your AirQo 
 $env:AIRQO_API_TOKEN = "your-access-token"
 $env:AIRQO_GRID_ID = "your-grid-id"
 
-copy this in the terminal
 node .\javascript\leaflet-forecast-server.js
 ```
 
 Keep the terminal running, then open <http://127.0.0.1:8080/> in a browser. Do not open `leaflet-with-forecast.html` directly as a `file://` URL because the server-side proxy is required for the AirQo API requests.
+
+### Run the PHP Leaflet forecast sample
+
+See the [PHP setup guide](./php/README.md) for local setup and deployment. For local development, copy `php/.env.example` to `php/.env`, enter your AirQo token and grid ID, and run Node and PHP in separate terminals:
+
+```powershell
+node .\php\leaflet-forecast-server.js
+```
+
+```powershell
+php -S 127.0.0.1:8080 -t php php/leaflet-forecast-router.php
+```
+
+Open <http://127.0.0.1:8080/leaflet-with-forecast.php>. This setup requires PHP and Node.js 20.12 or newer. The local router sends AirQo requests to Node on port 8081.
 
 ## Code Samples
 
