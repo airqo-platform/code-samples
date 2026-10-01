@@ -1,0 +1,15 @@
+tensorflow==2.15.1
+Flask==3.1.0
+earthengine-api==1.4.5
+Flask-Cors==5.0.0
+geopandas == 1.0.1
+pandas == 2.2.3
+numpy == 2.2.1
+shapely == 2.0.6
+pymongo == 4.10.1
+rasterio==1.4.3
+osmnx == 2.0.1
+scikit-learn == 1.6.1
+matplotlib == 3.10.0
+pyproj == 3.7.0
+geemap == 0.35.1
