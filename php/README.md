@@ -15,7 +15,7 @@ Copy-Item .\php\.env.example .\php\.env
 notepad .\php\.env
 ```
 
-Keep `PORT=8081` and `HOST=127.0.0.1`. The Node service loads `.env`
+Keep `PORT=8080` and `HOST=127.0.0.1`. The Node service loads `.env`
 automatically with Node.js 20.12 or newer. Shell environment variables take
 precedence over `.env`; remove stale values from the Node terminal if needed:
 
@@ -28,23 +28,31 @@ The `.env`
 file is ignored by Git, and the local PHP router blocks access to it. Do not
 copy `.env` into a publicly served directory when deploying the site.
 
-From the repository root, start Node in one PowerShell terminal and leave it open:
+From the repository root, start Node in the first PowerShell terminal and leave it running:
 
 ```powershell
 node .\php\leaflet-forecast-server.js
 ```
 
-In another terminal, also at the repository root, start PHP with the local router
-and leave it open:
+In a second PowerShell terminal, also at the repository root, start PHP with the
+local router and leave it running:
 
 ```powershell
-php -S 127.0.0.1:8080 -t php php/leaflet-forecast-router.php
+php -S 127.0.0.1:8082 -t php php/leaflet-forecast-router.php
 ```
 
-Check http://127.0.0.1:8081/healthz and
-http://127.0.0.1:8080/airqo-config, then open
-http://127.0.0.1:8080/leaflet-with-forecast.php. The router serves the page
-and forwards its configuration/API requests to Node on port 8081. It denies
+Open these URLs in order:
+
+1. http://127.0.0.1:8080/healthz should return `{"status":"ok"}` from Node.
+2. http://127.0.0.1:8082/airqo-config should return JSON with your `gridId`
+   through the PHP router.
+3. http://127.0.0.1:8082/leaflet-with-forecast.php should load the map.
+
+Keep both terminals running while using the page. If the page says "Server
+configuration unavailable" and `/airqo-config` returns 404, confirm that PHP
+was started with the router command above and that you opened the page on port
+8082. The router serves the page and forwards its configuration/API requests to
+Node on port 8080. It denies
 requests for all other files, including the Node source. PHP's `allow_url_fopen`
 must be enabled (the default). This built-in server is for local development;
 use the deployment setup below for a public website.
@@ -67,7 +75,7 @@ access to the website's reverse-proxy configuration.
 3. Set environment variables on the server and start the Node service:
 
    ```bash
-   NODE_ENV=production HOST=127.0.0.1 PORT=8081 \
+   NODE_ENV=production HOST=127.0.0.1 PORT=8080 \
    AIRQO_API_TOKEN="your-access-token" AIRQO_GRID_ID="your-grid-id" \
    node /opt/airqo/leaflet-forecast-server.js
    ```
@@ -76,7 +84,7 @@ access to the website's reverse-proxy configuration.
    an actual token. Use a service manager to keep Node running.
 
 4. Route `/airqo-config` and `/airqo-api/*` on the PHP website's domain to
-   `http://127.0.0.1:8081`. For Nginx, add the locations in
+   `http://127.0.0.1:8080`. For Nginx, add the locations in
    [`leaflet-forecast-nginx.conf.example`](./leaflet-forecast-nginx.conf.example)
    inside the existing site's `server` block, validate with `nginx -t`, and reload.
    Keep the site's existing PHP handler. Apache or IIS can supply equivalent
@@ -96,7 +104,7 @@ Do not publish this entire sample directory as static files.
 
 ## Verify
 
-- `curl http://127.0.0.1:8081/healthz` should return `{"status":"ok"}`.
+- `curl http://127.0.0.1:8080/healthz` should return `{"status":"ok"}`.
 - Open the PHP page and check that `/airqo-config` and `/airqo-api/...` succeed
   in the browser's Network panel, with no token in requests or page source.
 - Confirm that the server `.js` file cannot be downloaded from your website.

@@ -1,5 +1,5 @@
 <?php
-// Local development only: php -S 127.0.0.1:8080 -t php php/leaflet-forecast-router.php
+// Local development only: php -S 127.0.0.1:8082 -t php php/leaflet-forecast-router.php
 // Never fall back to static serving: the adjacent Node source must stay private.
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
@@ -36,9 +36,9 @@ $context = stream_context_create(array('http' => array(
     'ignore_errors' => true,
     'follow_location' => 0,
 )));
-$body = @file_get_contents('http://127.0.0.1:8081' . $_SERVER['REQUEST_URI'], false, $context);
+$body = @file_get_contents('http://127.0.0.1:8080' . $_SERVER['REQUEST_URI'], false, $context);
 if ($body === false) {
-    routerError(502, 'Cannot reach the Node service on port 8081. Start leaflet-forecast-server.js with PORT=8081 and enable allow_url_fopen in PHP.');
+    routerError(502, 'Cannot reach the Node service on port 8080. Start leaflet-forecast-server.js with PORT=8080 and enable allow_url_fopen in PHP.');
     return;
 }
 
