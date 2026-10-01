@@ -92,36 +92,42 @@ header("Content-Type: text/html; charset=utf-8");
       background-color: #f8f8f8;
     }
 
-    .heatmap-control {
+    .heatmap-control,
+    .site-values-control {
       display: flex;
-      min-width: 126px;
-      padding: 8px 10px;
+      width: 38px;
+      height: 38px;
       align-items: center;
-      gap: 8px;
+      justify-content: center;
+      padding: 0;
       border: 1px solid #dbe3ee;
       border-radius: 10px;
       background: rgba(255, 255, 255, 0.96);
       box-shadow: 0 6px 18px rgba(15, 23, 42, 0.16);
       color: #344054;
       cursor: pointer;
-      font: 700 12px/1.2 Arial, Helvetica, sans-serif;
       backdrop-filter: blur(6px);
+    }
+
+    .heatmap-control svg,
+    .site-values-control svg {
+      width: 27px;
+      height: 27px;
     }
 
     .heatmap-control.is-hidden {
       display: none;
     }
 
-    .heatmap-control:hover {
+    .heatmap-control:hover,
+    .site-values-control:hover {
       background: #ffffff;
     }
 
-    .heatmap-control input {
-      width: 15px;
-      height: 15px;
-      margin: 0;
-      accent-color: #2563eb;
-      cursor: pointer;
+    .heatmap-control:focus-visible,
+    .site-values-control:focus-visible {
+      outline: 3px solid #2563eb;
+      outline-offset: 2px;
     }
 
     .heatmap-control.is-loading {
@@ -129,7 +135,8 @@ header("Content-Type: text/html; charset=utf-8");
       opacity: 0.72;
     }
 
-    .heatmap-control.is-active {
+    .heatmap-control.is-active,
+    .site-values-control.is-active {
       border-color: #93c5fd;
       background: #eff6ff;
       color: #1d4ed8;
@@ -156,6 +163,17 @@ header("Content-Type: text/html; charset=utf-8");
       border-radius: 50%;
       filter: drop-shadow(0 5px 7px rgba(15, 23, 42, 0.28));
       transition: transform 160ms ease, filter 160ms ease;
+    }
+
+    .airqo-marker-value {
+      display: none;
+      font: 700 11px/1 Arial, Helvetica, sans-serif;
+      white-space: nowrap;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+    }
+
+    #map.show-site-values .airqo-marker-value {
+      display: block;
     }
 
     .custom-marker:hover .airqo-marker-icon {
@@ -1149,6 +1167,7 @@ header("Content-Type: text/html; charset=utf-8");
 
   <script>
     var map = L.map("map", { attributionControl: false }).setView([0, 20], 9);
+    map.getContainer().classList.add("show-site-values");
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "",
@@ -1176,7 +1195,7 @@ header("Content-Type: text/html; charset=utf-8");
     var heatmapLayer = null;
     var heatmapBounds = null;
     var heatmapEnabled = false;
-    var heatmapToggleInput = null;
+    var heatmapToggleButton = null;
     var heatmapControlElement = null;
     var heatmapRequest = null;
     var legendAdded = false;
@@ -1204,6 +1223,7 @@ header("Content-Type: text/html; charset=utf-8");
           gridId = config.gridId;
           mapDataCacheKey = "airqo:leaflet-map:measurements:" + gridId;
           addHeatmapControl();
+          addSiteValuesControl();
           fetchHeatmap(false);
           fetchLiveMeasurements();
           fetchDailyForecast();
@@ -1218,16 +1238,24 @@ header("Content-Type: text/html; charset=utf-8");
       var HeatmapControl = L.Control.extend({
         options: { position: "topleft" },
         onAdd: function () {
-          var container = L.DomUtil.create("label", "heatmap-control is-hidden");
-          container.innerHTML = '<input type="checkbox" aria-label="Toggle AQI heatmap" />' +
-            '<span class="heatmap-control-label">Heatmap</span>';
+          var container = L.DomUtil.create("button", "heatmap-control is-hidden");
+          container.type = "button";
+          container.setAttribute("aria-label", "Toggle AQI heatmap");
+          container.setAttribute("aria-pressed", "false");
+          container.title = "Show heatmap";
+          container.innerHTML = '<svg viewBox="0 0 28 28" aria-hidden="true">' +
+            '<path d="M3 3h22v22H3z" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>' +
+            '<path d="M3 10h22M3 18h22M10 3v22M18 3v22" fill="none" stroke="#94a3b8" stroke-width="1"/>' +
+            '<circle cx="9" cy="19" r="6" fill="#00a83b" fill-opacity=".78"/>' +
+            '<circle cx="18" cy="17" r="7" fill="#fbbf24" fill-opacity=".78"/>' +
+            '<circle cx="19" cy="9" r="6" fill="#ef4444" fill-opacity=".78"/></svg>';
           heatmapControlElement = container;
-          heatmapToggleInput = container.querySelector("input");
+          heatmapToggleButton = container;
 
           L.DomEvent.disableClickPropagation(container);
           L.DomEvent.disableScrollPropagation(container);
-          L.DomEvent.on(heatmapToggleInput, "change", function () {
-            setHeatmapEnabled(heatmapToggleInput.checked);
+          L.DomEvent.on(container, "click", function () {
+            setHeatmapEnabled(!heatmapEnabled);
           });
 
           return container;
@@ -1237,11 +1265,40 @@ header("Content-Type: text/html; charset=utf-8");
       map.addControl(new HeatmapControl());
     }
 
+    function addSiteValuesControl() {
+      var SiteValuesControl = L.Control.extend({
+        options: { position: "topleft" },
+        onAdd: function () {
+          var container = L.DomUtil.create("button", "site-values-control is-active");
+          container.type = "button";
+          container.setAttribute("aria-label", "Show PM2.5 values on site markers");
+          container.setAttribute("aria-pressed", "true");
+          container.title = "Hide PM2.5 values";
+          container.innerHTML = '<svg viewBox="0 0 28 28" aria-hidden="true">' +
+            '<path d="M14 26s9-8 9-16a9 9 0 0 0-18 0c0 8 9 16 9 16z" fill="none" stroke="currentColor" stroke-width="2"/>' +
+            '<circle cx="14" cy="11" r="6.5" fill="#fbbf24"/>' +
+            '<text x="14" y="13.5" text-anchor="middle" fill="#111827" font-family="Arial,sans-serif" font-size="7.5" font-weight="700">42</text></svg>';
+          L.DomEvent.disableClickPropagation(container);
+          L.DomEvent.disableScrollPropagation(container);
+          L.DomEvent.on(container, "click", function () {
+            var showValues = map.getContainer().classList.toggle("show-site-values");
+            container.classList.toggle("is-active", showValues);
+            container.setAttribute("aria-pressed", String(showValues));
+            container.title = showValues ? "Hide PM2.5 values" : "Show PM2.5 values";
+          });
+          return container;
+        },
+      });
+
+      map.addControl(new SiteValuesControl());
+    }
+
     function setHeatmapControlState(state, label) {
       if (!heatmapControlElement) return;
       heatmapControlElement.classList.remove("is-loading", "is-active", "is-error");
       if (state) heatmapControlElement.classList.add("is-" + state);
-      heatmapControlElement.querySelector(".heatmap-control-label").textContent = label || "Heatmap";
+      heatmapControlElement.setAttribute("aria-pressed", String(heatmapEnabled));
+      heatmapControlElement.title = label || "Heatmap";
     }
 
     function setSiteMarkersVisible(visible) {
@@ -1260,7 +1317,6 @@ header("Content-Type: text/html; charset=utf-8");
       if (!enabled) {
         if (heatmapLayer && map.hasLayer(heatmapLayer)) map.removeLayer(heatmapLayer);
         setSiteMarkersVisible(true);
-        if (heatmapToggleInput) heatmapToggleInput.checked = false;
         setHeatmapControlState("", "Heatmap");
         return;
       }
@@ -1280,7 +1336,7 @@ header("Content-Type: text/html; charset=utf-8");
       if (heatmapRequest) return;
 
       if (activateAfterLoad) setHeatmapControlState("loading", "Loading...");
-      if (heatmapToggleInput) heatmapToggleInput.disabled = true;
+      if (heatmapToggleButton) heatmapToggleButton.disabled = true;
 
       heatmapRequest = $.ajax({
         url: heatmapEndpoint.replace("{GRID_ID}", encodeURIComponent(gridId)),
@@ -1317,7 +1373,7 @@ header("Content-Type: text/html; charset=utf-8");
         },
         complete: function () {
           heatmapRequest = null;
-          if (heatmapToggleInput) heatmapToggleInput.disabled = false;
+          if (heatmapToggleButton) heatmapToggleButton.disabled = false;
         },
       });
     }
@@ -1325,7 +1381,6 @@ header("Content-Type: text/html; charset=utf-8");
     function handleHeatmapError(error) {
       console.error("Error fetching AQI heatmap:", error);
       heatmapEnabled = false;
-      if (heatmapToggleInput) heatmapToggleInput.checked = false;
       setSiteMarkersVisible(true);
       if (heatmapControlElement) heatmapControlElement.classList.add("is-hidden");
     }
@@ -1587,7 +1642,9 @@ header("Content-Type: text/html; charset=utf-8");
           iconAnchor: [15, 15],
           popupAnchor: [0, -18],
           html: '<span class="airqo-marker-icon" style="background:' + aqiColor +
-            ';" aria-label="' + aqiCategory + '"></span>',
+            ';" aria-label="' + aqiCategory + '"><span class="airqo-marker-value" style="color:' +
+            readableTextColor(aqiColor) + ';">' +
+            (isNaN(pm25Value) ? "N/A" : pm25Value) + '</span></span>',
         }),
       })
       .addTo(map)

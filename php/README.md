@@ -49,6 +49,11 @@ requests for all other files, including the Node source. PHP's `allow_url_fopen`
 must be enabled (the default). This built-in server is for local development;
 use the deployment setup below for a public website.
 
+The map displays the rounded PM2.5 reading inside each site's AQI-colored
+marker by default. Use the **numbered site pin** to hide or restore the numbers
+and the **colored map icon** to toggle the heatmap. An active icon has a blue background. The
+reading's unit is µg/m³ and appears in the site popup.
+
 ## Deployment
 
 Requirements: PHP hosting, Node.js 20.12 or newer for `.env` loading (Node.js
