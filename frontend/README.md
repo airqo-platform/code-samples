@@ -23,6 +23,10 @@ After deploying this frontend, website owners can paste this HTML and replace
 ```
 
 Use the hostname serving your deployed frontend if it differs from the example.
+The homepage's embed code generator automatically uses the current browser
+origin: localhost during development, the Vercel preview hostname on previews,
+and your production hostname on the published site. The copied URL remains tied
+to that deployment; generate code from production for a permanent public embed.
 No PHP, JavaScript installation, API token, or login is required on the embedding
 website. The map fills the iframe, fits the grid's monitoring sites, and shows
 PM2.5 concentrations and measurement timestamps in marker popups. The initial

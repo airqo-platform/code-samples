@@ -1,14 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 export default function EmbedInstructions() {
   const [gridId, setGridId] = useState("")
   const [copyStatus, setCopyStatus] = useState("")
+  const [origin, setOrigin] = useState("")
+  useEffect(() => { setOrigin(window.location.origin) }, [])
   const valid = /^[A-Za-z0-9_-]{1,128}$/.test(gridId.trim())
   const id = valid ? gridId.trim() : "YOUR_GRID_ID"
   const snippet = `<iframe
-  src="https://ai.airqo.net/website-map-integration?grid_id=${id}"
+  src="${origin}/website-map-integration?grid_id=${id}"
   title="Air Quality Map"
   style="width:100%;height:800px;border:0;display:block;"
   loading="lazy"
@@ -43,7 +45,7 @@ export default function EmbedInstructions() {
       </div>
       <pre className="mt-6 overflow-x-auto rounded-xl bg-slate-900 p-5 text-sm text-slate-100"><code>{snippet}</code></pre>
       <div className="mt-4 flex flex-wrap items-center gap-4">
-        <button type="button" onClick={copy} className="rounded-lg bg-blue-700 px-5 py-3 font-medium text-white hover:bg-blue-600">
+        <button type="button" onClick={copy} disabled={!origin} className="rounded-lg bg-blue-700 px-5 py-3 font-medium text-white hover:bg-blue-600 disabled:opacity-50">
           Copy embed code
         </button>
         {valid && <a href={`/website-map-integration/?grid_id=${encodeURIComponent(gridId.trim())}`} target="_blank" rel="noopener noreferrer"
@@ -52,6 +54,7 @@ export default function EmbedInstructions() {
       </div>
       <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">
         Replace YOUR_GRID_ID if you copy the example without entering an ID. Adjust the height and title to suit your website.
+        {" "}The code uses this site's address, including localhost or a Vercel preview. Copy it from the production site for your published website.
       </p>
     </div>
   </section>

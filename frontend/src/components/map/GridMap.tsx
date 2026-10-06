@@ -5,10 +5,11 @@ import { useEffect, useState } from "react"
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from "react-leaflet"
 import type { LatLngTuple } from "leaflet"
 
-type Reading = { position: LatLngTuple; name: string; pm25: number | null; date: string | null }
+type Reading = { position: LatLngTuple; name: string; pm25: number | null; date: string | null; color?: string; category?: string }
 type RawMeasurement = {
   siteDetails?: Site; site_details?: Site; latitude?: unknown; longitude?: unknown;
-  pm2_5?: { value?: unknown } | number; pm25?: unknown; date?: string
+  pm2_5?: { value?: unknown } | number; pm25?: unknown; date?: string; time?: string;
+  aqi_color?: string; aqi_category?: string
 }
 type Site = { approximate_latitude?: unknown; approximate_longitude?: unknown; latitude?: unknown;
   longitude?: unknown; description?: string; site_name?: string; name?: string }
@@ -20,11 +21,11 @@ function number(value: unknown): number | null {
 }
 
 const bands = [
-  { max: 12, color: "#10b981", label: "Good" },
-  { max: 35.4, color: "#eab308", label: "Moderate" },
-  { max: 55.4, color: "#f97316", label: "Unhealthy for sensitive groups" },
-  { max: 150.4, color: "#ef4444", label: "Unhealthy" },
-  { max: 250.4, color: "#a855f7", label: "Very unhealthy" },
+  { max: 9.1, color: "#10b981", label: "Good" },
+  { max: 35.49, color: "#eab308", label: "Moderate" },
+  { max: 55.49, color: "#f97316", label: "Unhealthy for sensitive groups" },
+  { max: 125.49, color: "#ef4444", label: "Unhealthy" },
+  { max: 225.49, color: "#a855f7", label: "Very unhealthy" },
   { max: Infinity, color: "#881337", label: "Hazardous" },
 ]
 
@@ -48,21 +49,35 @@ export default function GridMap({ gridId }: { gridId: string }) {
     setError("")
     async function load() {
       try {
-        const response = await fetch(`/api/airqo/devices/measurements/grids/${encodeURIComponent(gridId)}`, {
-          signal: controller.signal,
-        })
-        if (!response.ok) throw new Error(response.status === 404 ? "This grid was not found." : "Unable to load air quality readings.")
-        const payload = await response.json()
-        if (!Array.isArray(payload.data)) throw new Error("AirQo returned an unexpected response.")
+        async function fetchPage(page: number) {
+          const response = await fetch(`/api/airqo/devices/measurements/grids/${encodeURIComponent(gridId)}?page=${page}&limit=100`, {
+            signal: controller.signal,
+          })
+          if (!response.ok) throw new Error(response.status === 404 ? "This grid was not found." : "Unable to load air quality readings.")
+          const payload = await response.json()
+          if (payload.success === false) throw new Error("AirQo could not retrieve readings for this grid.")
+          const measurements = payload.measurements ?? payload.data?.measurements ?? payload.data
+          if (!Array.isArray(measurements)) throw new Error("AirQo returned an unexpected response.")
+          return { measurements: measurements as RawMeasurement[], meta: payload.meta ?? payload.data?.meta ?? {} }
+        }
+        const first = await fetchPage(1)
+        const measurements = [...first.measurements]
+        const pages = Number(first.meta.pages ?? first.meta.total_pages ?? 1)
+        if (!Number.isInteger(pages) || pages < 1 || pages > 100) throw new Error("AirQo returned invalid pagination.")
+        for (let page = 2; page <= pages; page++) measurements.push(...(await fetchPage(page)).measurements)
         const next: Reading[] = []
-        for (const measurement of payload.data as RawMeasurement[]) {
+        for (const measurement of measurements) {
+          if (!measurement || typeof measurement !== "object") continue
           const site = measurement.siteDetails || measurement.site_details || {}
           const lat = number(site.approximate_latitude ?? site.latitude ?? measurement.latitude)
           const lon = number(site.approximate_longitude ?? site.longitude ?? measurement.longitude)
           if (lat === null || lon === null || Math.abs(lat) > 90 || Math.abs(lon) > 180) continue
           const pm25 = number(typeof measurement.pm2_5 === "object" ? measurement.pm2_5?.value : measurement.pm2_5 ?? measurement.pm25)
           next.push({ position: [lat, lon], name: site.description || site.site_name || site.name || "Monitoring site",
-            pm25: pm25 !== null && pm25 >= 0 ? pm25 : null, date: measurement.date || null })
+            pm25: pm25 !== null && pm25 >= 0 ? pm25 : null, date: measurement.time || measurement.date || null,
+            color: typeof measurement.aqi_color === "string" && /^#?[0-9a-f]{6}$/i.test(measurement.aqi_color)
+              ? `#${measurement.aqi_color.replace(/^#/, "")}` : undefined,
+            category: measurement.aqi_category })
         }
         setReadings(next)
       } catch (err) {
@@ -85,7 +100,8 @@ export default function GridMap({ gridId }: { gridId: string }) {
         <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <FitGrid readings={readings} />
         {readings.map((reading, index) => {
-          const band = reading.pm25 === null ? { color: "#64748b", label: "No reading" } : bands.find(b => reading.pm25! <= b.max)!
+          const fallback = reading.pm25 === null ? { color: "#64748b", label: "No reading" } : bands.find(b => reading.pm25! <= b.max)!
+          const band = { color: reading.color || fallback.color, label: reading.category || fallback.label }
           return <CircleMarker key={index} center={reading.position} radius={10} pathOptions={{ color: band.color, fillColor: band.color, fillOpacity: 0.85 }}>
             <Popup><strong>{reading.name}</strong><br />
               PM2.5: {reading.pm25 === null ? "Unavailable" : `${reading.pm25.toFixed(1)} µg/m³`}<br />{band.label}
