@@ -30,7 +30,7 @@ export default function EmbedInstructions() {
       <h2 className="text-3xl font-bold md:text-4xl">Add an air quality map to your website</h2>
       <p className="mt-4 text-lg text-slate-600 dark:text-slate-300">
         Enter your AirQo grid ID, copy the iframe code, and paste it into your website’s HTML or custom HTML block.
-        Your visitors can explore monitoring sites and their PM2.5 readings. No API key or plugin is needed on your website.
+        Your visitors can explore PM2.5 readings, turn on the heatmap, and select a site for its 7-day forecast. No API key or plugin is needed on your website.
       </p>
       <div className="mt-6">
         <label htmlFor="embed-grid-id" className="block font-medium">AirQo grid ID</label>

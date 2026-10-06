@@ -29,8 +29,20 @@ and your production hostname on the published site. The copied URL remains tied
 to that deployment; generate code from production for a permanent public embed.
 No PHP, JavaScript installation, API token, or login is required on the embedding
 website. The map fills the iframe, fits the grid's monitoring sites, and shows
-PM2.5 concentrations and measurement timestamps in marker popups. The initial
+PM2.5 concentrations and AQI categories in marker popups. The initial
 readings load when the iframe opens; reload it to fetch newer readings.
+The embedded document preserves the supplied `map.html` layout: a full-screen
+map, place search, numbered site markers, left-side controls, an AQI legend,
+and a responsive forecast panel. Its HTML lives in `src/embed/map.html` and is
+served by `/website-map-integration`; Vercel file tracing includes the document.
+Use the heatmap control to display the grid's spatial air quality overlay and
+the site-values control to toggle marker values. Select a monitoring site for its 7-day
+forecast, expected concentration range, confidence, weather, and health guidance.
+Forecast and heatmap availability depends on the grid; failures in these layers
+leave measured site readings visible. Reload the iframe to retry unavailable layers.
+
+The server proxy also permits grid-specific `predict/daily-forecasting/{grid_id}`
+and `spatial/heatmaps/{grid_id}`, matching `php/leaflet-with-forecast.php`.
 
 The frontend host must configure `API_TOKEN` on the server. The map calls the
 existing `/api/airqo` proxy for `devices/measurements/grids/{grid_id}`, following

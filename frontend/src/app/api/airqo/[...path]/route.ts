@@ -5,6 +5,8 @@ type RouteContext = {
 }
 
 const ALLOWED_ROUTES = [
+  { method: "GET", pattern: /^predict\/daily-forecasting\/[A-Za-z0-9_-]+$/ },
+  { method: "GET", pattern: /^spatial\/heatmaps\/[A-Za-z0-9_-]+$/ },
   { method: "GET", pattern: /^devices\/measurements\/grids\/[A-Za-z0-9_-]+$/ },
   { method: "GET", pattern: /^devices\/readings\/map$/ },
   { method: "GET", pattern: /^devices\/grids\/summary$/ },
