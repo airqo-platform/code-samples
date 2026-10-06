@@ -8,7 +8,7 @@ export default function EmbedInstructions() {
   const valid = /^[A-Za-z0-9_-]{1,128}$/.test(gridId.trim())
   const id = valid ? gridId.trim() : "YOUR_GRID_ID"
   const snippet = `<iframe
-  src="https://www.ai.airqo.net/website-map-integration/?grid_id=${id}"
+  src="https://ai.airqo.net/website-map-integration?grid_id=${id}"
   title="Air Quality Map"
   style="width:100%;height:800px;border:0;display:block;"
   loading="lazy"

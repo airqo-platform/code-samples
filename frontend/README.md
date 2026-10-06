@@ -15,7 +15,7 @@ After deploying this frontend, website owners can paste this HTML and replace
 
 ```html
 <iframe
-  src="https://www.ai.airqo.net/website-map-integration/?grid_id=YOUR_GRID_ID"
+  src="https://ai.airqo.net/website-map-integration?grid_id=YOUR_GRID_ID"
   title="Kampala Air Quality Map"
   style="width:100%;height:800px;border:0;display:block;"
   loading="lazy"
