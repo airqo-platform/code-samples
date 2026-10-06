@@ -5,6 +5,7 @@ import Image from "next/image"
 import { ArrowRight, MapPin, Wind, BarChart3, BrainCircuit, Shield, Database, Cpu, LineChart } from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
 import { FeatureCard } from "@/components/feature-card"
+import EmbedInstructions from "@/components/map/EmbedInstructions"
 
 const Home: React.FC = () => {
   return (
@@ -38,6 +39,9 @@ const Home: React.FC = () => {
                   Try Site Locator
                 </Link>
               </div>
+              <a href="#embed-map" className="inline-block font-medium text-blue-700 underline dark:text-blue-300">
+                Embed a map on your website
+              </a>
             </div>
             <div className="hidden md:block">
               <div
@@ -113,6 +117,8 @@ const Home: React.FC = () => {
           </div>
         </div>
       </section>
+
+      <EmbedInstructions />
 
       {/* How It Works Section - Redesigned */}
       <section className="bg-gradient-to-b from-gray-50 to-blue-50 py-8 dark:from-slate-900 dark:to-slate-950 md:py-12">

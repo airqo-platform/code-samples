@@ -8,6 +8,38 @@ AirQo AI Platform [https://ai.airqo.net/](https://ai.airqo.net/).
  
 ## Features
 
+### Embed a grid map on any website
+
+After deploying this frontend, website owners can paste this HTML and replace
+`YOUR_GRID_ID` with their AirQo grid ID:
+
+```html
+<iframe
+  src="https://www.ai.airqo.net/website-map-integration/?grid_id=YOUR_GRID_ID"
+  title="Kampala Air Quality Map"
+  style="width:100%;height:800px;border:0;display:block;"
+  loading="lazy"
+></iframe>
+```
+
+Use the hostname serving your deployed frontend if it differs from the example.
+No PHP, JavaScript installation, API token, or login is required on the embedding
+website. The map fills the iframe, fits the grid's monitoring sites, and shows
+PM2.5 concentrations and measurement timestamps in marker popups. The initial
+readings load when the iframe opens; reload it to fetch newer readings.
+
+The frontend host must configure `API_TOKEN` on the server. The map calls the
+existing `/api/airqo` proxy for `devices/measurements/grids/{grid_id}`, following
+the grid endpoint used in `php/retrieve-air-quality-data.php`. Credentials stay
+on the server. Test locally with
+`http://localhost:3000/website-map-integration/?grid_id=YOUR_GRID_ID`.
+
+The embed route sets `Content-Security-Policy: frame-ancestors *` to allow HTTPS
+and HTTP websites to frame it. Ensure your hosting/CDN does not add an
+`X-Frame-Options: DENY` or `SAMEORIGIN` header, or an additional restrictive
+`frame-ancestors` policy to this route. Other frontend routes are unaffected.
+The parent website's CSP must also allow the frontend origin in `frame-src`.
+
 - **Interactive Map**: Real-time visualization of air quality data across various locations.
 - **Site Locator**: AI-powered tool to suggest optimal locations for new air quality sensors.
 - **Site Categorization**: Automatically categorize sites based on their characteristics and surrounding environment.
