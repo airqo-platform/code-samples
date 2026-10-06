@@ -43,6 +43,14 @@ leave measured site readings visible. Reload the iframe to retry unavailable lay
 
 The server proxy also permits grid-specific `predict/daily-forecasting/{grid_id}`
 and `spatial/heatmaps/{grid_id}`, matching `php/leaflet-with-forecast.php`.
+These three grid endpoints share a one-hour Next.js server Data Cache across
+visitors. Each grid, endpoint, query (including page/limit), and server token has
+its own cache entry. Simultaneous requests on one server instance are coalesced.
+HTTP/API failures and malformed responses are not cached. Other routes and POSTs
+retain their existing uncached behavior. After one hour, Next.js revalidates on
+the next request and may serve the previous entry while refreshing; failed
+refreshes can retain the last successful entry. Measurements also have the
+reference map's one-hour browser cache. No cron or additional database is needed.
 
 The frontend host must configure `API_TOKEN` on the server. The map calls the
 existing `/api/airqo` proxy for `devices/measurements/grids/{grid_id}`, following
@@ -50,8 +58,14 @@ the grid endpoint used in `php/retrieve-air-quality-data.php`. Credentials stay
 on the server. Test locally with
 `http://localhost:3000/website-map-integration/?grid_id=YOUR_GRID_ID`.
 
-The embed route sets `Content-Security-Policy: frame-ancestors *` to allow HTTPS
-and HTTP websites to frame it. Ensure your hosting/CDN does not add an
+The deployed embed route sets `Content-Security-Policy: frame-ancestors 'self' http: https:`
+to allow HTTP and HTTPS websites to frame it. During `npm run dev`, this header
+is omitted so standalone `file://` HTML test pages can embed the local map.
+Restart the dev server after changing `next.config.ts`. For production or Vercel
+previews, serve your test HTML over HTTP (for example `python -m http.server 8080`
+from its folder and open `http://localhost:8080/your-page.html`); file pages have
+opaque origins that a framing policy cannot reliably allow.
+Ensure your hosting/CDN does not add an
 `X-Frame-Options: DENY` or `SAMEORIGIN` header, or an additional restrictive
 `frame-ancestors` policy to this route. Other frontend routes are unaffected.
 The parent website's CSP must also allow the frontend origin in `frame-src`.

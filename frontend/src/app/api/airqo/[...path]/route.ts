@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server"
+import { getCachedGridResponse, isCacheableGridRoute, UncachedGridResponse } from "@/lib/airqo-grid-cache"
 
 type RouteContext = {
   params: Promise<{ path: string[] }>
@@ -49,12 +50,26 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
   })
   upstreamUrl.searchParams.set("token", token)
   upstreamUrl.searchParams.set("access_token", token)
+  upstreamUrl.searchParams.sort()
 
   const headers = new Headers({ Accept: request.headers.get("accept") || "application/json" })
   const contentType = request.headers.get("content-type")
   if (contentType) headers.set("Content-Type", contentType)
 
   try {
+    if (isCacheableGridRoute(request.method, path)) {
+      let snapshot
+      try {
+        snapshot = await getCachedGridResponse(upstreamUrl.toString())
+      } catch (error) {
+        if (!(error instanceof UncachedGridResponse)) throw error
+        snapshot = error.response
+      }
+      return new Response(snapshot.body, {
+        status: snapshot.status,
+        headers: { "Content-Type": snapshot.contentType, "Cache-Control": "no-store, max-age=0" },
+      })
+    }
     let requestBody: ArrayBuffer | undefined
     if (request.method !== "GET" && request.method !== "HEAD") {
       requestBody = await request.arrayBuffer()
