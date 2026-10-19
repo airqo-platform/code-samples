@@ -47,8 +47,13 @@
 }
 .billboard-surface:is(:fullscreen, .is-presenting) > .billboard-content {
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) .billboard-animation-control {
+  display: none;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) .billboard-week {
+  padding-block: 32px;
 }
 .billboard-surface:is(:fullscreen, .is-presenting) > .billboard-footer {
   background: transparent;

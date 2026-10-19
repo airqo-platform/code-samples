@@ -71,6 +71,23 @@ export default function Billboard() {
   const [presentation, setPresentation] = useState(false)
   const isFullscreen = nativeFullscreen || presentation
   const billboardRef = useRef<HTMLDivElement>(null)
+  const contentViewportRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [contentScale, setContentScale] = useState(1)
+  useEffect(() => {
+    if (!isFullscreen) { setContentScale(1); return }
+    const viewport = contentViewportRef.current
+    const content = contentRef.current
+    if (!viewport || !content) return
+    const fit = () => {
+      setContentScale(Math.min(1, viewport.clientHeight / Math.max(content.scrollHeight, 1), viewport.clientWidth / Math.max(content.scrollWidth, 1)))
+    }
+    const observer = new ResizeObserver(fit)
+    observer.observe(viewport)
+    observer.observe(content)
+    fit()
+    return () => observer.disconnect()
+  }, [isFullscreen])
   useEffect(() => {
     const requested = params.get("theme")
     let saved: string | null = null
@@ -225,7 +242,8 @@ export default function Billboard() {
                 <h2 className={isFullscreen ? "min-w-0 flex-1 break-words text-center text-3xl font-bold leading-tight text-[var(--billboard-accent)] md:text-5xl" : "text-xs font-semibold uppercase tracking-[0.2em] text-[var(--billboard-accent)]"}>{isFullscreen ? params.get("title")?.trim().slice(0, 100) || site?.name : "Air quality in motion"}</h2>
                 <div className="flex items-center gap-4"><span className="text-xs text-[var(--billboard-muted)]">{params.get("title")?.slice(0,100)}{params.get("title") ? " | " : ""}Location {(index % sites.length) + 1} / {sites.length}</span>{isFullscreen && <button onClick={fullscreen} className="rounded-lg border border-[var(--billboard-line)] px-3 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">Exit fullscreen</button>}</div>
               </div>
-              <div className="billboard-content">
+              <div ref={contentViewportRef} className="billboard-content">
+              <div ref={contentRef} className="flow-root origin-top" style={isFullscreen ? { transform: `scale(${contentScale})` } : undefined}>
               <div className="grid items-center gap-6 px-6 py-6 md:grid-cols-[1.5fr_1fr] md:px-8">
                 <section>
                   <p className="text-xs font-medium uppercase tracking-widest text-[var(--billboard-accent)]">{stale ? "Latest available reading" : "Air quality now"}</p>
@@ -240,7 +258,7 @@ export default function Billboard() {
                   <>{visual === "realistic" ? <RealisticScene pm={reading?.pm2_5?.value} /> : visual === "activities" ? <ActivityScene pm={reading?.pm2_5?.value} preferred={preferredActivity} /> : <Face pm={reading?.pm2_5?.value} large />}</>
                 </div>
               </div>
-              <section className="mx-4 mb-4 rounded-2xl border border-[var(--billboard-line)] bg-[var(--billboard-panel)] p-4 md:mx-6">
+              <section className="billboard-week mx-4 mb-4 rounded-2xl border border-[var(--billboard-line)] bg-[var(--billboard-panel)] p-4 md:mx-6">
                 <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-bold">Your week ahead</h2><span className="text-xs text-[var(--billboard-muted)]">PM₂.₅ forecast · Select a day for weather</span></div>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">{daily.map((p, i) => <button key={p.date} aria-pressed={selected === p} onClick={() => setDay(i)} className={`rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)] ${selected === p ? "border-[var(--billboard-accent)] bg-[var(--billboard-selected)]" : "border-transparent bg-[var(--billboard-card)] hover:bg-[var(--billboard-hover)]"}`}>
                   <p className="text-xs font-semibold text-[var(--billboard-muted)]">{new Date(`${p.date}T12:00:00`).toLocaleDateString([], { weekday: "short", day: "numeric" })}</p>
@@ -259,6 +277,7 @@ export default function Billboard() {
                 <div className="billboard-qr shrink-0 text-[var(--billboard-text)]"><ScanBillboard url={scanUrl} /></div>
                 </div>
               </section>
+              </div>
               </div>
               <div className="billboard-footer flex flex-wrap items-center justify-between gap-5 border-t border-[var(--billboard-line)] px-6 py-4">
                 <div className="billboard-footer-meta flex min-w-0 items-center gap-3">{isFullscreen && sites.length > 1 && <button onClick={() => setRotate(!rotate)} className="w-fit shrink-0 rounded-lg border border-[var(--billboard-line)] px-3 py-2 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">{rotate ? "Pause rotation" : "Resume rotation"}</button>}<p className="text-xs text-[var(--billboard-muted)]">{sites.length > 1 ? `Next location: ${sites[(index + 1) % sites.length]?.name}` : "One location - A clearer view of your air"}</p>
