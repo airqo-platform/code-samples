@@ -16,7 +16,7 @@ export function sceneCategory(pm: number | null | undefined): SceneCategory | nu
 }
 
 export function scenesForCategory(category: SceneCategory): RealisticScene[] {
-  const duration: Record<string, number> = { jog: 800, walk: 1200, kick: 1400, cycle: 1000, read: 1800, check: 1800, stretch: 2200, balance: 2400, rest: 2600, drink: 1800, type: 1200, close: 2000, purify: 2000, sketch: 1600, puzzle: 2000, breathe: 2600 }
+  const duration: Record<string, number> = { jog: 1600, walk: 2400, kick: 2800, cycle: 2000, read: 3600, check: 3600, stretch: 4400, balance: 4800, rest: 5200, drink: 3600, type: 2400, close: 4000, purify: 4000, sketch: 3200, puzzle: 4000, breathe: 5200 }
   return scenes[category].map(([title, motion], index) => ({ category, index, title, motion, src: `/images/billboard/realistic/${category}-${index + 1}.webp`, actionSrc: `/images/billboard/realistic/${category}-${index + 1}-action.webp`, duration: duration[motion] || 1800 }))
 }
 

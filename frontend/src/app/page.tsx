@@ -123,7 +123,7 @@ const Home: React.FC = () => {
 
       <EmbedInstructions />
       <section className="bg-blue-50 px-6 py-14 dark:bg-slate-900">
-        <div className="container mx-auto max-w-5xl"><h2 className="text-3xl font-bold">Bring air quality to the big screen</h2><p className="my-4 text-lg text-slate-600 dark:text-slate-300">Create a live billboard for your city or network, with forecasts, weather and practical health guidance.</p><Link href="/billboard" className={locatorActionClass}>Create a live billboard <ArrowRight size={18} /></Link></div>
+        <div className="container mx-auto max-w-5xl"><h2 className="text-3xl font-bold">Bring air quality to the big screen</h2><p className="my-4 text-lg text-slate-600 dark:text-slate-300">Create a live billboard for your city or network, with forecasts, weather and practical health guidance.</p><Link href="/billboard" target="_blank" rel="noopener noreferrer" className={locatorActionClass}>Create a live billboard <ArrowRight size={18} /></Link></div>
       </section>
 
       {/* How It Works Section - Redesigned */}
