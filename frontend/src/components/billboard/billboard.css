@@ -1,0 +1,51 @@
+.billboard-surface {
+  --billboard-bg: #061b33;
+  --billboard-text: #ffffff;
+  --billboard-muted: #cbd5e1;
+  --billboard-soft: #94a3b8;
+  --billboard-accent: #67e8f9;
+  --billboard-panel: #09243e;
+  --billboard-line: #ffffff26;
+  --billboard-card: #ffffff0d;
+  --billboard-hover: #ffffff1a;
+  --billboard-selected: #67e8f91a;
+}
+.billboard-surface[data-theme="light"] {
+  --billboard-bg: #ffffff;
+  --billboard-text: #0f172a;
+  --billboard-muted: #475569;
+  --billboard-soft: #64748b;
+  --billboard-accent: #0369a1;
+  --billboard-panel: #f1f5f9;
+  --billboard-line: #cbd5e1;
+  --billboard-card: #ffffff;
+  --billboard-hover: #e2e8f0;
+  --billboard-selected: #e0f2fe;
+}
+.billboard-surface[data-theme="forest"] {
+  --billboard-bg: #062c29;
+  --billboard-text: #f0fdf4;
+  --billboard-muted: #c0ded4;
+  --billboard-soft: #9dbfb2;
+  --billboard-accent: #6ee7b7;
+  --billboard-panel: #103d35;
+  --billboard-line: #ffffff26;
+  --billboard-card: #ffffff0d;
+  --billboard-hover: #ffffff1a;
+  --billboard-selected: #6ee7b71a;
+}
+.billboard-surface:fullscreen {
+  width: 100vw;
+  height: 100dvh;
+  overflow: auto;
+  border: 0 !important;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(0px, 2vh, 24px) clamp(0px, 2vw, 32px);
+  background: var(--billboard-bg);
+}
+@media (max-height: 700px), (max-width: 640px) {
+  .billboard-surface:fullscreen { justify-content: flex-start; }
+}

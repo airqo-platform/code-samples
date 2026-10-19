@@ -8,6 +8,7 @@ export default function AppDataWarmup() {
   const pathname = usePathname()
   useEffect(() => {
     if (pathname === "/website-map-integration" || pathname === "/website-map-integration/") return
+    if (pathname === "/billboard" || pathname === "/billboard/") return
     void prefetchMapAndReportData()
   }, [pathname])
 

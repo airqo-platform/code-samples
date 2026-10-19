@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server"
+import { AIRQO_API_URL } from "@/lib/airqo-api-config"
 import { getCachedGridResponse, isCacheableGridRoute, UncachedGridResponse } from "@/lib/airqo-grid-cache"
 
 type RouteContext = {
@@ -23,8 +24,6 @@ const ALLOWED_ROUTES = [
   { method: "POST", pattern: /^spatial\/satellite_prediction$/ },
   { method: "POST", pattern: /^spatial\/site_location$/ },
 ]
-
-const AIRQO_API_URL = "https://platform.airqo.net/api/v2/"
 
 function isAllowed(method: string, path: string) {
   return ALLOWED_ROUTES.some((route) => route.method === method && route.pattern.test(path))

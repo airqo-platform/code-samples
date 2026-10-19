@@ -1,4 +1,5 @@
 import axios, { AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from "axios"
+import { unwrapForecastPayload } from "@/lib/airqo-api-config"
 import type { DataDownloadRecord, DataDownloadRequest, DataDownloadResponse, ReportDataOptions, SiteData } from "@/lib/types"
 
 // Remove the incorrect import and add the utility function directly
@@ -446,20 +447,6 @@ export const getActiveFires = async (): Promise<ActiveFire[] | null> => {
   })()
 
   return activeFiresRequest
-}
-
-const unwrapForecastPayload = (value: any): any => {
-  let current = value
-
-  for (let i = 0; i < 6; i++) {
-    if (Array.isArray(current) && current.length === 1) {
-      current = current[0]
-      continue
-    }
-    break
-  }
-
-  return current
 }
 
 let dailyForecastRequest: Promise<DailyForecastResponse | null> | null = null
