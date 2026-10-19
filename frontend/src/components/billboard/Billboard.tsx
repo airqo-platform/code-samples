@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import "./billboard.css"
-import ActivityScene from "./ActivityScene"
 import dynamic from "next/dynamic"
-import ScanBillboard from "./ScanBillboard"
-import CountryPicker from "./CountryPicker"
 import QuickPlaces, { useFavourites } from "./QuickPlaces"
 import { gridsWithinCountry, loadBillboardGrids, type BillboardGrid } from "@/lib/billboard-grids"
 import Link from "next/link"
@@ -14,6 +11,9 @@ import { ArrowLeft, Copy, Maximize, Monitor, Pause, Play } from "lucide-react"
 import { BILLBOARD_REFRESH_MS, billboardScanUrl, category, categoryImage, hasPm25, latestReadings, type BillboardData, type Period } from "@/lib/billboard"
 
 const RealisticScene = dynamic(() => import("./RealisticScene"), { loading: () => <div className="h-60" /> })
+const ActivityScene = dynamic(() => import("./ActivityScene"), { loading: () => <div className="h-60" /> })
+const CountryPicker = dynamic(() => import("./CountryPicker"))
+const ScanBillboard = dynamic(() => import("./ScanBillboard"))
 
 const field = "min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2 font-medium hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-40"
@@ -21,8 +21,7 @@ function value(n: number | null | undefined, unit = "") { return typeof n === "n
 function stamp(time: string) { const d = new Date(time); return Number.isFinite(d.getTime()) ? d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Time unavailable" }
 
 function Face({ pm, large = false }: { pm: number | null | undefined; large?: boolean }) {
-  const src = categoryImage(pm) || "/images/Invalid.png"
-  // Existing category artwork: each source PNG is only 36-42 KB.
+  const src = (categoryImage(pm) || "/images/Invalid.png").replace("/images/", "/images/billboard/faces/").replace(".png", ".webp")
   return <img src={src} alt={category(pm).label} width={large ? 200 : 40} height={large ? 200 : 40} className={large ? "relative z-10 h-36 w-36 object-contain md:h-48 md:w-48" : "h-10 w-10 object-contain"} />
 }
 function WeatherGlyph({ met }: { met: Period["met"] }) {
@@ -146,15 +145,15 @@ export default function Billboard() {
   const current = category(reading?.pm2_5?.value)
   const today = new Date(now || Date.now())
   const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
-  const daily = (data?.daily.find(s => s.site_details?.site_id === site?.siteId)?.forecasts || []).filter(p => p.date && p.date >= localDate && hasPm25(p.forecast?.pm2_5_mean)).sort((a,b) => a.date!.localeCompare(b.date!)).slice(0,7)
+  const daily = useMemo(() => (data?.daily.find(s => s.site_details?.site_id === site?.siteId)?.forecasts || []).filter(p => p.date && p.date >= localDate && hasPm25(p.forecast?.pm2_5_mean)).sort((a,b) => a.date!.localeCompare(b.date!)).slice(0,7), [data, site?.siteId, localDate])
 
   const selected = daily[day] || daily[0]
   const met = selected?.met
   const valid = /^[A-Za-z0-9_-]{1,128}$/.test(id)
   const chosenGrid = grids.find(g => g._id === id)
-  const countries = grids.filter(g => g.admin_level?.toLowerCase() === "country")
+  const countries = useMemo(() => grids.filter(g => g.admin_level?.toLowerCase() === "country"), [grids])
   const selectedCountry = countries.find(g => g._id === countryId)
-  const countryGrids = selectedCountry ? gridsWithinCountry(grids, selectedCountry) : []
+  const countryGrids = useMemo(() => selectedCountry ? gridsWithinCountry(grids, selectedCountry) : [], [grids, selectedCountry])
   const url = `${origin}/billboard?${new URLSearchParams({ [`${scope}_id`]: id, theme, visual, activity: preferredActivity, ...(title.trim() || chosenGrid?.name ? { title: title.trim() || chosenGrid!.long_name || chosenGrid!.name } : {}) })}`
   const scanUrl = billboardScanUrl(origin, gridId ? "grid" : "cohort", gridId || cohortId || "")
   async function copy(text: string) {

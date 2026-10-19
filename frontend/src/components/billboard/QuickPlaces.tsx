@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Star } from "lucide-react"
 import { countryFlagUrl, type BillboardGrid } from "@/lib/billboard-grids"
 
@@ -28,7 +28,8 @@ export function useFavourites() {
 export default function QuickPlaces({ grids, countries, place, country, onSelect, saved, toggle }: { grids: BillboardGrid[]; countries: BillboardGrid[]; place?: BillboardGrid; country?: BillboardGrid; onSelect: (id: string, country: string) => void; saved: Favourite[] | null; toggle: (id: string, country: string) => void }) {
   const [zone, setZone] = useState("")
   useEffect(() => { setZone(Intl.DateTimeFormat().resolvedOptions().timeZone) }, [])
-  const defaults = [...countries].sort((a, b) => {
+  const defaults = useMemo(() => {
+    if (saved !== null) return []
     const regions = {
       east: ["kenya", "uganda", "ethiopia", "rwanda", "burundi"],
       west: ["ghana", "nigeria", "senegal", "gambia", "cameroon"],
@@ -38,8 +39,8 @@ export default function QuickPlaces({ grids, countries, place, country, onSelect
     const home: Record<string, string> = { Kampala: "uganda", Nairobi: "kenya", Kigali: "rwanda", Bujumbura: "burundi", Addis_Ababa: "ethiopia", Accra: "ghana", Lagos: "nigeria", Dakar: "senegal", Banjul: "gambia", Douala: "cameroon", Johannesburg: "south africa", Maputo: "mozambique", Lusaka: "zambia", Kinshasa: "democratic republic of the congo", Lubumbashi: "democratic republic of the congo", Antananarivo: "madagascar" }
     const order = [home[zone.split("/").pop() || ""], ...region]
     const rank = (g: BillboardGrid) => { const i = order.indexOf(g.name.toLowerCase()); return i < 0 ? order.length : i }
-    return rank(a) - rank(b)
-  }).map(g => ({ id: g._id, country: g._id }))
+    return [...countries].sort((a, b) => rank(a) - rank(b)).slice(0, 5).map(g => ({ id: g._id, country: g._id }))
+  }, [countries, zone, saved])
   const shortcuts = (saved ?? defaults).filter((item, index, all) =>
     all.findIndex(other => other.id === item.id) === index && grids.some(g => g._id === item.id) && countries.some(g => g._id === item.country)
   ).slice(0, 5)
