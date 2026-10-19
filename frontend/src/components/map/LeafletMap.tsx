@@ -52,6 +52,8 @@ import {
 import { useSiteSettings } from "@/hooks/use-site-settings"
 import { Switch } from "@/ui/switch"
 import { MapLayerControl } from "./MapLayerControl"
+import WindDirectionLayer from "./WindDirectionLayer"
+import TemperatureLayer from "./TemperatureLayer"
 
 const MAP_NODES_CACHE_KEY = "map-nodes"
 const MAP_HEATMAPS_CACHE_KEY = "map-heatmaps"
@@ -2972,6 +2974,10 @@ interface HeatmapData {
 
 // Combined Map Controls Component
 const MapControls: React.FC<{
+  showTemperature: boolean
+  setShowTemperature: (value: boolean) => void
+  showWind: boolean
+  setShowWind: (value: boolean) => void
   showHeatmaps: boolean
   setShowHeatmaps: (value: boolean) => void
   showEmojis: boolean
@@ -2981,6 +2987,10 @@ const MapControls: React.FC<{
   heatmapEnabled: boolean
   captureViewEnabled: boolean
 }> = ({
+  showTemperature,
+  setShowTemperature,
+  showWind,
+  setShowWind,
   showHeatmaps,
   setShowHeatmaps,
   showEmojis,
@@ -3091,8 +3101,45 @@ const MapControls: React.FC<{
           L.DomEvent.on(heatmapButton, "click", (e) => {
             L.DomEvent.stopPropagation(e)
             setShowHeatmaps(!showHeatmaps)
+            if (!showHeatmaps) setShowTemperature(false)
           })
         }
+
+        const windButton = L.DomUtil.create("button", "", container)
+        windButton.innerHTML = iconSvg(`
+          <path d="M3 8h12a3 3 0 1 0-3-3" />
+          <path d="M2 12h17a3 3 0 1 1-3 3" />
+          <path d="M4 16h5a3 3 0 1 1-3 3" />
+        `)
+        styleIconButton(windButton)
+        windButton.style.background = showWind ? "#e0f2fe" : "transparent"
+        windButton.style.color = showWind ? "#0369a1" : "#374151"
+        windButton.title = showWind ? "Hide wind" : "Show wind direction"
+        windButton.setAttribute("aria-label", windButton.title)
+        windButton.setAttribute("aria-pressed", String(showWind))
+        L.DomEvent.on(windButton, "click", (e) => {
+          L.DomEvent.stopPropagation(e)
+          setShowWind(!showWind)
+          if (!showWind) setShowTemperature(false)
+        })
+
+        const temperatureButton = L.DomUtil.create("button", "", container)
+        temperatureButton.innerHTML = iconSvg(`
+          <path d="M14 14.8V5a3 3 0 0 0-6 0v9.8a5 5 0 1 0 6 0Z" />
+          <path d="M11 9v9" />
+          <circle cx="11" cy="18" r="1" fill="currentColor" />
+        `)
+        styleIconButton(temperatureButton)
+        temperatureButton.style.background = showTemperature ? "#ffedd5" : "transparent"
+        temperatureButton.style.color = showTemperature ? "#c2410c" : "#374151"
+        temperatureButton.title = showTemperature ? "Hide temperature" : "Show city temperature"
+        temperatureButton.setAttribute("aria-label", temperatureButton.title)
+        temperatureButton.setAttribute("aria-pressed", String(showTemperature))
+        L.DomEvent.on(temperatureButton, "click", (e) => {
+          L.DomEvent.stopPropagation(e)
+          setShowTemperature(!showTemperature)
+          if (!showTemperature) { setShowWind(false); setShowHeatmaps(false) }
+        })
 
         // Emoji toggle button
         const emojiButton = L.DomUtil.create("button", "", container)
@@ -3160,6 +3207,10 @@ const MapControls: React.FC<{
     }
   }, [
     map,
+    showTemperature,
+    setShowTemperature,
+    showWind,
+    setShowWind,
     showHeatmaps,
     setShowHeatmaps,
     showEmojis,
@@ -3174,6 +3225,10 @@ const MapControls: React.FC<{
 }
 
 const HeatmapOverlays: React.FC<{
+  showTemperature: boolean
+  setShowTemperature: (value: boolean) => void
+  showWind: boolean
+  setShowWind: (value: boolean) => void
   onLoadingChange: (state: LoadingState) => void
   showHeatmaps: boolean
   setShowHeatmaps: (value: boolean) => void
@@ -3184,6 +3239,10 @@ const HeatmapOverlays: React.FC<{
   heatmapEnabled: boolean
   captureViewEnabled: boolean
 }> = ({
+  showTemperature,
+  setShowTemperature,
+  showWind,
+  setShowWind,
   onLoadingChange,
   showHeatmaps,
   setShowHeatmaps,
@@ -3312,6 +3371,10 @@ const HeatmapOverlays: React.FC<{
 
   return (
     <MapControls
+      showTemperature={showTemperature}
+      setShowTemperature={setShowTemperature}
+      showWind={showWind}
+      setShowWind={setShowWind}
       showHeatmaps={showHeatmaps}
       setShowHeatmaps={setShowHeatmaps}
       showEmojis={showEmojis}
@@ -3449,6 +3512,8 @@ const LeafletMap: React.FC = () => {
   const [showEmojis, setShowEmojis] = useState(true)
   const [showHeatmaps, setShowHeatmaps] = useState(false)
   const [showFires, setShowFires] = useState(true)
+  const [showWind, setShowWind] = useState(false)
+  const [showTemperature, setShowTemperature] = useState(false)
   const [selectedNode, setSelectedNode] = useState<MapNode | null>(null)
   const [hourlyForecastEnabled, setHourlyForecastEnabled] = useState(false)
   const [hourlyForecastPreferenceLoaded, setHourlyForecastPreferenceLoaded] = useState(false)
@@ -3644,7 +3709,13 @@ const LeafletMap: React.FC = () => {
             <ClearSelectionOnMapClick onClear={() => setSelectedNode(null)} />
             <MapNodes onLoadingChange={setLoadingState} showEmojis={showEmojis} onNodeSelect={setSelectedNode} />
             <ActiveFireMarkers showFires={showFires} />
+            <WindDirectionLayer enabled={showWind} />
+            <TemperatureLayer enabled={showTemperature} />
             <HeatmapOverlays
+              showTemperature={showTemperature}
+              setShowTemperature={setShowTemperature}
+              showWind={showWind}
+              setShowWind={setShowWind}
               onLoadingChange={setLoadingState}
               showHeatmaps={heatmapEnabled && showHeatmaps}
               setShowHeatmaps={setShowHeatmaps}
