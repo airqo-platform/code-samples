@@ -123,7 +123,23 @@ const Home: React.FC = () => {
 
       <EmbedInstructions />
       <section className="bg-blue-50 px-6 py-20 dark:bg-slate-900 md:py-28">
-        <div className="container mx-auto max-w-6xl"><h2 className="max-w-4xl text-4xl font-bold leading-tight md:text-5xl">Bring air quality to the big screen</h2><p className="my-6 max-w-3xl text-xl leading-relaxed text-slate-600 dark:text-slate-300">Create a live billboard for your city or network, with forecasts, weather and practical health guidance.</p><Link href="/billboard" target="_blank" rel="noopener noreferrer" className={`${locatorActionClass} !min-h-14 !px-8 !text-lg`}>Create a live billboard <ArrowRight size={22} /></Link></div>
+        <div className="container mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.2fr_1fr]">
+          <div>
+            <h2 className="max-w-4xl text-4xl font-bold leading-tight md:text-5xl">Bring air quality to the big screen</h2>
+            <p className="my-6 max-w-3xl text-xl leading-relaxed text-slate-600 dark:text-slate-300">Create a live billboard for your city or network, with forecasts, weather and practical health guidance.</p>
+            <Link href="/billboard" target="_blank" rel="noopener noreferrer" className={`${locatorActionClass} !min-h-14 !px-8 !text-lg`}>Create a live billboard <ArrowRight size={22} /></Link>
+          </div>
+          <div className="grid grid-cols-2 items-start gap-4" aria-label="AirQo billboard illustrations">
+            <figure className="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+              <Image src="/images/billboard/realistic/moderate-5.webp" alt="Woman checking air quality updates on her phone" width={360} height={360} className="aspect-square w-full object-contain" />
+              <figcaption className="mt-3 text-center text-sm font-semibold text-slate-700 dark:text-slate-200">Check your air</figcaption>
+            </figure>
+            <figure className="mt-10 rounded-3xl border border-blue-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+              <Image src="/images/billboard/realistic/good-1.webp" alt="Runner enjoying outdoor activity" width={360} height={360} className="aspect-square w-full object-contain" />
+              <figcaption className="mt-3 text-center text-sm font-semibold text-slate-700 dark:text-slate-200">Plan your day</figcaption>
+            </figure>
+          </div>
+        </div>
       </section>
 
       {/* How It Works Section - Redesigned */}

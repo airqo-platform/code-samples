@@ -23,7 +23,7 @@ function stamp(time: string) { const d = new Date(time); return Number.isFinite(
 
 function Face({ pm, large = false }: { pm: number | null | undefined; large?: boolean }) {
   const src = (categoryImage(pm) || "/images/Invalid.png").replace("/images/", "/images/billboard/faces/").replace(".png", ".webp")
-  return <img src={src} alt={category(pm).label} width={large ? 200 : 40} height={large ? 200 : 40} className={large ? "relative z-10 h-36 w-36 object-contain md:h-48 md:w-48" : "h-10 w-10 object-contain"} />
+  return <img src={src} alt={category(pm).label} width={large ? 250 : 48} height={large ? 260 : 48} className={large ? "relative z-10 h-44 w-44 object-contain md:h-56 md:w-56" : "h-12 w-12 object-contain"} />
 }
 function WeatherGlyph({ met }: { met: Period["met"] }) {
   const rain = met?.precipitation_amount
@@ -80,13 +80,24 @@ export default function Billboard() {
     const content = contentRef.current
     if (!viewport || !content) return
     const fit = () => {
-      setContentScale(Math.min(1, viewport.clientHeight / Math.max(content.scrollHeight, 1), viewport.clientWidth / Math.max(content.scrollWidth, 1)))
+      if (!viewport.clientWidth || !viewport.clientHeight) return
+      // Reflow at each scale so the content fills the screen's width too.
+      let lower = 0.1
+      let upper = 2
+      for (let step = 0; step < 16; step++) {
+        const scale = (lower + upper) / 2
+        content.style.width = `${100 / scale}%`
+        if (content.scrollHeight * scale <= viewport.clientHeight && content.scrollWidth * scale <= viewport.clientWidth + 1) lower = scale
+        else upper = scale
+      }
+      content.style.width = `${100 / lower}%`
+      setContentScale(lower)
     }
     const observer = new ResizeObserver(fit)
     observer.observe(viewport)
     observer.observe(content)
     fit()
-    return () => observer.disconnect()
+    return () => { observer.disconnect(); content.style.width = "" }
   }, [isFullscreen])
   useEffect(() => {
     const requested = params.get("theme")
@@ -243,7 +254,7 @@ export default function Billboard() {
                 <div className="flex items-center gap-4"><span className="text-xs text-[var(--billboard-muted)]">{params.get("title")?.slice(0,100)}{params.get("title") ? " | " : ""}Location {(index % sites.length) + 1} / {sites.length}</span>{isFullscreen && <button onClick={fullscreen} className="rounded-lg border border-[var(--billboard-line)] px-3 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">Exit fullscreen</button>}</div>
               </div>
               <div ref={contentViewportRef} className="billboard-content">
-              <div ref={contentRef} className="flow-root origin-top" style={isFullscreen ? { transform: `scale(${contentScale})` } : undefined}>
+              <div ref={contentRef} className="flow-root origin-top-left" style={isFullscreen ? { width: `${100 / contentScale}%`, transform: `scale(${contentScale})` } : undefined}>
               <div className="grid items-center gap-6 px-6 py-6 md:grid-cols-[1.5fr_1fr] md:px-8">
                 <section>
                   <p className="text-xs font-medium uppercase tracking-widest text-[var(--billboard-accent)]">{stale ? "Latest available reading" : "Air quality now"}</p>
@@ -253,8 +264,8 @@ export default function Billboard() {
                   {selected && <div className="mt-3 border-l-2 border-[var(--billboard-accent)] pl-3"><p className="text-xs font-semibold text-[var(--billboard-accent)]">Forecast recommendation - {selected.date}</p><p className="mt-1 text-sm leading-relaxed text-[var(--billboard-muted)]">{selected.aqi?.label || category(selected.forecast.pm2_5_mean).action}</p></div>}
                   <p className="mt-3 text-xs text-[var(--billboard-soft)]">{reading?.time ? `Measured ${stamp(reading.time)}` : "No current reading available"}</p>
                 </section>
-                <div className="relative flex min-h-52 items-center justify-center overflow-hidden" aria-label="Air quality category illustration">
-                  <div aria-hidden="true" className="billboard-halo absolute h-44 w-44 rounded-full border-2 opacity-70 md:h-56 md:w-56" style={{ borderColor: current.color, boxShadow: `0 0 50px ${current.color}60, inset 0 0 40px ${current.color}30` }} />
+                <div className="relative flex min-h-64 items-center justify-center overflow-hidden" aria-label="Air quality category illustration">
+                  <div aria-hidden="true" className="billboard-halo absolute h-52 w-52 rounded-full border-2 opacity-70 md:h-60 md:w-60" style={{ borderColor: current.color, boxShadow: `0 0 50px ${current.color}60, inset 0 0 40px ${current.color}30` }} />
                   <>{visual === "realistic" ? <RealisticScene pm={reading?.pm2_5?.value} /> : visual === "activities" ? <ActivityScene pm={reading?.pm2_5?.value} preferred={preferredActivity} /> : <Face pm={reading?.pm2_5?.value} large />}</>
                 </div>
               </div>

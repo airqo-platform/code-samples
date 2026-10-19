@@ -42,7 +42,7 @@
   border-radius: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  padding: clamp(0px, 2vh, 24px) clamp(0px, 2vw, 32px);
+  padding: 0;
   background: var(--billboard-bg);
 }
 .billboard-surface:is(:fullscreen, .is-presenting) > .billboard-content {
