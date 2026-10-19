@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import type { ForecastSite, Reading } from "@/lib/billboard"
 import { latestReadings } from "@/lib/billboard"
 import { AIRQO_API_URL, unwrapForecastPayload } from "@/lib/airqo-api-config"
+import { getCachedGridResponse } from "@/lib/airqo-grid-cache"
 
 export async function GET(request: NextRequest) {
   const grid = request.nextUrl.searchParams.get("grid_id")
@@ -11,18 +12,13 @@ export async function GET(request: NextRequest) {
   const siteId = request.nextUrl.searchParams.get("site_id")
   if (!id || Boolean(grid) === Boolean(cohort) || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) return Response.json({ message: "Choose one valid grid or cohort ID." }, { status: 400 })
   if (hourlyOnly && (!siteId || !/^[A-Za-z0-9_-]{1,128}$/.test(siteId))) return Response.json({ message: "Choose a monitoring location for the hourly forecast." }, { status: 400 })
-  const publicCohorts = new Set(["airqo-public", ...(process.env.AIRQO_PUBLIC_BILLBOARD_COHORTS || "").split(",").map(s => s.trim()).filter(Boolean)])
-  if (cohort && !publicCohorts.has(cohort)) return Response.json({ message: "This cohort is not enabled for public billboards. Ask the site administrator to enable it after confirming public sharing permission." }, { status: 403 })
   const token = process.env.API_TOKEN
   if (!token) return Response.json({ message: "The server needs an AirQo API token to load this billboard." }, { status: 503 })
   async function get(path: string, query: Record<string, string>) {
     const url = new URL(path, AIRQO_API_URL)
     Object.entries(query).forEach(([k, v]) => url.searchParams.set(k, v))
-    url.searchParams.set("token", token!)
-    url.searchParams.set("access_token", token!)
-    const response = await fetch(url, { signal: AbortSignal.timeout(25000), next: { revalidate: 3600 } })
-    if (!response.ok) throw new Error("AirQo data unavailable")
-    const body = unwrapForecastPayload(await response.json())
+    const response = await getCachedGridResponse(url.toString())
+    const body = unwrapForecastPayload(JSON.parse(response.body))
     if (body.success === false) throw new Error("AirQo data unavailable")
     return { ...body, ...(body.data ? unwrapForecastPayload(body.data) : {}) }
   }

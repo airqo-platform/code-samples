@@ -3,6 +3,15 @@ export type Period = { date?: string; timestamp?: string; forecast: { pm2_5_mean
 export type ForecastSite = { site_details: { site_id: string; site_name: string }; forecasts: Period[] }
 export type BillboardData = { measurements: Reading[]; daily: ForecastSite[]; hourly: ForecastSite[]; warnings: string[] }
 export const BILLBOARD_REFRESH_MS = 60 * 60 * 1000
+export function activityForAir(value: number | null | undefined, preferred = "running") {
+  if (value == null || !Number.isFinite(value) || value < 0) return "unavailable"
+  if (value <= 9.1) return preferred === "football" ? "football" : preferred === "yoga" ? "yoga" : "running"
+  if (value <= 35.49) return "walking"
+  if (value <= 55.49) return "yoga"
+  if (value <= 125.49) return "reading"
+  if (value <= 225.49) return "resting"
+  return "window"
+}
 export function categoryImage(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value) || value < 0) return null
   const file = value <= 9.1 ? "GoodAir" : value <= 35.49 ? "Moderate" : value <= 55.49 ? "UnhealthySG" : value <= 125.49 ? "Unhealthy" : value <= 225.49 ? "VeryUnhealthy" : "Hazardous"

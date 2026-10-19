@@ -49,3 +49,14 @@
 @media (max-height: 700px), (max-width: 640px) {
   .billboard-surface:fullscreen { justify-content: flex-start; }
 }
+@keyframes activity-stride { from { transform: rotate(-16deg); } to { transform: rotate(16deg); } }
+@keyframes activity-bounce { 50% { transform: translateY(-4px); } }
+@keyframes activity-ball { 50% { transform: translate(-18px, -10px) rotate(-15deg); } }
+.activity-leg-a, .activity-arm-b { transform-origin: 158px 142px; animation: activity-stride .8s ease-in-out infinite alternate; }
+.activity-leg-b, .activity-arm-a { transform-origin: 158px 142px; animation: activity-stride .8s ease-in-out infinite alternate-reverse; }
+.activity-walking path { animation-duration: 1.5s; }
+.activity-bounce { animation: activity-bounce .8s ease-in-out infinite; }
+.activity-ball { transform-origin: 239px 196px; animation: activity-ball 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .activity-scene * { animation: none !important; }
+}

@@ -2,6 +2,7 @@ import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,
+  logging: { fetches: { fullUrl: false } },
   outputFileTracingIncludes: {
     "/website-map-integration": ["./src/embed/map.html"],
   },

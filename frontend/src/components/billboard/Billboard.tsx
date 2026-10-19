@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import "./billboard.css"
+import ActivityScene from "./ActivityScene"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { ArrowLeft, Copy, Maximize, Monitor, Pause, Play, Wind } from "lucide-react"
@@ -14,9 +15,9 @@ function value(n: number | null | undefined, unit = "") { return typeof n === "n
 function stamp(time: string) { const d = new Date(time); return Number.isFinite(d.getTime()) ? d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Time unavailable" }
 
 function Face({ pm, large = false }: { pm: number | null | undefined; large?: boolean }) {
-  const src = categoryImage(pm)
+  const src = categoryImage(pm) || "/images/Invalid.png"
   // Existing category artwork: each source PNG is only 36-42 KB.
-  return src ? <img src={src} alt={category(pm).label} width={large ? 200 : 40} height={large ? 200 : 40} className={large ? "relative z-10 h-36 w-36 object-contain md:h-48 md:w-48" : "h-10 w-10 object-contain"} /> : <span className="text-slate-400" aria-label="Category unavailable">—</span>
+  return <img src={src} alt={category(pm).label} width={large ? 200 : 40} height={large ? 200 : 40} className={large ? "relative z-10 h-36 w-36 object-contain md:h-48 md:w-48" : "h-10 w-10 object-contain"} />
 }
 function WeatherGlyph({ met }: { met: Period["met"] }) {
   const rain = met?.precipitation_amount
@@ -39,9 +40,22 @@ export default function Billboard() {
   const [origin, setOrigin] = useState("")
   const [index, setIndex] = useState(0)
   const [day, setDay] = useState(0)
-  const [rotate, setRotate] = useState(false)
+  const [rotate, setRotate] = useState(true)
   const [now, setNow] = useState(0)
   const [theme, setTheme] = useState("navy")
+  const [visual, setVisual] = useState("faces")
+  const [preferredActivity, setPreferredActivity] = useState("running")
+  useEffect(() => {
+    setVisual(params.get("visual") === "activities" ? "activities" : "faces")
+    const choice = params.get("activity")
+    setPreferredActivity(choice === "football" || choice === "yoga" ? choice : "running")
+  }, [params])
+  function changeVisual(key: "visual" | "activity", choice: string) {
+    if (key === "visual") setVisual(choice); else setPreferredActivity(choice)
+    const address = new URL(window.location.href)
+    address.searchParams.set(key, choice)
+    window.history.replaceState(null, "", address)
+  }
   const [isFullscreen, setIsFullscreen] = useState(false)
   const billboardRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -104,7 +118,7 @@ export default function Billboard() {
     return Array.from(map, ([siteId, name]) => ({ siteId, name }))
   }, [data, readings])
   useEffect(() => {
-    if (!rotate || sites.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    if (!rotate || sites.length < 2) return
     const timer = setInterval(() => { setIndex(i => (i + 1) % sites.length); setDay(0) }, 15000)
     return () => clearInterval(timer)
   }, [rotate, sites.length])
@@ -120,7 +134,7 @@ export default function Billboard() {
   const met = selected?.met
   const valid = /^[A-Za-z0-9_-]{1,128}$/.test(id)
   const chosenGrid = grids.find(g => g._id === id)
-  const url = `${origin}/billboard?${new URLSearchParams({ [`${scope}_id`]: id, theme, ...(title.trim() || chosenGrid?.name ? { title: title.trim() || chosenGrid!.name } : {}) })}`
+  const url = `${origin}/billboard?${new URLSearchParams({ [`${scope}_id`]: id, theme, visual, activity: preferredActivity, ...(title.trim() || chosenGrid?.name ? { title: title.trim() || chosenGrid!.name } : {}) })}`
   async function copy(text: string) {
     try { await navigator.clipboard.writeText(text); setStatus("Copied to clipboard.") } catch { setStatus("Clipboard unavailable. Copy the link below manually.") }
   }
@@ -131,7 +145,7 @@ export default function Billboard() {
     <div className="mx-auto max-w-[1600px] px-5 py-7 md:px-10">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2 text-xl font-bold text-blue-700"><Wind /> AirQo <span className="ml-2 border-l border-slate-300 pl-3 text-sm font-medium text-slate-500">LIVE BILLBOARD</span></Link>
-        <div className="flex flex-wrap items-center gap-2"><label htmlFor="billboard-theme" className="text-sm font-medium">Theme</label><select id="billboard-theme" value={theme} onChange={e => changeTheme(e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:ring-2 focus-visible:ring-blue-500"><option value="navy">Navy</option><option value="light">Light</option><option value="forest">Forest</option></select>{display ? <><Link href="/billboard" className={button}><ArrowLeft size={16} /> Create a billboard</Link><button className={button} onClick={() => copy(window.location.href)}><Copy size={16} /> Copy link</button><button className={button} disabled={!sites.length} onClick={fullscreen}><Maximize size={16} /> Fullscreen</button></> : <Link href="/" className={button}>Back to home</Link>}</div>
+        <div className="flex flex-wrap items-center gap-2"><label htmlFor="billboard-theme" className="text-sm font-medium">Theme</label><select id="billboard-theme" value={theme} onChange={e => changeTheme(e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:ring-2 focus-visible:ring-blue-500"><option value="navy">Navy</option><option value="light">Light</option><option value="forest">Forest</option></select><label htmlFor="billboard-visual" className="ml-2 text-sm font-medium">Illustration</label><select id="billboard-visual" value={visual} onChange={e => changeVisual("visual", e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value="faces">Category faces</option><option value="activities">Activity scenes</option></select>{visual === "activities" && <><label htmlFor="billboard-activity" className="text-sm font-medium">Good-air activity</label><select id="billboard-activity" value={preferredActivity} onChange={e => changeVisual("activity", e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value="running">Running</option><option value="football">Football</option><option value="yoga">Yoga</option></select></>}{display ? <><Link href="/billboard" className={button}><ArrowLeft size={16} /> Create a billboard</Link><button className={button} onClick={() => copy(window.location.href)}><Copy size={16} /> Copy link</button><button className={button} disabled={!sites.length} onClick={fullscreen}><Maximize size={16} /> Fullscreen</button></> : <Link href="/" className={button}>Back to home</Link>}</div>
       </header>
       {!display ? <div className="mx-auto max-w-5xl py-8">
         <span className="rounded-full bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700">Better air starts with awareness</span>
@@ -140,19 +154,19 @@ export default function Billboard() {
         <div className="mt-10 grid gap-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200 md:grid-cols-2 md:p-9">
           <div className="space-y-5">
             <div className="flex gap-2" aria-label="Data source">{["grid", "cohort"].map(s => <button key={s} aria-pressed={scope === s} onClick={() => { setScope(s); setId(""); setStatus("") }} className={`${button} flex-1 ${scope === s ? "!border-blue-600 bg-blue-50 text-blue-700" : ""}`}>{s === "grid" ? "City / grid" : "Organisation / cohort"}</button>)}</div>
-            {scope === "grid" ? <><label className="block font-medium" htmlFor="place-search">Find a place</label><input id="place-search" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search Gulu, Kampala, Nairobi…" className={field} /><label className="block font-medium" htmlFor="grid-select">Select a grid</label><select id="grid-select" value={id} onChange={e => setId(e.target.value)} className={field}><option value="">Choose a place</option>{grids.filter(g => `${g.name} ${g.long_name || ""}`.toLowerCase().includes(query.toLowerCase()) || g._id === id).map(g => <option key={g._id} value={g._id}>{g.long_name || g.name}</option>)}</select>{gridError && <p role="alert" className="text-red-700">{gridError}</p>}</> : <><label className="block font-medium" htmlFor="cohort-id">Cohort ID</label><input id="cohort-id" value={id} onChange={e => setId(e.target.value.trim())} placeholder="Enter cohort_id" maxLength={128} className={field} /><p className="text-sm text-slate-500">Use a cohort enabled for public sharing. Locations stay separate, even when a network spans several cities.</p>{id && !valid && <p role="alert" className="text-red-700">Use letters, numbers, underscores or hyphens.</p>}</>}
+            {scope === "grid" ? <><label className="block font-medium" htmlFor="place-search">Find a place</label><input id="place-search" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search Gulu, Kampala, Nairobi…" className={field} /><label className="block font-medium" htmlFor="grid-select">Select a grid</label><select id="grid-select" value={id} onChange={e => setId(e.target.value)} className={field}><option value="">Choose a place</option>{grids.filter(g => `${g.name} ${g.long_name || ""}`.toLowerCase().includes(query.toLowerCase()) || g._id === id).map(g => <option key={g._id} value={g._id}>{g.long_name || g.name}</option>)}</select>{gridError && <p role="alert" className="text-red-700">{gridError}</p>}</> : <><label className="block font-medium" htmlFor="cohort-id">Cohort ID</label><input id="cohort-id" value={id} onChange={e => setId(e.target.value.trim())} placeholder="Enter cohort_id" maxLength={128} className={field} /><p className="text-sm text-slate-500">Enter your cohort ID to load its monitoring locations. Locations stay separate, even when a network spans several cities.</p>{id && !valid && <p role="alert" className="text-red-700">Use letters, numbers, underscores or hyphens.</p>}</>}
             <label className="block font-medium" htmlFor="billboard-title">Display title <span className="text-slate-400">(optional)</span></label><input id="billboard-title" maxLength={100} value={title} onChange={e => setTitle(e.target.value)} placeholder={chosenGrid?.name || "Our air quality network"} className={field} />
             <div className="flex flex-wrap gap-2"><a aria-disabled={!valid} href={valid ? url : undefined} className={`${button} !border-blue-600 bg-blue-600 !text-white hover:!bg-blue-700 ${!valid ? "pointer-events-none opacity-40" : ""}`}><Monitor size={17} /> Open billboard</a><button className={button} disabled={!valid || !origin} onClick={() => copy(url)}>Copy link</button><button className={button} disabled={!valid || !origin} onClick={() => copy(`<iframe src="${url.replace(/&/g, "&amp;")}" title="AirQo live air quality billboard" style="width:100%;height:760px;border:0" loading="lazy" allow="fullscreen"></iframe>`)}>Copy embed</button></div>
             {valid && <input aria-label="Shareable billboard URL" readOnly value={url} className={`${field} text-xs`} />}
           </div>
-          <div data-theme={theme} className="billboard-surface flex flex-col justify-center rounded-2xl bg-[var(--billboard-bg)] p-7 text-[var(--billboard-text)]"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--billboard-accent)]">Made for shared screens</span><div className="relative my-6 flex justify-center"><Face pm={8} large /></div><h2 className="text-2xl font-bold">Make the air visible.</h2><p className="mt-3 leading-relaxed text-[var(--billboard-muted)]">Named monitoring locations. Clear health guidance. Seven-day forecasts with weather. A link that stays up to date.</p><p className="mt-6 text-sm text-[var(--billboard-soft)]">Data refreshes every 60 minutes. Forecasts need Premium API access.</p></div>
+          <div data-theme={theme} className="billboard-surface flex flex-col justify-center rounded-2xl bg-[var(--billboard-bg)] p-7 text-[var(--billboard-text)]"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--billboard-accent)]">Made for shared screens</span><div className="relative my-6 flex justify-center"><>{visual === "activities" ? <ActivityScene pm={8} preferred={preferredActivity} /> : <Face pm={8} large />}</></div><h2 className="text-2xl font-bold">Make the air visible.</h2><p className="mt-3 leading-relaxed text-[var(--billboard-muted)]">Named monitoring locations. Clear health guidance. Seven-day forecasts with weather. A link that stays up to date.</p><p className="mt-6 text-sm text-[var(--billboard-soft)]">Data refreshes every 60 minutes. Forecasts need Premium API access.</p></div>
         </div>
       </div> : <>
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-widest text-blue-600">{cohortId ? "Network air quality" : "Local air quality"}</p><h1 className="mt-2 text-3xl font-bold md:text-5xl">{params.get("title")?.slice(0,100) || (gridId ? "Air quality in your area" : "Air quality network")}</h1></div><p className="text-sm text-slate-500">Refreshes every 60 minutes · Times in your browser’s timezone</p></div>
         {error && <p role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-red-800">{error} {data ? "Previously loaded data is shown below." : ""}</p>}
         {!data && !error && <p role="status" className="p-10">Loading readings, forecasts and weather…</p>}
         {data && <>
-          <div className="mb-5 flex flex-wrap items-center gap-3"><label htmlFor="location" className="font-semibold">Monitoring location</label><select id="location" className={`${field} !w-auto max-w-full`} value={site?.siteId || ""} onChange={e => { setIndex(sites.findIndex(s => s.siteId === e.target.value)); setDay(0); setRotate(false) }}>{sites.map(s => <option key={s.siteId} value={s.siteId}>{s.name}</option>)}</select>{sites.length > 1 && <button onClick={() => setRotate(!rotate)} className={button}>{rotate ? <Pause size={16} /> : <Play size={16} />}{rotate ? "Pause rotation" : "Rotate locations"}</button>}<span className="text-sm text-slate-500">{sites.length} locations with available data</span></div>
+          <div className="mb-5 flex flex-wrap items-center gap-3"><label htmlFor="location" className="font-semibold">Monitoring location</label><select id="location" className={`${field} !w-auto max-w-full`} value={site?.siteId || ""} onChange={e => { setIndex(sites.findIndex(s => s.siteId === e.target.value)); setDay(0); setRotate(false) }}>{sites.map(s => <option key={s.siteId} value={s.siteId}>{s.name}</option>)}</select>{sites.length > 1 && <button onClick={() => setRotate(!rotate)} className={button}>{rotate ? <Pause size={16} /> : <Play size={16} />}{rotate ? "Pause rotation" : "Resume rotation"}</button>}<span className="text-sm text-slate-500">{sites.length} locations with available data</span></div>
           {!sites.length && <p className="rounded-xl bg-white p-8">No monitoring data is available for this selection.</p>}
           {sites.length > 0 && <>
             <div ref={billboardRef} data-theme={theme} aria-label="Air Quality Live" className="billboard-surface overflow-hidden rounded-3xl bg-[var(--billboard-bg)] text-[var(--billboard-text)] shadow-xl shadow-slate-300/40" style={{ border: `1px solid ${current.color}80` }}>
@@ -171,7 +185,7 @@ export default function Billboard() {
                 </section>
                 <div className="relative flex min-h-52 items-center justify-center overflow-hidden" aria-label="Air quality category illustration">
                   <div aria-hidden="true" className="billboard-halo absolute h-44 w-44 rounded-full border-2 opacity-70 md:h-56 md:w-56" style={{ borderColor: current.color, boxShadow: `0 0 50px ${current.color}60, inset 0 0 40px ${current.color}30` }} />
-                  <Face pm={reading?.pm2_5?.value} large />
+                  <>{visual === "activities" ? <ActivityScene pm={reading?.pm2_5?.value} preferred={preferredActivity} /> : <Face pm={reading?.pm2_5?.value} large />}</>
                 </div>
               </div>
               <section className="mx-4 mb-4 rounded-2xl border border-[var(--billboard-line)] bg-[var(--billboard-panel)] p-4 md:mx-6">
@@ -190,7 +204,7 @@ export default function Billboard() {
                 </div>}
               </section>
               <div className="border-t border-[var(--billboard-line)] px-6 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-[var(--billboard-muted)]">{sites.length > 1 ? `Next location: ${sites[(index + 1) % sites.length]?.name}` : "One location · A clearer view of your air"}</p></div>
+                <div className="flex flex-wrap items-center justify-between gap-3">{isFullscreen && sites.length > 1 && <button onClick={() => setRotate(!rotate)} className="rounded-lg border border-[var(--billboard-line)] px-3 py-2 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">{rotate ? "Pause rotation" : "Resume rotation"}</button>}<p className="text-xs text-[var(--billboard-muted)]">{sites.length > 1 ? `Next location: ${sites[(index + 1) % sites.length]?.name}` : "One location · A clearer view of your air"}</p></div>
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-500">PM₂.₅ concentration at this monitoring location. This is not a city-wide exposure estimate. Daily category faces describe air quality; weather symbols describe rainfall.</p>
