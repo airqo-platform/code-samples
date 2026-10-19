@@ -39,11 +39,12 @@ export default function RealisticScene({ pm }: { pm: number | null | undefined }
   }, [category, index, reduced])
   if (!category) return null
   const scene = scenesForCategory(category)[index]
+  const loop = ["jog", "walk", "cycle", "type"].includes(scene.motion)
   return <figure className={`realistic-scene relative z-10 w-full max-w-80 text-center ${paused || reduced ? "is-paused" : ""}`}>
     <div className="realistic-stage relative mx-auto flex h-60 items-end justify-center overflow-hidden">
       <span aria-hidden="true" className="realistic-shadow absolute bottom-1 h-3 w-32 rounded-[50%] bg-black/15 blur-sm" />
       <div key={scene.src} className="realistic-enter relative h-full w-full">
-        {reduced ? <img src={scene.src} alt={scene.title} width={360} height={360} className="mx-auto h-full w-full object-contain object-bottom" /> : <ActionFrames src={scene.actionSrc} poster={scene.src} title={scene.title} duration={scene.duration * (["jog", "walk", "cycle", "type"].includes(scene.motion) ? 1 : 2)} paused={paused} loop={["jog", "walk", "cycle", "type"].includes(scene.motion)} />}
+        {reduced ? <img src={scene.src} alt={scene.title} width={360} height={360} className="mx-auto h-full w-full object-contain object-bottom" /> : <ActionFrames src={scene.actionSrc} poster={scene.src} title={scene.title} duration={scene.duration * (loop ? 1 : 2)} paused={paused} loop={loop} />}
       </div>
     </div>
     <figcaption className="mt-2 text-xs font-medium text-[var(--billboard-muted)]">{scene.title}</figcaption>

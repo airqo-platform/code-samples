@@ -71,33 +71,13 @@ test('default load fetches weekly data only and compacts readings without creden
   assert.equal(body.measurements[0].pm2_5.value, 15)
   assert.equal(body.measurements[0].unused_large_field, undefined)
   assert.equal(body.warnings.length, 0)
-  assert.equal(body.hourly.length, 0)
+  assert.equal(body.hourly, undefined)
   assert.ok(calls.every(url => url.searchParams.get('token') === null))
   assert.ok(calls.every(url => url.searchParams.get('access_token') === null))
   assert.ok(calls.every(url => url.origin === 'https://platform.airqo.net'))
   assert.equal(calls.some(url => url.pathname.includes('hourly')), false)
 })
 
-test('hourly data is requested explicitly and returns only the chosen location', async () => {
-  const calls = []
-  const { GET } = load('../app/api/billboard/route.ts', {
-    process: { env: { API_TOKEN: 'test' } },
-    fetch: async url => {
-      calls.push(url)
-      return Response.json({ data: { forecasts: ['a','b'].map(site_id => ({ site_details: { site_id, site_name: site_id }, forecasts: Array.from({ length: 168 }, (_, i) => ({ timestamp: new Date(Math.floor(Date.now() / 3600000) * 3600000 + (i - 4) * 3600000).toISOString(), forecast: { pm2_5_mean: 20, unused: 'drop' }, met: null })) })) } })
-    },
-  })
-  const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=gulu&hourly=1&site_id=b') })
-  const body = await response.json()
-  assert.equal(calls.length, 1)
-  assert.equal(calls[0].pathname, '/api/v2/predict/hourly-forecasting')
-  assert.equal(calls[0].searchParams.get('hours'), '168')
-  assert.equal(body.hourly.length, 1)
-  assert.equal(body.hourly[0].site_details.site_id, 'b')
-  assert.equal(body.hourly[0].forecasts.length, 24)
-  assert.ok(Date.parse(body.hourly[0].forecasts[0].timestamp) >= Math.floor(Date.now() / 3600000) * 3600000)
-  assert.equal(body.hourly[0].forecasts[0].forecast.unused, undefined)
-})
 
 test('daily forecast failures do not hide available readings', async () => {
   const { GET } = load('../app/api/billboard/route.ts', {

@@ -47,3 +47,22 @@ test('credentials cannot be sent to a different origin', async () => {
   const { fetchAirQo } = load(() => { throw Error('must not send') })
   await assert.rejects(fetchAirQo('https://example.test/'), /Invalid AirQo upstream/)
 })
+
+test('oversized upstream responses are stopped before unbounded buffering', async () => {
+  let stopped = false
+  const { fetchAirQo } = load((options, callback) => {
+    const req = new EventEmitter()
+    req.setTimeout = () => {}
+    req.destroy = () => { stopped = true }
+    req.end = () => {
+      const res = new EventEmitter()
+      res.statusCode = 200; res.headers = {}
+      res.destroy = () => { stopped = true }
+      callback(res)
+      res.emit('data', Buffer.alloc(16 * 1024 * 1024 + 1))
+    }
+    return req
+  })
+  await assert.rejects(fetchAirQo('https://platform.airqo.net/api/v2/devices/grids/summary'), /AirQo upstream request failed/)
+  assert.equal(stopped, true)
+})

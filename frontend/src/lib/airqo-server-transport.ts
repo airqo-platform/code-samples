@@ -30,7 +30,12 @@ export async function fetchAirQo(input: string | URL, options: {
         return
       }
       const chunks: Buffer[] = []
-      response.on("data", chunk => chunks.push(Buffer.from(chunk)))
+      let bytes = 0
+      response.on("data", chunk => {
+        bytes += chunk.length
+        if (bytes > 16 * 1024 * 1024) { response.destroy(); req.destroy(); fail(); return }
+        chunks.push(Buffer.from(chunk))
+      })
       response.on("error", fail)
       response.on("end", () => {
         // Never forward a credential echoed by an upstream error response.
