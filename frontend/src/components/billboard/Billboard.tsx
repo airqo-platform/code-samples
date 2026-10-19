@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import "./billboard.css"
 import ActivityScene from "./ActivityScene"
+import dynamic from "next/dynamic"
 import ScanBillboard from "./ScanBillboard"
 import CountryPicker from "./CountryPicker"
 import { gridsWithinCountry, loadBillboardGrids, type BillboardGrid } from "@/lib/billboard-grids"
@@ -10,6 +11,8 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { ArrowLeft, Copy, Maximize, Monitor, Pause, Play, Wind } from "lucide-react"
 import { BILLBOARD_REFRESH_MS, billboardScanUrl, category, categoryImage, hasPm25, latestReadings, type BillboardData, type Period } from "@/lib/billboard"
+
+const RealisticScene = dynamic(() => import("./RealisticScene"), { loading: () => <div className="h-60" /> })
 
 const field = "min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2 font-medium hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-40"
@@ -49,7 +52,7 @@ export default function Billboard() {
   const [visual, setVisual] = useState("faces")
   const [preferredActivity, setPreferredActivity] = useState("running")
   useEffect(() => {
-    setVisual(params.get("visual") === "activities" ? "activities" : "faces")
+    setVisual(params.get("visual") === "realistic" ? "realistic" : params.get("visual") === "activities" ? "activities" : "faces")
     const choice = params.get("activity")
     setPreferredActivity(choice === "football" || choice === "yoga" ? choice : "running")
   }, [params])
@@ -162,7 +165,7 @@ export default function Billboard() {
     <div className="mx-auto max-w-[1600px] px-5 py-7 md:px-10">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2 text-xl font-bold text-blue-700"><Wind /> AirQo <span className="ml-2 border-l border-slate-300 pl-3 text-sm font-medium text-slate-500">LIVE BILLBOARD</span></Link>
-        <div className="flex flex-wrap items-center gap-2"><label htmlFor="billboard-theme" className="text-sm font-medium">Theme</label><select id="billboard-theme" value={theme} onChange={e => changeTheme(e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:ring-2 focus-visible:ring-blue-500"><option value="navy">Navy</option><option value="light">Light</option><option value="forest">Forest</option></select><label htmlFor="billboard-visual" className="ml-2 text-sm font-medium">Illustration</label><select id="billboard-visual" value={visual} onChange={e => changeVisual("visual", e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value="faces">Category faces</option><option value="activities">Activity scenes</option></select>{visual === "activities" && <><label htmlFor="billboard-activity" className="text-sm font-medium">Good-air activity</label><select id="billboard-activity" value={preferredActivity} onChange={e => changeVisual("activity", e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value="running">Running</option><option value="football">Football</option><option value="yoga">Yoga</option></select></>}{display ? <><Link href="/billboard" className={button}><ArrowLeft size={16} /> Create a billboard</Link><button className={button} onClick={() => copy(window.location.href)}><Copy size={16} /> Copy link</button><button className={button} disabled={!sites.length} onClick={fullscreen}><Maximize size={16} /> Fullscreen</button></> : <Link href="/" className={button}>Back to home</Link>}</div>
+        <div className="flex flex-wrap items-center gap-2"><label htmlFor="billboard-theme" className="text-sm font-medium">Theme</label><select id="billboard-theme" value={theme} onChange={e => changeTheme(e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:ring-2 focus-visible:ring-blue-500"><option value="navy">Navy</option><option value="light">Light</option><option value="forest">Forest</option></select><label htmlFor="billboard-visual" className="ml-2 text-sm font-medium">Illustration</label><select id="billboard-visual" value={visual} onChange={e => changeVisual("visual", e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value="faces">Category faces</option><option value="activities">Activity scenes</option><option value="realistic">Realistic animations</option></select>{visual === "activities" && <><label htmlFor="billboard-activity" className="text-sm font-medium">Good-air activity</label><select id="billboard-activity" value={preferredActivity} onChange={e => changeVisual("activity", e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value="running">Running</option><option value="football">Football</option><option value="yoga">Yoga</option></select></>}{display ? <><Link href="/billboard" className={button}><ArrowLeft size={16} /> Create a billboard</Link><button className={button} onClick={() => copy(window.location.href)}><Copy size={16} /> Copy link</button><button className={button} disabled={!sites.length} onClick={fullscreen}><Maximize size={16} /> Fullscreen</button></> : <Link href="/" className={button}>Back to home</Link>}</div>
       </header>
       {!display ? <div className="mx-auto max-w-5xl py-8">
         <span className="rounded-full bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700">Better air starts with awareness</span>
@@ -191,7 +194,7 @@ export default function Billboard() {
             {valid && <input aria-label="Shareable billboard URL" readOnly value={url} className={`${field} text-xs`} />}
             {valid && <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><ScanBillboard url={billboardScanUrl(origin, scope === "grid" ? "grid" : "cohort", id)} downloadable /></div>}
           </div>
-          <div data-theme={theme} className="billboard-surface flex flex-col justify-center rounded-2xl bg-[var(--billboard-bg)] p-7 text-[var(--billboard-text)]"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--billboard-accent)]">Made for shared screens</span><div className="relative my-6 flex justify-center"><>{visual === "activities" ? <ActivityScene pm={8} preferred={preferredActivity} /> : <Face pm={8} large />}</></div><h2 className="text-2xl font-bold">Make the air visible.</h2><p className="mt-3 leading-relaxed text-[var(--billboard-muted)]">Named monitoring locations. Clear health guidance. Seven-day forecasts with weather. A link that stays up to date.</p><p className="mt-6 text-sm text-[var(--billboard-soft)]">Data refreshes every 60 minutes. Forecasts need Premium API access.</p></div>
+          <div data-theme={theme} className="billboard-surface flex flex-col justify-center rounded-2xl bg-[var(--billboard-bg)] p-7 text-[var(--billboard-text)]"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--billboard-accent)]">Made for shared screens</span><div className="relative my-6 flex justify-center"><img src="/images/billboard/realistic/moderate-5.webp" alt="Woman checking air quality updates on her phone" width={360} height={360} className="h-60 w-full object-contain" /></div><h2 className="text-2xl font-bold">Make the air visible.</h2><p className="mt-3 leading-relaxed text-[var(--billboard-muted)]">Named monitoring locations. Clear health guidance. Seven-day forecasts with weather. A link that stays up to date.</p><p className="mt-6 text-sm text-[var(--billboard-soft)]">Data refreshes every 60 minutes. Forecasts need Premium API access.</p></div>
         </div>
       </div> : <>
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-widest text-blue-600">{cohortId ? "Network air quality" : "Local air quality"}</p><h1 className="mt-2 text-3xl font-bold md:text-5xl">{params.get("title")?.slice(0,100) || (gridId ? "Air quality in your area" : "Air quality network")}</h1></div><p className="text-sm text-slate-500">Refreshes every 60 minutes · Times in your browser’s timezone</p></div>
@@ -219,7 +222,7 @@ export default function Billboard() {
                 </section>
                 <div className="relative flex min-h-52 items-center justify-center overflow-hidden" aria-label="Air quality category illustration">
                   <div aria-hidden="true" className="billboard-halo absolute h-44 w-44 rounded-full border-2 opacity-70 md:h-56 md:w-56" style={{ borderColor: current.color, boxShadow: `0 0 50px ${current.color}60, inset 0 0 40px ${current.color}30` }} />
-                  <>{visual === "activities" ? <ActivityScene pm={reading?.pm2_5?.value} preferred={preferredActivity} /> : <Face pm={reading?.pm2_5?.value} large />}</>
+                  <>{visual === "realistic" ? <RealisticScene pm={reading?.pm2_5?.value} /> : visual === "activities" ? <ActivityScene pm={reading?.pm2_5?.value} preferred={preferredActivity} /> : <Face pm={reading?.pm2_5?.value} large />}</>
                 </div>
               </div>
               <section className="mx-4 mb-4 rounded-2xl border border-[var(--billboard-line)] bg-[var(--billboard-panel)] p-4 md:mx-6">

@@ -1,0 +1,72 @@
+{
+  "tool": "Built-in image_gen",
+  "transparent_background": true,
+  "categories": {
+    "good": {
+      "prompt": "Use case: stylized-concept. Asset type: production web character sprite atlas for an AirQo air quality billboard. Create ONE transparent-background sprite sheet, landscape 5:2 aspect ratio, arranged as exactly FIVE equal-width columns in one horizontal row, each column a separate isolated full-body character cutout, with generous transparent gutter and no overlaps. Consistent high-quality realistic 3D animated-film characters like the user's reference: friendly African adults, anatomically natural, detailed hair, blue athletic clothing and blue shoes, clean studio lighting. All characters same scale, fully visible including feet and props; contained within own fifth of the canvas, vertically centered. Left to right: 1 Black woman jogging with ponytail, 2 Black man playing football with ball by foot, 3 Black woman balancing gentle yoga tree pose, 4 Black woman wearing helmet riding a bicycle, 5 Black man stretching arms overhead before exercise. Good-air activities only. No text, no labels, no panels, no borders, no ground plane, no scenery, no logos, no watermark. Preserve genuine alpha transparency. Intended for a small 320px-wide website illustration.",
+      "sourceFile": "exec-62c1ff5e-0917-46ee-9693-cd6b1308ece9.png",
+      "outputs": [
+        "/images/billboard/realistic/good-1.webp",
+        "/images/billboard/realistic/good-2.webp",
+        "/images/billboard/realistic/good-3.webp",
+        "/images/billboard/realistic/good-4.webp",
+        "/images/billboard/realistic/good-5.webp"
+      ]
+    },
+    "moderate": {
+      "prompt": "Use case: stylized-concept. Asset type: production web character sprite atlas for an AirQo air quality billboard. ONE sprite sheet with genuine transparent background, wide landscape 5:2 aspect ratio. Exactly FIVE equal-width columns in ONE horizontal row, each a separate isolated full-body realistic 3D animated-film African adult character cutout. Consistent natural human anatomy, detailed African hairstyles, warm expressive faces, predominantly blue clothing and shoes, polished studio lighting like the user's reference. Same scale throughout, complete feet and props, each person contained within their own fifth with clear transparent gutters, centered vertically. Small furniture and props allowed, no room background. No overlaps, no text, labels, panels, borders, scenery, logos or watermark. Left to right: 1 woman taking a gentle walk; 2 man sitting resting on a small wooden bench; 3 woman doing a gentle standing shoulder stretch; 4 man reading a book on a small bench; 5 woman standing looking at the air quality app on her phone. Calm low-exertion activities for moderate air quality.",
+      "sourceFile": "exec-06a29061-2340-4a5b-949f-86bec8a5ed9f.png",
+      "outputs": [
+        "/images/billboard/realistic/moderate-1.webp",
+        "/images/billboard/realistic/moderate-2.webp",
+        "/images/billboard/realistic/moderate-3.webp",
+        "/images/billboard/realistic/moderate-4.webp",
+        "/images/billboard/realistic/moderate-5.webp"
+      ]
+    },
+    "sensitive": {
+      "prompt": "Use case: stylized-concept. Asset type: production web character sprite atlas for an AirQo air quality billboard. ONE sprite sheet with genuine transparent background, wide landscape 5:2 aspect ratio. Exactly FIVE equal-width columns in ONE horizontal row, each a separate isolated full-body realistic 3D animated-film African adult character cutout. Consistent natural human anatomy, detailed African hairstyles, warm expressive faces, predominantly blue clothing and shoes, polished studio lighting like the user's reference. Same scale throughout, complete feet and props, each person contained within their own fifth with clear transparent gutters, centered vertically. Small furniture and props allowed, no room background. No overlaps, no text, labels, panels, borders, scenery, logos or watermark. Left to right: 1 woman doing gentle seated yoga on a blue mat; 2 man sitting in an armchair reading; 3 woman drawing at a small desk; 4 man resting on a chair drinking water; 5 woman doing a gentle seated arm stretch. All activities in cleaner indoor spaces, no outdoor exercise, no scenery.",
+      "sourceFile": "exec-58b4dd5d-c5d8-409a-9da5-216fc52695e0.png",
+      "outputs": [
+        "/images/billboard/realistic/sensitive-1.webp",
+        "/images/billboard/realistic/sensitive-2.webp",
+        "/images/billboard/realistic/sensitive-3.webp",
+        "/images/billboard/realistic/sensitive-4.webp",
+        "/images/billboard/realistic/sensitive-5.webp"
+      ]
+    },
+    "unhealthy": {
+      "prompt": "Use case: stylized-concept. Asset type: production web character sprite atlas for an AirQo air quality billboard. ONE sprite sheet with genuine transparent background, wide landscape 5:2 aspect ratio. Exactly FIVE equal-width columns in ONE horizontal row, each a separate isolated full-body realistic 3D animated-film African adult character cutout. Consistent natural human anatomy, detailed African hairstyles, warm expressive faces, predominantly blue clothing and shoes, polished studio lighting like the user's reference. Same scale throughout, complete feet and props, each person contained within their own fifth with clear transparent gutters, centered vertically. Small furniture and props allowed, no room background. No overlaps, no text, labels, panels, borders, scenery, logos or watermark. Left to right: 1 man reading in an armchair; 2 woman seated assembling a small jigsaw puzzle on a table; 3 man working on a laptop at a small desk; 4 woman resting on a small sofa; 5 man seated beside a compact white air purifier. All calm cleaner-indoor activities, no outdoor sports, no room backdrop.",
+      "sourceFile": "exec-49f519a6-e8e1-45e8-9dd2-481502c4bfd6.png",
+      "outputs": [
+        "/images/billboard/realistic/unhealthy-1.webp",
+        "/images/billboard/realistic/unhealthy-2.webp",
+        "/images/billboard/realistic/unhealthy-3.webp",
+        "/images/billboard/realistic/unhealthy-4.webp",
+        "/images/billboard/realistic/unhealthy-5.webp"
+      ]
+    },
+    "very": {
+      "prompt": "Use case: stylized-concept. Asset type: production web character sprite atlas for an AirQo air quality billboard. ONE sprite sheet with genuine transparent background, wide landscape 5:2 aspect ratio. Exactly FIVE equal-width columns in ONE horizontal row, each a separate isolated full-body realistic 3D animated-film African adult character cutout. Consistent natural human anatomy, detailed African hairstyles, warm expressive faces, predominantly blue clothing and shoes, polished studio lighting like the user's reference. Same scale throughout, complete feet and props, each person contained within their own fifth with clear transparent gutters, centered vertically. Small furniture and props allowed, no room background. No overlaps, no text, labels, panels, borders, scenery, logos or watermark. Left to right: 1 woman switching on a compact white air purifier; 2 man doing quiet seated meditation on a blue mat; 3 woman pulling closed a small freestanding window frame; 4 man sitting in a chair checking an air quality app on a phone; 5 woman quietly sketching at a small table. Very poor outdoor air, all calm indoor protective activities. Isolated objects only, no room backdrop.",
+      "sourceFile": "exec-f21a9e9c-45f2-4c89-81de-49b7f0ff1784.png",
+      "outputs": [
+        "/images/billboard/realistic/very-1.webp",
+        "/images/billboard/realistic/very-2.webp",
+        "/images/billboard/realistic/very-3.webp",
+        "/images/billboard/realistic/very-4.webp",
+        "/images/billboard/realistic/very-5.webp"
+      ]
+    },
+    "hazardous": {
+      "prompt": "Use case: stylized-concept. Asset type: production web character sprite atlas for an AirQo air quality billboard. ONE sprite sheet with genuine transparent background, wide landscape 5:2 aspect ratio. Exactly FIVE equal-width columns in ONE horizontal row, each a separate isolated full-body realistic 3D animated-film African adult character cutout. Consistent natural human anatomy, detailed African hairstyles, warm expressive faces, predominantly blue clothing and shoes, polished studio lighting like the user's reference. Same scale throughout, complete feet and props, each person contained within their own fifth with clear transparent gutters, centered vertically. Small furniture and props allowed, no room background. No overlaps, no text, labels, panels, borders, scenery, logos or watermark. Left to right: 1 man closing a small freestanding window frame; 2 woman checking the controls on a compact white air purifier; 3 man resting in an armchair with a blanket; 4 woman sitting quietly in an armchair wearing a well-fitted white respirator mask; 5 man reading indoors on a small sofa. Hazardous outdoor air, all calm indoor protective activities, no exercise or outdoor activity. Isolated props, no room backdrop.",
+      "sourceFile": "exec-01874cf8-bd53-476f-8232-956325d5e498.png",
+      "outputs": [
+        "/images/billboard/realistic/hazardous-1.webp",
+        "/images/billboard/realistic/hazardous-2.webp",
+        "/images/billboard/realistic/hazardous-3.webp",
+        "/images/billboard/realistic/hazardous-4.webp",
+        "/images/billboard/realistic/hazardous-5.webp"
+      ]
+    }
+  }
+}
