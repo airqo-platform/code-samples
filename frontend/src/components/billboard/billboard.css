@@ -34,20 +34,38 @@
   --billboard-hover: #ffffff1a;
   --billboard-selected: #6ee7b71a;
 }
-.billboard-surface:fullscreen {
+.billboard-surface:is(:fullscreen, .is-presenting) {
   width: 100vw;
   height: 100dvh;
-  overflow: auto;
+  overflow: hidden;
   border: 0 !important;
   border-radius: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   padding: clamp(0px, 2vh, 24px) clamp(0px, 2vw, 32px);
   background: var(--billboard-bg);
 }
-@media (max-height: 700px), (max-width: 640px) {
-  .billboard-surface:fullscreen { justify-content: flex-start; }
+.billboard-surface:is(:fullscreen, .is-presenting) > .billboard-content {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) > .billboard-footer {
+  background: var(--billboard-bg);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 12px 16px;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) .billboard-qr svg {
+  width: 104px;
+  height: 104px;
+}
+@media (max-width: 640px) {
+  .billboard-surface:is(:fullscreen, .is-presenting) .billboard-qr > div { flex-direction: column; gap: 4px; }
+  .billboard-surface:is(:fullscreen, .is-presenting) .billboard-qr { max-width: 112px; }
+  .billboard-surface:is(:fullscreen, .is-presenting) .billboard-qr p { font-size: 11px; line-height: 14px; }
+  .billboard-surface:is(:fullscreen, .is-presenting) .billboard-qr p + p { display: none; }
 }
 @keyframes activity-stride { from { transform: rotate(-16deg); } to { transform: rotate(16deg); } }
 @keyframes activity-bounce { 50% { transform: translateY(-4px); } }
@@ -60,3 +78,5 @@
 @media (prefers-reduced-motion: reduce) {
   .activity-scene * { animation: none !important; }
 }
+
+.billboard-surface.is-presenting { position: fixed; inset: 0; z-index: 9999; }

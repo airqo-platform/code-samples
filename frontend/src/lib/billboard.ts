@@ -3,6 +3,17 @@ export type Period = { date?: string; timestamp?: string; forecast: { pm2_5_mean
 export type ForecastSite = { site_details: { site_id: string; site_name: string }; forecasts: Period[] }
 export type BillboardData = { measurements: Reading[]; daily: ForecastSite[]; hourly: ForecastSite[]; warnings: string[] }
 export const BILLBOARD_REFRESH_MS = 60 * 60 * 1000
+export function hasPm25(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+}
+export function billboardScanUrl(origin: string, scope: "grid" | "cohort", id: string) {
+  // A QR scanned on a phone cannot open this computer's localhost.
+  const candidate = new URL(origin || "https://ai.airqo.net")
+  const local = /^(localhost|127\.|0\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1\])/.test(candidate.hostname)
+  const url = new URL("/billboard", local ? "https://ai.airqo.net" : candidate.origin)
+  url.searchParams.set(`${scope}_id`, id)
+  return url.toString()
+}
 export function activityForAir(value: number | null | undefined, preferred = "running") {
   if (value == null || !Number.isFinite(value) || value < 0) return "unavailable"
   if (value <= 9.1) return preferred === "football" ? "football" : preferred === "yoga" ? "yoga" : "running"

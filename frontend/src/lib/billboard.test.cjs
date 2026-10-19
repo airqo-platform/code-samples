@@ -18,6 +18,25 @@ test('unknown pollution values are never classified as good air', () => {
   assert.equal(category(9.1).label, 'Good')
   assert.equal(category(35.5).label, 'Unhealthy for sensitive groups')
 })
+
+test('PM2.5 visibility preserves zero and rejects unavailable or invalid values', () => {
+  const { hasPm25 } = load('billboard.ts')
+  assert.equal(hasPm25(0), true)
+  assert.equal(hasPm25(12.5), true)
+  for (const value of [null, undefined, NaN, Infinity, -1, '', '12.5']) assert.equal(hasPm25(value), false)
+})
+
+test('scan links preserve only the scope and use the public site for localhost previews', () => {
+  const { billboardScanUrl } = load('billboard.ts')
+  const local = new URL(billboardScanUrl('http://localhost:3000', 'grid', 'gulu-grid'))
+  assert.equal(local.origin, 'https://ai.airqo.net')
+  assert.equal(local.pathname, '/billboard')
+  assert.equal(local.searchParams.get('grid_id'), 'gulu-grid')
+  const deployed = new URL(billboardScanUrl('https://ai.airqo.net/billboard?token=secret&site_id=rotating-site&theme=light', 'cohort', 'network-id'))
+  assert.equal(deployed.search, '?cohort_id=network-id')
+  assert.equal(deployed.searchParams.has('token'), false)
+  assert.equal(deployed.searchParams.has('site_id'), false)
+})
 test('latest reading per location wins regardless of response order', () => {
   const { latestReadings } = load('billboard.ts')
   const rows = [{ site_id: 'a', time: '2026-10-19T12:00:00Z' }, { site_id: 'a', time: '2026-10-18T12:00:00Z' }, { site_id: 'b', time: 'invalid' }]
