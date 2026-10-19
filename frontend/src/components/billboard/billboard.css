@@ -42,13 +42,18 @@
   border-radius: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  padding: clamp(0px, 2vh, 24px) clamp(0px, 2vw, 32px);
+  padding: 0;
   background: var(--billboard-bg);
 }
 .billboard-surface:is(:fullscreen, .is-presenting) > .billboard-content {
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) .billboard-animation-control {
+  display: none;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) .billboard-week {
+  padding-block: 32px;
 }
 .billboard-surface:is(:fullscreen, .is-presenting) > .billboard-footer {
   background: transparent;
@@ -78,7 +83,6 @@
 }
 @media (max-width: 640px), (max-height: 650px) {
   .billboard-surface:is(:fullscreen, .is-presenting) { padding: 0; }
-  .billboard-surface:is(:fullscreen, .is-presenting) .billboard-footer-meta nav { display: none; }
   .billboard-surface:is(:fullscreen, .is-presenting) .billboard-qr > div > div:last-child { display: none; }
   .billboard-surface:is(:fullscreen, .is-presenting) .billboard-footer-meta > button { min-height: 44px; padding: 4px 10px; }
 }

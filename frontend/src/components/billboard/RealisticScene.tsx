@@ -48,6 +48,6 @@ export default function RealisticScene({ pm }: { pm: number | null | undefined }
       </div>
     </div>
     <figcaption className="mt-2 text-xs font-medium text-[var(--billboard-muted)]">{scene.title}</figcaption>
-    {!reduced && <button type="button" onClick={() => setPaused(!paused)} className="mt-2 rounded-lg px-3 py-1 text-xs text-[var(--billboard-muted)] underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">{paused ? "Play animations" : "Pause animations"}</button>}
+    {!reduced && <button type="button" onClick={() => setPaused(!paused)} className="billboard-animation-control mt-2 rounded-lg px-3 py-1 text-xs text-[var(--billboard-muted)] underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">{paused ? "Play animations" : "Pause animations"}</button>}
   </figure>
 }

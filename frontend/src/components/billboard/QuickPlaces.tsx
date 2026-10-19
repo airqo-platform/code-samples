@@ -37,7 +37,7 @@ export default function QuickPlaces({ grids, countries, place, country, onSelect
     }
     const region = /Accra|Lagos|Dakar|Banjul|Abidjan|Douala/.test(zone) ? regions.west : /Johannesburg|Maputo|Lusaka|Harare|Windhoek/.test(zone) ? regions.south : regions.east
     const home: Record<string, string> = { Kampala: "uganda", Nairobi: "kenya", Kigali: "rwanda", Bujumbura: "burundi", Addis_Ababa: "ethiopia", Accra: "ghana", Lagos: "nigeria", Dakar: "senegal", Banjul: "gambia", Douala: "cameroon", Johannesburg: "south africa", Maputo: "mozambique", Lusaka: "zambia", Kinshasa: "democratic republic of the congo", Lubumbashi: "democratic republic of the congo", Antananarivo: "madagascar" }
-    const order = [home[zone.split("/").pop() || ""], ...region]
+    const order = [...new Set([home[zone.split("/").pop() || ""], "ghana", "nigeria", "south africa", ...region])]
     const rank = (g: BillboardGrid) => { const i = order.indexOf(g.name.toLowerCase()); return i < 0 ? order.length : i }
     return [...countries].sort((a, b) => rank(a) - rank(b)).slice(0, 5).map(g => ({ id: g._id, country: g._id }))
   }, [countries, zone, saved])
