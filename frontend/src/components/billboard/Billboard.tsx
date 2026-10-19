@@ -6,6 +6,7 @@ import ActivityScene from "./ActivityScene"
 import dynamic from "next/dynamic"
 import ScanBillboard from "./ScanBillboard"
 import CountryPicker from "./CountryPicker"
+import QuickPlaces, { useFavourites } from "./QuickPlaces"
 import { gridsWithinCountry, loadBillboardGrids, type BillboardGrid } from "@/lib/billboard-grids"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
@@ -37,6 +38,9 @@ export default function Billboard() {
   const [id, setId] = useState("")
   const [countryId, setCountryId] = useState("")
   const [title, setTitle] = useState("")
+  const [editingTitle, setEditingTitle] = useState(false)
+  function editTitle() { setTitle(params.get("title")?.slice(0, 100) || ""); setEditingTitle(true) }
+  const { saved: favourites, toggle: toggleFavourite } = useFavourites()
   const [query, setQuery] = useState("")
   const [grids, setGrids] = useState<BillboardGrid[]>([])
   const [gridError, setGridError] = useState("")
@@ -175,16 +179,15 @@ export default function Billboard() {
           <div className="space-y-5">
             <div className="flex gap-2" aria-label="Data source">{["grid", "cohort"].map(s => <button key={s} aria-pressed={scope === s} onClick={() => { setScope(s); setId(""); setCountryId(""); setQuery(""); setStatus("") }} className={`${button} flex-1 ${scope === s ? "!border-blue-600 bg-blue-50 text-blue-700" : ""}`}>{s === "grid" ? "City / grid" : "Organisation / cohort"}</button>)}</div>
             {scope === "grid" ? <>
+              <QuickPlaces grids={grids} countries={countries} place={chosenGrid} country={selectedCountry} saved={favourites} toggle={toggleFavourite} onSelect={(place, country) => { setCountryId(country); setId(place); setQuery(""); setStatus("") }} />
               <label className="block font-medium" htmlFor="country-select">Country</label>
-              <CountryPicker countries={countries} value={countryId} onChange={country => { setCountryId(country); setId(country); setQuery(""); setStatus("") }} />
+              <CountryPicker countries={countries} value={countryId} favourites={favourites?.map(f => f.id)} onFavourite={country => toggleFavourite(country, country)} onChange={country => { setCountryId(country); setId(country); setQuery(""); setStatus("") }} />
               {selectedCountry && <>
                 <p className="text-sm text-slate-500">You can open the billboard for all of {selectedCountry.long_name || selectedCountry.name}, or narrow it to a grid below.</p>
                 <label className="block font-medium" htmlFor="place-search">Find a grid <span className="text-slate-400">(optional)</span></label>
                 <input id="place-search" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search within this country" className={field} />
                 <label className="block font-medium" htmlFor="grid-select">Grid <span className="text-slate-400">(optional)</span></label>
-                <select id="grid-select" value={id === countryId ? "" : id} onChange={e => { setId(e.target.value || countryId); setStatus("") }} className={field}>
-                  <option value="">All of {selectedCountry.long_name || selectedCountry.name}</option>{countryGrids.filter(g => `${g.name} ${g.long_name || ""}`.toLowerCase().includes(query.toLowerCase()) || g._id === id).map(g => <option key={g._id} value={g._id}>{g.long_name || g.name}</option>)}
-                </select>
+                <CountryPicker id="grid-select" countries={[{ ...selectedCountry, long_name: `All of ${selectedCountry.long_name || selectedCountry.name}` }, ...countryGrids.filter(g => `${g.name} ${g.long_name || ""}`.toLowerCase().includes(query.toLowerCase()) || g._id === id)]} value={id} favourites={favourites?.map(f => f.id)} onFavourite={place => toggleFavourite(place, countryId)} onChange={place => { setId(place); setStatus("") }} />
                 {!countryGrids.length && <p className="text-sm text-slate-500">No smaller grids are available. You can still open the country billboard.</p>}
               </>}
               {gridError && <p role="alert" className="text-red-700">{gridError}</p>}
@@ -197,7 +200,14 @@ export default function Billboard() {
           <div data-theme={theme} className="billboard-surface flex flex-col justify-center rounded-2xl bg-[var(--billboard-bg)] p-7 text-[var(--billboard-text)]"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--billboard-accent)]">Made for shared screens</span><div className="relative my-6 flex justify-center"><img src="/images/billboard/realistic/moderate-5.webp" alt="Woman checking air quality updates on her phone" width={360} height={360} className="h-60 w-full object-contain" /></div><h2 className="text-2xl font-bold">Make the air visible.</h2><p className="mt-3 leading-relaxed text-[var(--billboard-muted)]">Named monitoring locations. Clear health guidance. Seven-day forecasts with weather. A link that stays up to date.</p><p className="mt-6 text-sm text-[var(--billboard-soft)]">Data refreshes every 60 minutes. Forecasts need Premium API access.</p></div>
         </div>
       </div> : <>
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-widest text-blue-600">{cohortId ? "Network air quality" : "Local air quality"}</p><h1 className="mt-2 text-3xl font-bold md:text-5xl">{params.get("title")?.slice(0,100) || (gridId ? "Air quality in your area" : "Air quality network")}</h1></div><p className="text-sm text-slate-500">Refreshes every 60 minutes · Times in your browser’s timezone</p></div>
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div className="min-w-0"><p className="text-sm font-semibold uppercase tracking-widest text-blue-600">{cohortId ? "Network air quality" : "Local air quality"}</p><h1 tabIndex={0} title="Double-click to edit the title, or press Enter" onDoubleClick={editTitle} onKeyDown={event => { if (event.key === "Enter" || event.key === "F2") { event.preventDefault(); editTitle() } }} className="mt-2 cursor-text break-words rounded-lg text-3xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:text-5xl">{params.get("title")?.slice(0,100) || (gridId ? "Air quality in your area" : "Air quality network")}</h1></div><p className="text-sm text-slate-500">Refreshes every 60 minutes · Times in your browser’s timezone</p></div>
+        {editingTitle && <form className="mb-6 flex flex-wrap items-end gap-3" onSubmit={event => {
+          event.preventDefault()
+          const address = new URL(window.location.href)
+          if (title.trim()) address.searchParams.set("title", title.trim().slice(0, 100)); else address.searchParams.delete("title")
+          window.history.replaceState(null, "", address)
+          setEditingTitle(false)
+        }}><div className="min-w-0 flex-1"><label htmlFor="live-billboard-title" className="mb-2 block text-sm font-medium">Display title</label><input autoFocus id="live-billboard-title" maxLength={100} value={title} onChange={event => setTitle(event.target.value)} placeholder="Enter a city or display title" className={field} /></div><button type="submit" className={button}>Save title</button><button type="button" className={button} onClick={() => setEditingTitle(false)}>Cancel</button></form>}
         {error && <p role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-red-800">{error} {data ? "Previously loaded data is shown below." : ""}</p>}
         {!data && !error && <p role="status" className="p-10">Loading readings, forecasts and weather…</p>}
         {data && <>
@@ -241,7 +251,7 @@ export default function Billboard() {
               </section>
               </div>
               <div className="billboard-footer flex flex-wrap items-center justify-between gap-5 border-t border-[var(--billboard-line)] px-6 py-4">
-                <div className="flex flex-col gap-3">{isFullscreen && sites.length > 1 && <button onClick={() => setRotate(!rotate)} className="w-fit rounded-lg border border-[var(--billboard-line)] px-3 py-2 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">{rotate ? "Pause rotation" : "Resume rotation"}</button>}<p className="text-xs text-[var(--billboard-muted)]">{sites.length > 1 ? `Next location: ${sites[(index + 1) % sites.length]?.name}` : "One location - A clearer view of your air"}</p>
+                <div className="billboard-footer-meta flex flex-col gap-3">{isFullscreen && sites.length > 1 && <button onClick={() => setRotate(!rotate)} className="w-fit rounded-lg border border-[var(--billboard-line)] px-3 py-2 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">{rotate ? "Pause rotation" : "Resume rotation"}</button>}<p className="text-xs text-[var(--billboard-muted)]">{sites.length > 1 ? `Next location: ${sites[(index + 1) % sites.length]?.name}` : "One location - A clearer view of your air"}</p>
                   <nav aria-label="More AirQo tools" className="flex flex-wrap gap-4 text-sm font-semibold text-[var(--billboard-accent)]"><a href="https://www.airqo.net/products/mobile-app" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Get the AirQo app</a><a href="https://nexus.airqo.net" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Explore data in Nexus</a></nav>
                   <p className="text-xs font-medium text-[var(--billboard-muted)]">Powered by AirQo</p>
                 </div>

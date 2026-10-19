@@ -122,8 +122,8 @@ const Home: React.FC = () => {
       </section>
 
       <EmbedInstructions />
-      <section className="bg-blue-50 px-6 py-14 dark:bg-slate-900">
-        <div className="container mx-auto max-w-5xl"><h2 className="text-3xl font-bold">Bring air quality to the big screen</h2><p className="my-4 text-lg text-slate-600 dark:text-slate-300">Create a live billboard for your city or network, with forecasts, weather and practical health guidance.</p><Link href="/billboard" target="_blank" rel="noopener noreferrer" className={locatorActionClass}>Create a live billboard <ArrowRight size={18} /></Link></div>
+      <section className="bg-blue-50 px-6 py-20 dark:bg-slate-900 md:py-28">
+        <div className="container mx-auto max-w-6xl"><h2 className="max-w-4xl text-4xl font-bold leading-tight md:text-5xl">Bring air quality to the big screen</h2><p className="my-6 max-w-3xl text-xl leading-relaxed text-slate-600 dark:text-slate-300">Create a live billboard for your city or network, with forecasts, weather and practical health guidance.</p><Link href="/billboard" target="_blank" rel="noopener noreferrer" className={`${locatorActionClass} !min-h-14 !px-8 !text-lg`}>Create a live billboard <ArrowRight size={22} /></Link></div>
       </section>
 
       {/* How It Works Section - Redesigned */}
