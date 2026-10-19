@@ -15,7 +15,6 @@ export default function Navigation({ ...props }) {
   const navItems = settings.pages
     .filter((page) => page.enabled)
     .map((page) => ({ name: page.name, href: page.path }))
-  if (!settings.pages.some(page => page.path === "/billboard")) navItems.push({ name: "Billboard", href: "/billboard" })
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
@@ -35,8 +34,6 @@ export default function Navigation({ ...props }) {
             <Link
               key={item.name}
               href={item.href}
-              target={item.href === "/billboard" ? "_blank" : undefined}
-              rel={item.href === "/billboard" ? "noopener noreferrer" : undefined}
               className={cn(
                 "relative py-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white",
                 pathname === item.href &&
@@ -57,8 +54,6 @@ export default function Navigation({ ...props }) {
               <Link
                 key={item.name}
                 href={item.href}
-                target={item.href === "/billboard" ? "_blank" : undefined}
-                rel={item.href === "/billboard" ? "noopener noreferrer" : undefined}
                 className={cn(
                   "block text-base font-medium text-gray-600 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white",
                   pathname === item.href && "text-gray-900 dark:text-white",
