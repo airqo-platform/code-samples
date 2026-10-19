@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import "./billboard.css"
 import dynamic from "next/dynamic"
+import Loading from "@/app/Loading"
 import QuickPlaces, { useFavourites } from "./QuickPlaces"
 import { gridsWithinCountry, loadBillboardGrids, type BillboardGrid } from "@/lib/billboard-grids"
 import Link from "next/link"
@@ -44,6 +45,7 @@ export default function Billboard() {
   const [grids, setGrids] = useState<BillboardGrid[]>([])
   const [gridError, setGridError] = useState("")
   const [data, setData] = useState<BillboardData | null>(null)
+  const [loading, setLoading] = useState(display)
   const [error, setError] = useState("")
   const [status, setStatus] = useState("")
   const [origin, setOrigin] = useState("")
@@ -108,6 +110,9 @@ export default function Billboard() {
   useEffect(() => {
     if (!display) return
     const controller = new AbortController()
+    setLoading(true)
+    setData(null)
+    setError("")
     let busy = false
     async function load() {
       if (busy) return
@@ -119,9 +124,9 @@ export default function Billboard() {
         const response = await fetch(`/api/billboard?${search}`, { signal: controller.signal })
         const body = await response.json()
         if (!response.ok) throw Error(body.message || "Unable to load billboard.")
-        setData(body); setError(""); setNow(Date.now())
+        if (!controller.signal.aborted) { setData(body); setError(""); setNow(Date.now()) }
       } catch (e) { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Unable to refresh data.") }
-      finally { busy = false }
+      finally { busy = false; if (!controller.signal.aborted) setLoading(false) }
     }
     void load()
     const timer = setInterval(() => { setNow(Date.now()); void load() }, BILLBOARD_REFRESH_MS)
@@ -164,6 +169,8 @@ export default function Billboard() {
     try { if (document.fullscreenElement) await document.exitFullscreen(); else await billboardRef.current?.requestFullscreen() }
     catch { setPresentation(true) }
   }
+  if (display && loading) return <Loading />
+
   return <main className="min-h-screen bg-[#f4f7fb] text-slate-900 [font-family:var(--font-geist-sans)]">
     <div className="mx-auto max-w-[1600px] px-5 py-7 md:px-10">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
@@ -208,7 +215,6 @@ export default function Billboard() {
           setEditingTitle(false)
         }}><div className="min-w-0 flex-1"><label htmlFor="live-billboard-title" className="mb-2 block text-sm font-medium">Display title</label><input autoFocus id="live-billboard-title" maxLength={100} value={title} onChange={event => setTitle(event.target.value)} placeholder="Enter a city or display title" className={field} /></div><button type="submit" className={button}>Save title</button><button type="button" className={button} onClick={() => setEditingTitle(false)}>Cancel</button></form>}
         {error && <p role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-red-800">{error} {data ? "Previously loaded data is shown below." : ""}</p>}
-        {!data && !error && <p role="status" className="p-10">Loading readings, forecasts and weather…</p>}
         {data && <>
           <div className="mb-5 flex flex-wrap items-center gap-3"><label htmlFor="location" className="font-semibold">Monitoring location</label><select id="location" className={`${field} !w-auto max-w-full`} value={site?.siteId || ""} onChange={e => { setIndex(sites.findIndex(s => s.siteId === e.target.value)); setDay(0); setRotate(false) }}>{sites.map(s => <option key={s.siteId} value={s.siteId}>{s.name}</option>)}</select>{sites.length > 1 && <button onClick={() => setRotate(!rotate)} className={button}>{rotate ? <Pause size={16} /> : <Play size={16} />}{rotate ? "Pause rotation" : "Resume rotation"}</button>}<span className="text-sm text-slate-500">{sites.length} locations with available data</span></div>
           {!sites.length && <p className="rounded-xl bg-white p-8">No monitoring data is available for this selection.</p>}
@@ -242,19 +248,22 @@ export default function Billboard() {
                   <p className="text-xl font-bold tabular-nums">{value(p.forecast?.pm2_5_mean)}<span className="ml-1 text-[10px] font-normal text-[var(--billboard-muted)]">µg/m³</span></p>
                   <p className="mt-1 text-[11px] leading-tight text-[var(--billboard-muted)]">{p.aqi?.aqi_category || category(p.forecast?.pm2_5_mean).label}</p>
                 </button>)}</div>
-                {!daily.length ? <p className="py-5 text-[var(--billboard-muted)]">Daily forecast unavailable for this location.</p> : <div className="mt-4 border-t border-[var(--billboard-line)] pt-4">
+                <div className="mt-4 flex flex-col gap-6 border-t border-[var(--billboard-line)] pt-4 lg:flex-row lg:items-center">
+                <div className="min-w-0 flex-1">
+                {!daily.length ? <p className="py-5 text-[var(--billboard-muted)]">Daily forecast unavailable for this location.</p> : <div>
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--billboard-accent)]">Forecast weather · {selected?.date}</h3>
                   <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">{[["🌡️ Temperature", value(met?.air_temperature, " °C")], ["💧 Humidity", value(met?.relative_humidity, "%")], ["🌬️ Wind", `${value(met?.wind_speed, " m/s")} ${met?.wind_direction_compass || ""}`], ["🌧️ Rainfall", value(met?.precipitation_amount, " mm")]].map(([label, v]) => <div key={label}><p className="text-xs text-[var(--billboard-muted)]">{label}</p><p className="mt-1 text-lg font-semibold">{v}</p></div>)}</div>
                   {!met && <p className="mt-2 text-xs text-[var(--billboard-soft)]">Weather is unavailable for this forecast.</p>}
                 </div>}
+                </div>
+                <div className="billboard-qr shrink-0 text-[var(--billboard-text)]"><ScanBillboard url={scanUrl} /></div>
+                </div>
               </section>
               </div>
               <div className="billboard-footer flex flex-wrap items-center justify-between gap-5 border-t border-[var(--billboard-line)] px-6 py-4">
-                <div className="billboard-footer-meta flex flex-col gap-3">{isFullscreen && sites.length > 1 && <button onClick={() => setRotate(!rotate)} className="w-fit rounded-lg border border-[var(--billboard-line)] px-3 py-2 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">{rotate ? "Pause rotation" : "Resume rotation"}</button>}<p className="text-xs text-[var(--billboard-muted)]">{sites.length > 1 ? `Next location: ${sites[(index + 1) % sites.length]?.name}` : "One location - A clearer view of your air"}</p>
-                  <nav aria-label="More AirQo tools" className="flex flex-wrap gap-4 text-sm font-semibold text-[var(--billboard-accent)]"><a href="https://www.airqo.net/products/mobile-app" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Get the AirQo app</a><a href="https://nexus.airqo.net" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Explore data in Nexus</a></nav>
-                  <p className="text-xs font-medium text-[var(--billboard-muted)]">Powered by AirQo</p>
+                <div className="billboard-footer-meta flex min-w-0 items-center gap-3">{isFullscreen && sites.length > 1 && <button onClick={() => setRotate(!rotate)} className="w-fit shrink-0 rounded-lg border border-[var(--billboard-line)] px-3 py-2 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">{rotate ? "Pause rotation" : "Resume rotation"}</button>}<p className="text-xs text-[var(--billboard-muted)]">{sites.length > 1 ? `Next location: ${sites[(index + 1) % sites.length]?.name}` : "One location - A clearer view of your air"}</p>
                 </div>
-                <div className="billboard-qr text-[var(--billboard-text)]"><ScanBillboard url={scanUrl} /></div>
+                <p className="text-xs font-semibold tracking-widest text-[var(--billboard-muted)]">POWERED BY AIRQO</p>
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-500">PM₂.₅ concentration at this monitoring location. This is not a city-wide exposure estimate. Daily category faces describe air quality; weather symbols describe rainfall.</p>
