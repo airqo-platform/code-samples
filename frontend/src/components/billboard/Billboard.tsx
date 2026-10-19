@@ -293,7 +293,7 @@ export default function Billboard() {
               <div className="billboard-footer flex flex-wrap items-center justify-between gap-5 border-t border-[var(--billboard-line)] px-6 py-4">
                 <div className="billboard-footer-meta flex min-w-0 items-center gap-3">{isFullscreen && sites.length > 1 && <button onClick={() => setRotate(!rotate)} className="w-fit shrink-0 rounded-lg border border-[var(--billboard-line)] px-3 py-2 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">{rotate ? "Pause rotation" : "Resume rotation"}</button>}<p className="text-xs text-[var(--billboard-muted)]">{sites.length > 1 ? `Next location: ${sites[(index + 1) % sites.length]?.name}` : "One location - A clearer view of your air"}</p>
                 </div>
-                <p className="text-xs font-semibold tracking-widest text-[var(--billboard-muted)]">POWERED BY AIRQO</p>
+                <a href="https://airqo.net" target="_blank" rel="noopener noreferrer" className="rounded text-xs font-semibold tracking-widest text-[#145fff] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#145fff]">POWERED BY AIRQO</a>
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-500">PM₂.₅ concentration at this monitoring location. This is not a city-wide exposure estimate. Daily category faces describe air quality; weather symbols describe rainfall.</p>
