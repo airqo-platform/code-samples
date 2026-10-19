@@ -1,4 +1,6 @@
 import type { NextRequest } from "next/server"
+import { AIRQO_API_URL } from "@/lib/airqo-api-config"
+import { fetchAirQo } from "@/lib/airqo-server-transport"
 import { getCachedGridResponse, isCacheableGridRoute, UncachedGridResponse } from "@/lib/airqo-grid-cache"
 
 type RouteContext = {
@@ -24,8 +26,6 @@ const ALLOWED_ROUTES = [
   { method: "POST", pattern: /^spatial\/site_location$/ },
 ]
 
-const AIRQO_API_URL = "https://platform.airqo.net/api/v2/"
-
 function isAllowed(method: string, path: string) {
   return ALLOWED_ROUTES.some((route) => route.method === method && route.pattern.test(path))
 }
@@ -48,8 +48,6 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
   request.nextUrl.searchParams.forEach((value, key) => {
     if (key !== "token" && key !== "access_token") upstreamUrl.searchParams.append(key, value)
   })
-  upstreamUrl.searchParams.set("token", token)
-  upstreamUrl.searchParams.set("access_token", token)
   upstreamUrl.searchParams.sort()
 
   const headers = new Headers({ Accept: request.headers.get("accept") || "application/json" })
@@ -76,11 +74,10 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
     }
 
     const fetchUpstream = () =>
-      fetch(upstreamUrl, {
+      fetchAirQo(upstreamUrl, {
         method: request.method,
         headers,
         body: requestBody,
-        cache: "no-store",
       })
 
     const upstreamResponse = await fetchUpstream()
@@ -94,8 +91,8 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
       status: upstreamResponse.status,
       headers: responseHeaders,
     })
-  } catch (error) {
-    console.error("AirQo API proxy request failed:", error)
+  } catch {
+    console.error("AirQo API proxy request failed.")
     return Response.json({ message: "Unable to reach the AirQo API." }, { status: 502 })
   }
 }

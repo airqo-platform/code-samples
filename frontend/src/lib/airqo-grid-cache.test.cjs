@@ -10,8 +10,8 @@ function load(fetch) {
   const code = ts.transpileModule(fs.readFileSync(`${__dirname}/airqo-grid-cache.ts`, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
-  vm.runInNewContext(code, { module, exports: module.exports, fetch, AbortSignal,
-    require: () => ({ unstable_cache: (fn, _key, policy) => { options.push(policy); return fn } }),
+  vm.runInNewContext(code, { module, exports: module.exports, fetch, AbortSignal, process: { env: { API_TOKEN: 'test' } },
+    require: name => name === 'node:crypto' ? require('node:crypto') : name === '@/lib/airqo-server-transport' ? { fetchAirQo: fetch } : { unstable_cache: (fn, _key, policy) => { options.push(policy); return fn } },
   })
   return { api: module.exports, options }
 }

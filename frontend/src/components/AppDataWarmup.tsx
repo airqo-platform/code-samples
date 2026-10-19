@@ -2,13 +2,17 @@
 
 import { useEffect } from "react"
 import { usePathname } from "next/navigation"
-import { prefetchMapAndReportData } from "@/services/apiService"
 
 export default function AppDataWarmup() {
   const pathname = usePathname()
   useEffect(() => {
     if (pathname === "/website-map-integration" || pathname === "/website-map-integration/") return
-    void prefetchMapAndReportData()
+    if (pathname === "/billboard" || pathname === "/billboard/") return
+    let cancelled = false
+    void import("@/services/apiService").then(({ prefetchMapAndReportData }) => {
+      if (!cancelled) void prefetchMapAndReportData()
+    }).catch(() => {})
+    return () => { cancelled = true }
   }, [pathname])
 
   return null

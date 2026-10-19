@@ -1,0 +1,116 @@
+.billboard-surface {
+  --billboard-bg: #061b33;
+  --billboard-text: #ffffff;
+  --billboard-muted: #cbd5e1;
+  --billboard-soft: #94a3b8;
+  --billboard-accent: #67e8f9;
+  --billboard-panel: #09243e;
+  --billboard-line: #ffffff26;
+  --billboard-card: #ffffff0d;
+  --billboard-hover: #ffffff1a;
+  --billboard-selected: #67e8f91a;
+}
+.billboard-surface[data-theme="light"] {
+  --billboard-bg: #ffffff;
+  --billboard-text: #0f172a;
+  --billboard-muted: #475569;
+  --billboard-soft: #64748b;
+  --billboard-accent: #0369a1;
+  --billboard-panel: #f1f5f9;
+  --billboard-line: #cbd5e1;
+  --billboard-card: #ffffff;
+  --billboard-hover: #e2e8f0;
+  --billboard-selected: #e0f2fe;
+}
+.billboard-surface[data-theme="forest"] {
+  --billboard-bg: #062c29;
+  --billboard-text: #f0fdf4;
+  --billboard-muted: #c0ded4;
+  --billboard-soft: #9dbfb2;
+  --billboard-accent: #6ee7b7;
+  --billboard-panel: #103d35;
+  --billboard-line: #ffffff26;
+  --billboard-card: #ffffff0d;
+  --billboard-hover: #ffffff1a;
+  --billboard-selected: #6ee7b71a;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) {
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: clamp(0px, 2vh, 24px) clamp(0px, 2vw, 32px);
+  background: var(--billboard-bg);
+}
+.billboard-surface:is(:fullscreen, .is-presenting) > .billboard-content {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) > .billboard-footer {
+  background: transparent;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 6px 12px;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) .billboard-footer-meta {
+  min-width: 0;
+  gap: 4px;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) .billboard-footer-meta > p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) .billboard-qr > div {
+  gap: 8px;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) .billboard-qr p + p {
+  display: none;
+}
+.billboard-surface:is(:fullscreen, .is-presenting) .billboard-qr svg {
+  width: 80px;
+  height: 80px;
+}
+@media (max-width: 640px), (max-height: 650px) {
+  .billboard-surface:is(:fullscreen, .is-presenting) { padding: 0; }
+  .billboard-surface:is(:fullscreen, .is-presenting) .billboard-footer-meta nav { display: none; }
+  .billboard-surface:is(:fullscreen, .is-presenting) .billboard-qr > div > div:last-child { display: none; }
+  .billboard-surface:is(:fullscreen, .is-presenting) .billboard-footer-meta > button { min-height: 44px; padding: 4px 10px; }
+}
+@keyframes activity-stride { from { transform: rotate(-16deg); } to { transform: rotate(16deg); } }
+@keyframes activity-bounce { 50% { transform: translateY(-4px); } }
+@keyframes activity-ball { 50% { transform: translate(-18px, -10px) rotate(-15deg); } }
+.activity-leg-a, .activity-arm-b { transform-origin: 158px 142px; animation: activity-stride .8s ease-in-out infinite alternate; }
+.activity-leg-b, .activity-arm-a { transform-origin: 158px 142px; animation: activity-stride .8s ease-in-out infinite alternate-reverse; }
+.activity-walking path { animation-duration: 1.5s; }
+.activity-bounce { animation: activity-bounce .8s ease-in-out infinite; }
+.activity-ball { transform-origin: 239px 196px; animation: activity-ball 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .activity-scene * { animation: none !important; }
+}
+
+.billboard-surface.is-presenting { position: fixed; inset: 0; z-index: 9999; }
+@keyframes billboard-live-pulse { 50% { opacity: .65; } }
+.billboard-live { animation: billboard-live-pulse 3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .billboard-live { animation: none; }
+}
+
+/* Keep poses crisp; only a brief entrance fade when activities change. */
+@keyframes action-cycle { to { transform: translateX(-100%); } }
+@keyframes action-gesture { to { transform: translateX(-87.5%); } }
+.action-strip { display: block; width: 800%; max-width: none; height: 100%; animation-iteration-count: infinite; }
+@keyframes realistic-enter {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.realistic-enter { animation: realistic-enter 120ms ease-out both; }
+.realistic-scene.is-paused * { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) {
+  .realistic-scene * { animation: none !important; }
+}
