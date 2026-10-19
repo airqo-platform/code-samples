@@ -80,6 +80,11 @@
 }
 
 .billboard-surface.is-presenting { position: fixed; inset: 0; z-index: 9999; }
+@keyframes billboard-live-pulse { 50% { opacity: .65; } }
+.billboard-live { animation: billboard-live-pulse 3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .billboard-live { animation: none; }
+}
 
 /* Keep poses crisp; only a brief entrance fade when activities change. */
 @keyframes action-cycle { to { transform: translateX(-100%); } }

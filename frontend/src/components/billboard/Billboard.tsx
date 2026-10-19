@@ -9,7 +9,7 @@ import CountryPicker from "./CountryPicker"
 import { gridsWithinCountry, loadBillboardGrids, type BillboardGrid } from "@/lib/billboard-grids"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { ArrowLeft, Copy, Maximize, Monitor, Pause, Play, Wind } from "lucide-react"
+import { ArrowLeft, Copy, Maximize, Monitor, Pause, Play } from "lucide-react"
 import { BILLBOARD_REFRESH_MS, billboardScanUrl, category, categoryImage, hasPm25, latestReadings, type BillboardData, type Period } from "@/lib/billboard"
 
 const RealisticScene = dynamic(() => import("./RealisticScene"), { loading: () => <div className="h-60" /> })
@@ -164,7 +164,7 @@ export default function Billboard() {
   return <main className="min-h-screen bg-[#f4f7fb] text-slate-900 [font-family:var(--font-geist-sans)]">
     <div className="mx-auto max-w-[1600px] px-5 py-7 md:px-10">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2 text-xl font-bold text-blue-700"><Wind /> AirQo <span className="ml-2 border-l border-slate-300 pl-3 text-sm font-medium text-slate-500">LIVE BILLBOARD</span></Link>
+        <Link href="/" className="flex items-center gap-2 text-xl font-bold text-blue-700"><img src="/images/logo_rus4my.webp" alt="AirQo" width={44} height={44} className="h-11 w-11 object-contain" /><span className="billboard-live ml-2 border-l border-slate-300 pl-3 text-sm font-medium text-slate-500">LIVE BILLBOARD</span></Link>
         <div className="flex flex-wrap items-center gap-2"><label htmlFor="billboard-theme" className="text-sm font-medium">Theme</label><select id="billboard-theme" value={theme} onChange={e => changeTheme(e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus-visible:ring-2 focus-visible:ring-blue-500"><option value="navy">Navy</option><option value="light">Light</option><option value="forest">Forest</option></select><label htmlFor="billboard-visual" className="ml-2 text-sm font-medium">Illustration</label><select id="billboard-visual" value={visual} onChange={e => changeVisual("visual", e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value="faces">Category faces</option><option value="activities">Activity scenes</option><option value="realistic">Realistic animations</option></select>{visual === "activities" && <><label htmlFor="billboard-activity" className="text-sm font-medium">Good-air activity</label><select id="billboard-activity" value={preferredActivity} onChange={e => changeVisual("activity", e.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value="running">Running</option><option value="football">Football</option><option value="yoga">Yoga</option></select></>}{display ? <><Link href="/billboard" className={button}><ArrowLeft size={16} /> Create a billboard</Link><button className={button} onClick={() => copy(window.location.href)}><Copy size={16} /> Copy link</button><button className={button} disabled={!sites.length} onClick={fullscreen}><Maximize size={16} /> Fullscreen</button></> : <Link href="/" className={button}>Back to home</Link>}</div>
       </header>
       {!display ? <div className="mx-auto max-w-5xl py-8">
@@ -206,8 +206,8 @@ export default function Billboard() {
           {sites.length > 0 && <>
             <div ref={billboardRef} data-theme={theme} aria-label="Air Quality Live" tabIndex={-1} className={`billboard-surface ${presentation ? "is-presenting" : ""} overflow-hidden rounded-3xl bg-[var(--billboard-bg)] text-[var(--billboard-text)] shadow-xl shadow-slate-300/40`} style={{ border: `1px solid ${current.color}80` }}>
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--billboard-line)] px-6 py-4">
-                <span className="text-sm font-bold tracking-wider">AirQo <span className="ml-2 font-normal text-[var(--billboard-muted)]">| AIR QUALITY LIVE</span></span>
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--billboard-accent)]">Air quality in motion</span>
+                <span className="flex items-center gap-2 text-sm font-bold tracking-wider"><img src="/images/logo_rus4my.webp" alt="AirQo" width={44} height={44} className="h-11 w-11 rounded-lg bg-white object-contain" /><span className="billboard-live font-normal text-[var(--billboard-muted)]">AIR QUALITY LIVE</span></span>
+                <h2 className={isFullscreen ? "min-w-0 flex-1 break-words text-center text-3xl font-bold leading-tight text-[var(--billboard-accent)] md:text-5xl" : "text-xs font-semibold uppercase tracking-[0.2em] text-[var(--billboard-accent)]"}>{isFullscreen ? params.get("title")?.trim().slice(0, 100) || site?.name : "Air quality in motion"}</h2>
                 <div className="flex items-center gap-4"><span className="text-xs text-[var(--billboard-muted)]">{params.get("title")?.slice(0,100)}{params.get("title") ? " | " : ""}Location {(index % sites.length) + 1} / {sites.length}</span>{isFullscreen && <button onClick={fullscreen} className="rounded-lg border border-[var(--billboard-line)] px-3 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">Exit fullscreen</button>}</div>
               </div>
               <div className="billboard-content">
