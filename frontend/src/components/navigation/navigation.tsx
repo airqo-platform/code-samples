@@ -1,11 +1,10 @@
 "use client"
 
-import { useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { Menu } from "lucide-react"
 import Image from "next/image"
+import { ArrowUpRight, Menu } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { useSiteSettings } from "@/hooks/use-site-settings"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,84 +17,111 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 
-export default function Navigation({ ...props }) {
+export default function Navigation() {
   const pathname = usePathname()
   const settings = useSiteSettings()
   const navItems = settings.pages
     .filter((page) => page.enabled)
     .map((page) => ({ name: page.name, href: page.path }))
 
+  const isActive = (href: string) =>
+    href === "/"
+      ? pathname === "/"
+      : pathname === href || pathname.startsWith(`${href}/`)
+
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href="/" aria-label="AirQo home" className="flex items-center">
-          <Image
-            src="/images/logo_rus4my.webp"
-            alt="AirQo"
-            width={96}
-            height={64}
-            priority
-            className="h-9 w-auto"
-          />
-        </Link>
+    <header className="sticky top-0 z-50 w-full bg-background/80 px-2 pb-2 pt-2 backdrop-blur-sm sm:px-3">
+      <div className="mx-auto flex h-12 w-full max-w-[1400px] items-center justify-between gap-3 rounded-md border border-border bg-card px-3 shadow-sm">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link href="/" aria-label="AirQo home" className="flex items-center">
+            <Image
+              src="/images/logo_rus4my.webp"
+              alt="AirQo"
+              width={96}
+              height={64}
+              priority
+              className="h-6 w-auto"
+            />
+          </Link>
 
-        <nav className="hidden items-center gap-2 lg:flex" {...props}>
-          {navItems.map((item) => {
-            const active = pathname === item.href
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
-                  active &&
-                    "text-foreground after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-primary",
-                )}
-              >
-                {item.name}
-              </Link>
-            )
-          })}
-        </nav>
+          <span className="hidden h-5 w-px bg-border md:block" aria-hidden="true" />
 
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden"
-              aria-label="Open navigation menu"
+          <nav className="hidden items-center gap-1 md:flex">
+            {navItems.map((item) => {
+              const active = isActive(item.href)
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {item.name}
+                </Link>
+              )
+            })}
+          </nav>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="hidden md:inline-flex">
+            <a
+              href="https://platform.airqo.net/docs/api/for-cities/website-map-integration/"
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              <Menu className="h-6 w-6" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="right">
-            <SheetHeader>
-              <SheetTitle>Menu</SheetTitle>
-              <SheetDescription className="sr-only">Site navigation links</SheetDescription>
-            </SheetHeader>
-            <nav className="mt-4 flex flex-col gap-1">
-              {navItems.map((item) => {
-                const active = pathname === item.href
-                return (
-                  <SheetClose asChild key={item.name}>
-                    <Link
-                      href={item.href}
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "block rounded-md px-3 py-2 text-base font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-                        active && "bg-accent text-accent-foreground",
-                      )}
-                    >
-                      {item.name}
-                    </Link>
-                  </SheetClose>
-                )
-              })}
-            </nav>
-          </SheetContent>
-        </Sheet>
+              API docs
+              <ArrowUpRight />
+            </a>
+          </Button>
+
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden"
+                aria-label="Open navigation menu"
+              >
+                <Menu />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right">
+              <SheetHeader>
+                <SheetTitle>Navigation</SheetTitle>
+                <SheetDescription className="sr-only">
+                  Site navigation links
+                </SheetDescription>
+              </SheetHeader>
+              <nav className="mt-4 flex flex-col gap-1">
+                {navItems.map((item) => {
+                  const active = isActive(item.href)
+                  return (
+                    <SheetClose asChild key={item.name}>
+                      <Link
+                        href={item.href}
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                          "block w-full rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                          active
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        {item.name}
+                      </Link>
+                    </SheetClose>
+                  )
+                })}
+              </nav>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </header>
   )

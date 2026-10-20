@@ -17,7 +17,7 @@ export function PageShell({
   return (
     <div className={cn("flex min-h-screen flex-col bg-background text-foreground", className)}>
       <Navigation />
-      <main className={cn("flex-1", mainClassName)}>{children}</main>
+      <main id="main-content" tabIndex={-1} className={cn("flex-1 pt-6", mainClassName)}>{children}</main>
       {footer && <SiteFooter />}
     </div>
   )

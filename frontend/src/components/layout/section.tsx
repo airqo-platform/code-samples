@@ -19,7 +19,7 @@ export function Section({
       id={id}
       className={cn(
         "w-full",
-        compact ? "py-8 md:py-10" : "py-12 md:py-16",
+        compact ? "py-8" : "py-10 md:py-14",
         muted && "bg-muted/40",
         className,
       )}

@@ -48,27 +48,26 @@ export default function EmbedInstructions() {
   return <section id="embed-map" className="bg-card py-16 [font-family:inherit] md:py-24">
     <div className="container mx-auto max-w-5xl px-4">
       <div className="mb-4"><Badge variant="accent"><Layers size={16} /> A quick start.</Badge></div>
-      <h2 className="text-3xl font-bold md:text-4xl">Add an air quality map to your website</h2>
-      <p className="mt-4 text-lg text-muted-foreground">
+      <h2 className="text-2xl font-medium tracking-tight md:text-3xl">Add an air quality map to your website</h2>
+      <p className="mt-3 text-base leading-7 text-muted-foreground">
         Start with a simple embed, or take control of the code. Choose the integration that fits your website.
       </p>
       <Tabs value={mode} onValueChange={setMode} className="mt-8">
-        <TabsList aria-label="Choose your website integration" className="relative grid h-auto w-full max-w-lg grid-cols-2 rounded-2xl border border-border bg-muted p-1">
-          <span aria-hidden="true" className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-xl bg-card shadow-sm transition-transform duration-300 ease-out motion-reduce:transition-none ${mode === "developer" ? "translate-x-full" : "translate-x-0"}`} />
+        <TabsList aria-label="Choose your website integration" className="grid h-auto w-full max-w-lg grid-cols-2">
           {options.map(option => <TabsTrigger key={option.id} value={option.id}
-            className="relative z-10 min-w-0 gap-2 whitespace-normal rounded-xl px-3 py-3 text-sm font-medium text-muted-foreground transition-colors focus-visible:ring-blue-600 data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none sm:text-base">
-            <option.icon size={18} className="shrink-0" />{option.title}
+            className="min-w-0 gap-2 whitespace-normal px-3 py-2.5 text-sm">
+            <option.icon size={16} className="shrink-0" />{option.title}
           </TabsTrigger>)}
         </TabsList>
-        <TabsContent value="iframe" className="embed-option-panel mt-5 rounded-2xl border border-border p-5 sm:p-8">
-          <div className="flex items-start gap-3"><span className="rounded-xl bg-accent p-3 text-primary"><Globe size={24} /></span><div>
-            <h3 className="text-xl font-semibold">Copy. Paste. You're live.</h3>
+        <TabsContent value="iframe" className="embed-option-panel mt-5 rounded-lg border border-border bg-card p-5 sm:p-6">
+          <div className="flex items-start gap-3"><span className="rounded-md bg-muted p-2 text-primary"><Globe size={18} /></span><div>
+            <h3 className="text-lg font-medium">Copy. Paste. You're live.</h3>
             <p className="mt-2 text-muted-foreground">Add your grid ID and paste the code into your website's HTML or custom HTML block. No API key or backend setup is needed on your website.</p>
           </div></div>
           <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
             {["Live site readings", "7-day forecasts", "Heatmap overlay"].map(feature => <span key={feature} className="inline-flex items-center gap-2"><Check size={15} className="text-primary" />{feature}</span>)}
           </div>
-      <div className="mt-6 w-full rounded-2xl border border-border bg-accent/40 p-4 sm:p-5">
+      <div className="mt-6 w-full rounded-md border border-border bg-muted/40 p-4">
         <Field
           label="AirQo grid ID"
           htmlFor="embed-grid-id"
@@ -85,11 +84,10 @@ export default function EmbedInstructions() {
             aria-invalid={gridIdTouched && !valid ? true : undefined}
             aria-describedby={describedBy}
             onChange={(event) => { setGridId(event.target.value); setCopyStatus("") }}
-            className="h-12 rounded-xl border-border bg-muted px-4 focus-visible:bg-card"
           />
         </Field>
       </div>
-      <pre className="mt-6 overflow-x-auto rounded-xl bg-slate-900 p-5 text-sm leading-relaxed text-slate-100 [font-family:inherit]"><code className="[font-family:inherit]">{snippet}</code></pre>
+      <pre className="mt-6 overflow-x-auto rounded-md bg-slate-950 p-4 text-sm leading-relaxed text-slate-100 [font-family:inherit]"><code className="[font-family:inherit]">{snippet}</code></pre>
       <div className="mt-4 flex flex-wrap items-center gap-4">
         <Button type="button" onClick={copy} disabled={!origin} size="lg">
           <Copy size={16} /> Copy embed code
@@ -109,11 +107,11 @@ export default function EmbedInstructions() {
       </p>
         </TabsContent>
         <TabsContent value="developer" className="embed-option-panel mt-5">
-          <div className="mb-5"><h3 className="text-xl font-semibold">Choose your starting point</h3><p className="mt-2 text-sm text-muted-foreground">Use the HTML sample or the PHP version to customize and host the map yourself.</p></div>
+          <div className="mb-5"><h3 className="text-lg font-medium">Choose your starting point</h3><p className="mt-2 text-sm text-muted-foreground">Use the HTML sample or the PHP version to customize and host the map yourself.</p></div>
           <Tabs defaultValue="html">
-            <TabsList aria-label="Choose a developer implementation" className="mb-4 h-auto gap-1 rounded-xl bg-muted p-1">
-              <TabsTrigger value="html" className="gap-2 rounded-lg px-4 py-2 focus-visible:ring-blue-600"><Code2 size={16} />HTML + JavaScript</TabsTrigger>
-              <TabsTrigger value="php" className="gap-2 rounded-lg px-4 py-2 focus-visible:ring-blue-600"><Server size={16} />PHP</TabsTrigger>
+            <TabsList aria-label="Choose a developer implementation" className="mb-4 gap-1">
+              <TabsTrigger value="html" className="gap-2"><Code2 size={16} />HTML + JavaScript</TabsTrigger>
+              <TabsTrigger value="php" className="gap-2"><Server size={16} />PHP</TabsTrigger>
             </TabsList>
             <TabsContent value="html" className="embed-option-panel mt-0"><DeveloperPanel variant="html" /></TabsContent>
             <TabsContent value="php" className="embed-option-panel mt-0"><DeveloperPanel variant="php" /></TabsContent>
@@ -143,15 +141,15 @@ function DeveloperPanel({ variant }: { variant: "html" | "php" }) {
     "Serve the page and proxy on your domain, then customize the map code.",
   ]
 
-  return <div className="overflow-hidden rounded-2xl border border-border">
+  return <div className="overflow-hidden rounded-lg border border-border">
     <div className="grid lg:grid-cols-[1.3fr_1fr]">
-      <div className="p-5 sm:p-8">
-        <div className="flex items-start gap-3"><span className="rounded-xl bg-accent p-3 text-primary">{isPhp ? <Server size={24} /> : <Code2 size={24} />}</span><div>
-          <h3 className="text-xl font-semibold">{isPhp ? "Bring the map into your PHP site" : "Make the map part of your own experience"}</h3>
-          <p className="mt-2 text-muted-foreground">{isPhp ? "A PHP-served map page for your CMS or custom website, with the source available to adapt." : "An open-source HTML and JavaScript map you can style, extend, and host on your own website."}</p>
+      <div className="p-5 sm:p-6">
+        <div className="flex items-start gap-3"><span className="rounded-md bg-muted p-2 text-primary">{isPhp ? <Server size={18} /> : <Code2 size={18} />}</span><div>
+          <h3 className="text-lg font-medium">{isPhp ? "Bring the map into your PHP site" : "Make the map part of your own experience"}</h3>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{isPhp ? "A PHP-served map page for your CMS or custom website, with the source available to adapt." : "An open-source HTML and JavaScript map you can style, extend, and host on your own website."}</p>
         </div></div>
         <ol className="mt-6 space-y-4">
-          {steps.map((step, index) => <li key={step} className="flex items-start gap-3 text-sm leading-relaxed text-muted-foreground"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent font-semibold text-primary">{index + 1}</span><span>{step}</span></li>)}
+          {steps.map((step, index) => <li key={step} className="flex items-start gap-3 text-sm leading-relaxed text-muted-foreground"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-medium text-foreground">{index + 1}</span><span>{step}</span></li>)}
         </ol>
         <div className="mt-7 flex flex-wrap gap-3">
           <Button asChild size="lg">
@@ -166,13 +164,13 @@ function DeveloperPanel({ variant }: { variant: "html" | "php" }) {
           </Button>
         </div>
       </div>
-      <div className="border-t border-border bg-muted p-5 sm:p-8 lg:border-l lg:border-t-0">
-        <h4 className="flex items-center gap-2 font-semibold"><Braces size={18} className="text-primary" /> Your code. Your control.</h4>
+      <div className="border-t border-border bg-muted/60 p-5 sm:p-6 lg:border-l lg:border-t-0">
+        <h4 className="flex items-center gap-2 text-sm font-medium"><Braces size={16} className="text-primary" /> Your code. Your control.</h4>
         <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
           {["Customize layout, colors, and controls", "Adapt search, forecasts, and map layers", "Host the map on your own domain"].map(feature => <li key={feature} className="flex items-center gap-2"><Check size={16} className="shrink-0 text-primary" />{feature}</li>)}
         </ul>
-        <div className="mt-6 rounded-xl border border-border bg-card p-4 text-sm">
-          <p className="font-semibold">What you'll need</p>
+        <div className="mt-6 rounded-md border border-border bg-card p-4 text-sm">
+          <p className="font-medium">What you'll need</p>
           <p className="mt-2 leading-relaxed text-muted-foreground">{isPhp ? "PHP hosting, a Node.js backend, an AirQo grid ID, and a server-side API token." : "A Node.js backend, an AirQo grid ID, and a server-side API token."} Forecasts require Premium API access.</p>
         </div>
         <a href={`${sourceBase}/leaflet-forecast-server.js`} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary underline">View the backend sample <ArrowUpRight size={14} /></a>

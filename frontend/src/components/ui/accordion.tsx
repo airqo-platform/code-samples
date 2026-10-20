@@ -18,7 +18,7 @@ const Accordion = React.forwardRef<HTMLDivElement, AccordionProps>(
       <div
         ref={ref}
         className={cn(
-          "divide-y divide-border overflow-hidden rounded-xl border border-border bg-card",
+          "divide-y divide-border overflow-hidden rounded-md border border-border bg-card",
           className,
         )}
         {...props}
@@ -49,7 +49,7 @@ const AccordionItem = React.forwardRef<HTMLDetailsElement, AccordionItemProps>(
         className={cn("group", className)}
         {...props}
       >
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 font-semibold [&::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 font-medium [&::-webkit-details-marker]:hidden">
           <span>
             <span>{title}</span>
             {description ? (

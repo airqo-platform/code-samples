@@ -29,20 +29,22 @@ function AiSection() {
     <Section>
       <Container>
         <div className="grid items-center gap-8 md:grid-cols-2">
-          <div className="surface p-8">
+          <div className="rounded-lg border border-border bg-card p-6 shadow-sm sm:p-8">
             <SectionHeading align="left" title="AI behind the scenes" description="Each map view runs on a lightweight inference layer that cleans, interpolates, and highlights issues in real time so what you see stays both responsive and trustworthy." />
             <ul className="mt-6 space-y-3">
               {aiSignals.map((s) => (
                 <li key={s.title} className="flex items-start gap-3">
                   <span className="mt-1.5 h-2 w-2 rounded-full bg-primary" />
-                  <div><p className="font-semibold">{s.title}</p><p className="text-sm text-muted-foreground">{s.detail}</p></div>
+                  <div><p className="text-sm font-medium">{s.title}</p><p className="mt-1 text-sm text-muted-foreground">{s.detail}</p></div>
                 </li>
               ))}
             </ul>
           </div>
-          <div className="relative aspect-[10/7] overflow-hidden rounded-2xl border border-border brightness-75">
-            <Image src="/images/model/heatap.webp" alt="AI processing layers visualization" fill className="object-cover" />
-            <span className="absolute bottom-4 left-4 rounded-lg bg-background/90 px-4 py-2 text-sm font-semibold text-foreground backdrop-blur">QA, smoothing, and gap filling in motion</span>
+          <div>
+            <div className="relative aspect-[10/7] overflow-hidden rounded-md border border-border bg-muted/40">
+              <Image src="/images/model/heatap.webp" alt="AI processing layers visualization" fill className="object-cover" />
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">QA, smoothing, and gap filling in motion</p>
           </div>
         </div>
       </Container>

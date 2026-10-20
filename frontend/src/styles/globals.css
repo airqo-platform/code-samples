@@ -5,43 +5,74 @@
 @layer base {
   :root {
     color-scheme: light;
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --background: 240 6% 97%;
+    --foreground: 225 7% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 217 33% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
+    --popover-foreground: 217 33% 11%;
+    --primary: 221 100% 54%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary-foreground: 217 33% 11%;
     --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 42%;
-    --accent: 214 95% 93%;
-    --accent-foreground: 221 83% 33%;
+    --muted-foreground: 215 19% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 217 33% 11%;
     --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
     --success: 160 84% 30%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 26 83% 14%;
     --border: 214 32% 91%;
-    --input: 214 32% 85%;
-    --ring: 221 83% 53%;
-    --radius: 0.75rem;
+    --input: 214 32% 91%;
+    --ring: 221 100% 54%;
+    --text: 215 28% 17%;
+    --heading: 217 43% 11%;
+    --radius: 0.5rem;
   }
 }
 
 @layer base {
   * { @apply border-border; }
-  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  }
   body {
+    font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
     @apply bg-background text-foreground antialiased;
-    font-synthesis-weight: none;
+    font-synthesis: none;
     text-rendering: optimizeLegibility;
+    line-height: 1.6;
+  }
+  p { line-height: 1.6; }
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 500;
+    line-height: 1.25;
+    letter-spacing: -0.025em;
+    color: hsl(var(--heading));
+  }
+  h1 { font-size: 2.25rem; line-height: 1.1; letter-spacing: -0.04em; }
+  h2 { font-size: 1.875rem; line-height: 1.2; letter-spacing: -0.03em; }
+  h3 { font-size: 1.5rem; line-height: 1.25; letter-spacing: -0.02em; }
+  h4 { font-size: 1.25rem; line-height: 1.3; }
+  h5 { font-size: 1.125rem; line-height: 1.4; }
+  h6 { font-size: 1rem; line-height: 1.5; }
+  @media (max-width: 640px) {
+    h1 { font-size: 1.875rem; }
+    h2 { font-size: 1.5rem; }
+    h3 { font-size: 1.25rem; }
   }
   ::selection { @apply bg-primary/20 text-foreground; }
-  :focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background; }
+  :where(a, button, [role="button"], summary, [tabindex]:not([tabindex="-1"])):focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.4); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.6); }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     *, *::before, *::after {
@@ -53,8 +84,42 @@
 }
 
 @layer components {
-  .surface { @apply rounded-2xl border border-border bg-card text-card-foreground shadow-sm; }
-  .surface-muted { @apply rounded-2xl border border-border bg-muted/60 text-foreground; }
+  .surface { @apply rounded-md border border-border bg-card text-card-foreground shadow-sm; }
+  .surface-muted { @apply rounded-md border border-border bg-muted/60 text-foreground; }
+}
+
+/* Nexus loaders */
+@layer components {
+  .SecondaryMainloader {
+    width: var(--loader-size, 50px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background:
+      radial-gradient(farthest-side, currentColor 94%, #0000) top / var(--loader-stroke, 8px) var(--loader-stroke, 8px) no-repeat,
+      conic-gradient(#0000 30%, currentColor);
+    -webkit-mask: radial-gradient(farthest-side, #0000 calc(100% - var(--loader-stroke, 8px)), #000 0);
+    animation: aq-loader-spin 1s infinite linear;
+  }
+
+  .route-loader {
+    opacity: 0;
+    animation: aq-route-fade-in 0.25s ease 0.15s both, aq-loader-spin 1s infinite linear;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .route-loader {
+      opacity: 1;
+      animation: aq-loader-spin 1s infinite linear;
+    }
+  }
+}
+
+@keyframes aq-loader-spin {
+  to { transform: rotate(1turn); }
+}
+
+@keyframes aq-route-fade-in {
+  to { opacity: 1; }
 }
 
 @keyframes embed-option-enter {
@@ -90,16 +155,6 @@
 
 .custom-popup .leaflet-popup-close-button {
   display: none;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.animate-spin {
-  animation: spin 1s linear infinite;
 }
 
 /* Geosearch control (tokenized) */

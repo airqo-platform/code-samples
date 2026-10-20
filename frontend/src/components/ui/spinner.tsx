@@ -1,11 +1,10 @@
 import * as React from "react"
-import { LoaderCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const sizeMap = {
-  sm: "h-4 w-4",
-  md: "h-6 w-6",
-  lg: "h-8 w-8",
+  sm: { size: "16px", stroke: "2px" },
+  md: { size: "24px", stroke: "3px" },
+  lg: { size: "50px", stroke: "8px" },
 } as const
 
 export type SpinnerSize = keyof typeof sizeMap
@@ -16,8 +15,9 @@ export interface SpinnerProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const Spinner = React.forwardRef<HTMLDivElement, SpinnerProps>(
-  ({ className, size = "sm", label, ...props }, ref) => {
+  ({ className, size = "sm", label, children, ...props }, ref) => {
     const hasLabel = Boolean(label)
+    const dims = sizeMap[size]
     return (
       <div
         ref={ref}
@@ -26,14 +26,17 @@ const Spinner = React.forwardRef<HTMLDivElement, SpinnerProps>(
         aria-label={label}
         {...props}
       >
-        <LoaderCircle
-          className={cn(
-            sizeMap[size],
-            "animate-spin motion-reduce:animate-none",
-            hasLabel ? "" : "text-primary",
-          )}
+        <span
           aria-hidden="true"
+          className="SecondaryMainloader block"
+          style={
+            {
+              "--loader-size": dims.size,
+              "--loader-stroke": dims.stroke,
+            } as React.CSSProperties
+          }
         />
+        {children}
         {hasLabel && <span>{label}</span>}
       </div>
     )

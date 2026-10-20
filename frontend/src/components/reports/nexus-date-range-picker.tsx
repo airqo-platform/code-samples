@@ -123,10 +123,10 @@ function CalendarMonth({
 
   return (
     <div className="min-w-0 flex-1">
-      <div className="mb-3 text-center text-sm font-semibold text-foreground">{format(month, "MMMM yyyy")}</div>
+      <div className="mb-3 text-center text-sm font-medium text-foreground">{format(month, "MMMM yyyy")}</div>
       <div className="grid grid-cols-7 text-center">
         {weekDays.map((day) => (
-          <span key={day} className="pb-2 text-[11px] font-semibold text-muted-foreground">{day}</span>
+          <span key={day} className="pb-2 text-[11px] font-medium text-muted-foreground">{day}</span>
         ))}
         {days.map((day) => {
           const isStart = isSameDay(day, rangeStart)
@@ -153,7 +153,7 @@ function CalendarMonth({
             >
               <span
                 className={`mx-auto flex h-8 w-8 items-center justify-center rounded-lg ${
-                  isStart || isEnd ? "bg-blue-600 font-bold text-white shadow-sm" : ""
+                  isStart || isEnd ? "bg-primary font-medium text-primary-foreground" : ""
                 }`}
               >
                 {format(day, "d")}
@@ -247,13 +247,18 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
     setOpen(false)
   }
 
-  const triggerLabel = `${format(dateFromIso(value.startDate), "MMM d, yyyy")} - ${format(dateFromIso(value.endDate), "MMM d, yyyy")}`
+  const triggerStart = dateFromIso(value.startDate)
+  const triggerEnd = dateFromIso(value.endDate)
+  const triggerLabel =
+    triggerStart.getFullYear() === triggerEnd.getFullYear()
+      ? `${format(triggerStart, "MMM d")} – ${format(triggerEnd, "MMM d, yyyy")}`
+      : `${format(triggerStart, "MMM d, yyyy")} – ${format(triggerEnd, "MMM d, yyyy")}`
 
   return (
-    <div className="rounded-2xl border border-primary/30 bg-accent/60 p-3 shadow-[0_0_0_1px_rgba(37,99,235,0.04)]">
+    <div className="rounded-md border border-border bg-card p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <label className="block text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">Date range</label>
-        <span className="rounded-full bg-blue-700 px-2 py-0.5 text-[10px] font-bold text-white">Custom</span>
+        <label className="block text-xs font-medium text-muted-foreground">Date range</label>
+        <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Custom</span>
       </div>
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
@@ -261,10 +266,11 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
             type="button"
             variant="outline"
             disabled={disabled}
-            className="min-h-12 h-auto w-full justify-start rounded-xl border-primary/30 bg-card px-3 py-2 text-left hover:bg-card"
+            title={triggerLabel}
+            className="min-h-12 h-auto w-full justify-start whitespace-normal rounded-md px-3 py-2 text-left"
           >
             <CalendarDays className="mr-2 h-4 w-4 shrink-0 text-primary" />
-            <span className="truncate text-sm font-semibold text-foreground">{triggerLabel}</span>
+            <span className="whitespace-normal break-words text-left text-sm font-medium leading-tight text-foreground">{triggerLabel}</span>
           </Button>
         </PopoverTrigger>
         <PopoverContent
@@ -272,7 +278,7 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
           sideOffset={8}
           collisionPadding={12}
           sticky="always"
-          className="max-h-[calc(100vh-1.5rem)] w-[min(94vw,760px)] overflow-y-auto rounded-2xl border-border p-0 shadow-2xl"
+          className="max-h-[calc(100vh-1.5rem)] w-[min(94vw,760px)] overflow-y-auto rounded-lg border-border p-0 shadow-lg"
         >
           <div className="flex flex-col md:flex-row">
             <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-border bg-muted p-3 md:w-40 md:grid-cols-1 md:border-b-0 md:border-r">
@@ -293,7 +299,7 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
                 <Button type="button" variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setVisibleMonth(subMonths(visibleMonth, 1))}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-xs font-semibold text-primary">Select a start and end date</span>
+                <span className="text-xs font-medium text-primary">Select a start and end date</span>
                 <Button
                   type="button"
                   variant="outline"
@@ -317,11 +323,11 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
           <div className="sticky bottom-0 z-10 border-t border-border bg-card p-3 shadow-[0_-8px_20px_-16px_rgba(15,23,42,0.45)] sm:p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
+                <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
                   {format(draftStart, "MMM d, yyyy")}
                 </div>
                 <span className="text-muted-foreground">to</span>
-                <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
+                <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
                   {draftEnd ? format(draftEnd, "MMM d, yyyy") : "Select end date"}
                 </div>
                 <label className="ml-1 flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
@@ -337,11 +343,11 @@ export default function NexusDateRangePicker({ value, onApply, disabled }: Nexus
                 )}
               </div>
               <div className="flex items-center justify-between gap-2 lg:justify-end">
-                <span className={`mr-auto text-xs ${rangeError ? "text-red-600" : "text-muted-foreground"}`}>
+                <span className={`mr-auto text-xs ${rangeError ? "text-destructive" : "text-muted-foreground"}`}>
                   {rangeError || `${differenceInCalendarDays(draftEnd || draftStart, draftStart) + 1} day selection`}
                 </span>
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="rounded-lg">Cancel</Button>
-                <Button type="button" onClick={handleApply} disabled={Boolean(rangeError)} className="rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="rounded-md">Cancel</Button>
+                <Button type="button" onClick={handleApply} disabled={Boolean(rangeError)} className="rounded-md">
                   <Check className="mr-1.5 h-4 w-4" /> Apply
                 </Button>
               </div>

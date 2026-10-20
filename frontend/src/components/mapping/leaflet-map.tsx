@@ -51,6 +51,7 @@ import {
 } from "@/lib/browser-api-cache"
 import { useSiteSettings } from "@/hooks/use-site-settings"
 import { Switch } from "@/components/ui/switch"
+import { Spinner } from "@/components/ui/spinner"
 import { MapLayerControl } from "./map-layer-control"
 
 const MAP_NODES_CACHE_KEY = "map-nodes"
@@ -295,7 +296,7 @@ const PopupContent: React.FC<{
   const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : "Unknown"
 
   return (
-    <div className={`min-w-[200px] p-3 rounded-lg ${color} border`}>
+    <div className={`min-w-[200px] p-3 rounded-md ${color} border`}>
       <div className="flex items-center justify-between mb-2">
         <div className="w-12 h-12 relative">
           <Image
@@ -356,7 +357,7 @@ const LoadingPopupContent: React.FC<{
   label: string
   onClose: () => void
 }> = ({ label, onClose }) => (
-  <div className="min-w-[220px] rounded-lg border bg-card p-3" role="status" aria-live="polite">
+  <div className="min-w-[220px] rounded-md border bg-card p-3" role="status" aria-live="polite">
     <div className="flex items-center justify-between mb-2">
       <div className="h-12 w-12 animate-pulse rounded-full bg-muted" />
       <button className="text-muted-foreground hover:text-muted-foreground" onClick={onClose} aria-label="Close loading popup">
@@ -391,7 +392,7 @@ const ErrorPopupContent: React.FC<{
   onRetry?: () => void
   errorMessage?: string
 }> = ({ label, onClose, onRetry, errorMessage = "Error loading air quality data" }) => (
-  <div className="min-w-[200px] p-3 rounded-lg bg-muted border border-border">
+  <div className="min-w-[200px] p-3 rounded-md bg-muted border border-border">
     <div className="flex items-center justify-between mb-2">
       <div className="w-12 h-12 relative">
         <Image
@@ -414,7 +415,7 @@ const ErrorPopupContent: React.FC<{
       <button
         type="button"
         onClick={onRetry}
-        className="mt-3 w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        className="mt-3 w-full rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
       >
         Try again
       </button>
@@ -458,13 +459,13 @@ const SearchControl: React.FC<{
     // Apply custom TailwindCSS styles to the search bar and add search icon
     const searchBar = document.querySelector(".leaflet-control-geosearch form")
     if (searchBar) {
-      searchBar.classList.add("bg-card", "text-black", "border", "border-gray-400", "rounded-md", "relative")
+      searchBar.classList.add("bg-card", "text-foreground", "border", "border-border", "rounded-md", "relative")
 
       // Adjust the width and positioning
       const searchContainer = document.querySelector(".leaflet-control-geosearch")
       if (searchContainer) {
         // Position the search bar on the right side
-        searchContainer.classList.add("!right-4", "!top-4", "!left-auto", "!transform-none", "!w-64")
+        searchContainer.classList.add("!right-4", "!top-4", "!left-auto", "!transform-none", "!w-72")
       }
 
       // Create and add the search icon
@@ -480,6 +481,7 @@ const SearchControl: React.FC<{
       // Adjust the search input padding to accommodate the icon
       const searchInput = searchBar.querySelector("input")
       if (searchInput) {
+        searchInput.setAttribute("placeholder", "Search for a place")
         searchInput.style.paddingLeft = "2.5rem"
         // Add some additional styling to the input
         searchInput.classList.add(
@@ -496,7 +498,7 @@ const SearchControl: React.FC<{
 
     const searchResults = document.querySelector(".leaflet-control-geosearch .results")
     if (searchResults) {
-      searchResults.classList.add("bg-card", "text-black")
+      searchResults.classList.add("bg-card", "text-foreground")
     }
 
     // Event listener to clear markers and reset the map when search is cleared
@@ -800,14 +802,11 @@ const LoadingIndicator: React.FC<LoadingState> = ({ isLoading, error }) => {
   if (!isLoading && !error) return null
 
   return (
-    <div className="absolute top-4 right-4 z-[1000] bg-card rounded-lg shadow-md p-3">
+    <div className="absolute top-4 right-4 z-[1000] rounded-md border border-border bg-card p-3 shadow-sm">
       {isLoading ? (
-        <div className="flex items-center space-x-2">
-          <div className="animate-spin rounded-full h-4 w-4 border-2 border-border border-t-blue-600"></div>
-          <span className="text-sm text-muted-foreground">Loading map data...</span>
-        </div>
+        <Spinner size="sm" label="Loading map data" className="text-primary" />
       ) : error ? (
-        <div className="flex items-center space-x-2 text-red-500">
+        <div className="flex items-center space-x-2 text-destructive">
           <span className="text-sm">{error}</span>
         </div>
       ) : null}
@@ -1006,7 +1005,7 @@ const ForecastStatusBadge: React.FC<{ forecastState: ForecastState }> = ({ forec
   if (!forecastState.isLoading && !forecastState.error) return null
 
   return (
-    <div className="absolute left-16 top-4 z-[1000] max-w-[260px] rounded-md border border-border bg-card/95 px-4 py-3 shadow-lg backdrop-blur">
+    <div className="absolute left-16 top-4 z-[1000] max-w-[260px] rounded-md border border-border bg-card/95 px-4 py-3 shadow-md backdrop-blur">
       {forecastState.isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
@@ -1035,9 +1034,9 @@ const ForecastDayPill: React.FC<{
       type="button"
       onClick={onClick}
       className={[
-        "flex h-[104px] w-[56px] shrink-0 items-center justify-center rounded-[28px] border text-center shadow-sm transition-all duration-200",
+        "flex h-[104px] w-[56px] shrink-0 items-center justify-center rounded-md border text-center shadow-sm transition-all duration-200",
         isActive
-          ? "border-transparent bg-gradient-to-b from-[#3B82F6] to-[#1D4ED8] text-white shadow-[0_10px_24px_rgba(37,99,235,0.28)]"
+          ? "border-primary bg-primary text-white shadow-md"
           : "bg-card text-muted-foreground hover:-translate-y-0.5 hover:shadow-md",
       ].join(" ")}
       style={isActive ? undefined : { borderColor: "#EBCF90" }}
@@ -1189,21 +1188,21 @@ const ForecastPanel: React.FC<{
 
       <div className="flex-1 px-5 py-4">
         {!selectedNode ? (
-          <div className="rounded-xl border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">
+          <div className="rounded-md border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">
             Click a site on the map to load the next days&apos; forecast.
           </div>
         ) : forecastState.isLoading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="animate-spin rounded-full h-4 w-4 border-2 border-border border-t-blue-600"></div>
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-border border-t-primary"></div>
             Loading forecast...
           </div>
         ) : forecastState.error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {forecastState.error}
           </div>
         ) : !selectedForecasts?.length ? (
           <div className="space-y-3">
-            <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">No daily forecast data.</div>
+            <div className="rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">No daily forecast data.</div>
             <HourlyForecastToggle
               enabled={hourlyForecastEnabled}
               onEnabledChange={onHourlyForecastEnabledChange}
@@ -1568,7 +1567,7 @@ function HourlyForecastPanel({
                     onClick={() => setSelectedDayIndex(index)}
                     className={[
                       "flex h-12 min-w-[62px] shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-semibold transition-colors",
-                      isSelected ? "border-blue-700 bg-blue-700 text-white" : "border-border bg-card text-foreground hover:bg-accent",
+                      isSelected ? "border-primary bg-primary text-white" : "border-border bg-card text-foreground hover:bg-accent",
                     ].join(" ")}
                     title={
                       dailyPreviewDate
@@ -1650,7 +1649,7 @@ function HourlyForecastPanel({
                                 key={`${group.dateKey}-${hour}`}
                                 className={[
                                   "relative h-3 rounded-[2px]",
-                                  index === selectedDayIndex ? "ring-1 ring-blue-600/40" : "",
+                                  index === selectedDayIndex ? "ring-1 ring-primary/40" : "",
                                   isCurrent
                                     ? "z-10 scale-125 ring-2 ring-slate-950 ring-offset-1 ring-offset-slate-50 shadow-md"
                                     : "",
@@ -1966,7 +1965,7 @@ function HourlyForecastToggle({
     <div
       className={[
         "rounded-[8px] border px-3 py-2 transition-colors",
-        enabled ? "border-blue-500 bg-blue-600" : "border-border bg-card",
+        enabled ? "border-primary bg-primary" : "border-border bg-card",
       ].join(" ")}
     >
       <div className="flex items-center justify-between gap-3">
@@ -1978,7 +1977,7 @@ function HourlyForecastToggle({
             <span className={["block text-sm font-semibold", enabled ? "text-white" : "text-foreground"].join(" ")}>
               Hourly forecast
             </span>
-            <span className={["block text-xs", enabled ? "text-blue-50" : "text-muted-foreground"].join(" ")}>
+            <span className={["block text-xs", enabled ? "text-primary-foreground" : "text-muted-foreground"].join(" ")}>
               {enabled ? "Daily cards open hourly details" : "Daily cards only change the selected day"}
             </span>
           </span>
@@ -2283,7 +2282,7 @@ function ForecastContent({
 
       {hourlyOpen ? (
         <div className="fixed inset-0 z-[1300] flex items-end justify-center bg-slate-950/45 p-0 sm:items-center sm:p-4">
-          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-[8px] bg-card shadow-2xl sm:max-w-[430px] sm:rounded-[8px]">
+          <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-[8px] bg-card shadow-lg sm:max-w-[430px] sm:rounded-[8px]">
             <HourlyForecastPanel
               hourlyState={hourlyState}
               dailyForecasts={forecasts}
@@ -3379,7 +3378,7 @@ const Legend: React.FC = () => {
             <div key={index} className="flex items-center gap-2 group relative">
               <div className="w-8 h-8 relative cursor-pointer">
                 <Image src={level.image || "/placeholder.svg"} alt={level.label} fill className="object-contain" />
-                <div className="opacity-0 group-hover:opacity-100 absolute left-full ml-2 bg-card text-foreground text-xs rounded-lg px-3 py-2 whitespace-nowrap transition-opacity duration-200 shadow-lg border border-border min-w-[200px]">
+                <div className="opacity-0 group-hover:opacity-100 absolute left-full ml-2 bg-card text-foreground text-xs rounded-md px-3 py-2 whitespace-nowrap transition-opacity duration-200 shadow-md border border-border min-w-[200px]">
                   <div className="font-semibold mb-1">{level.label}</div>
                   <div className="text-muted-foreground">{level.range}</div>
                   <div className="absolute w-2 h-2 left-0 top-1/2 -ml-1 -mt-1 bg-card border-l border-t border-border transform -rotate-45"></div>

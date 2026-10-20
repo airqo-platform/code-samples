@@ -302,7 +302,7 @@ export function PM25BarChart({ sites, language = "en" }: { sites: SiteData[]; la
 
   return (
     <Card className="w-full border-border font-sans shadow-lg">
-      <CardHeader className="border-b border-border bg-gradient-to-r from-accent to-indigo-50 p-4 sm:p-5">
+      <CardHeader className="border-b border-border bg-muted/40 p-4 sm:p-5">
         <CardTitle className="flex items-center gap-2 text-base text-foreground md:text-lg">
           <BarChart3 className="h-4 w-4 text-primary" />
           {language !== "en" ? `${t("averagePm25")} — ${t("results")}` : <>
@@ -317,7 +317,7 @@ export function PM25BarChart({ sites, language = "en" }: { sites: SiteData[]; la
             <div className="flex items-center gap-2">
               <span className="min-w-fit text-xs font-medium text-muted-foreground">{copy.display}:</span>
               <Select value={seriesMode} onValueChange={(value: "separate" | "merged") => setSeriesMode(value)}>
-                <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-blue-500 md:w-[145px]">
+                <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-primary md:w-[145px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -332,7 +332,7 @@ export function PM25BarChart({ sites, language = "en" }: { sites: SiteData[]; la
           <div className="flex items-center gap-2">
             <span className="min-w-fit text-xs font-medium text-muted-foreground">{copy.sites}:</span>
             <Select onValueChange={handleSiteLimitChange} defaultValue="7">
-              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-blue-500 md:w-[125px]">
+              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-primary md:w-[125px]">
                 <SelectValue placeholder={copy.sites} />
               </SelectTrigger>
               <SelectContent>
@@ -352,7 +352,7 @@ export function PM25BarChart({ sites, language = "en" }: { sites: SiteData[]; la
               value={aggregation}
               onValueChange={(value: "daily" | "weekly" | "monthly") => setAggregation(value)}
             >
-              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-blue-500 md:w-[130px]">
+              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-primary md:w-[130px]">
                 <SelectValue placeholder={copy.average} />
               </SelectTrigger>
               <SelectContent>
@@ -367,7 +367,7 @@ export function PM25BarChart({ sites, language = "en" }: { sites: SiteData[]; la
             <div className="flex items-center gap-2">
               <span className="min-w-fit text-xs font-medium text-muted-foreground">{copy.xAxis}:</span>
             <Select value={xAxisView} onValueChange={(value: "time" | "site") => setXAxisView(value)}>
-              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-blue-500 md:w-[125px]">
+              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-primary md:w-[125px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -381,7 +381,7 @@ export function PM25BarChart({ sites, language = "en" }: { sites: SiteData[]; la
           <div className="flex items-center gap-2">
             <span className="min-w-fit text-xs font-medium text-muted-foreground">{copy.type}:</span>
             <Select onValueChange={(v: string) => setChartType(v as "bar" | "line")} defaultValue="bar">
-              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-blue-500 md:w-[105px]">
+              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-primary md:w-[105px]">
                 <SelectValue placeholder={copy.type} />
               </SelectTrigger>
               <SelectContent>
@@ -405,7 +405,7 @@ export function PM25BarChart({ sites, language = "en" }: { sites: SiteData[]; la
             <div className="flex items-center gap-2">
               <span className="min-w-fit text-xs font-medium text-muted-foreground">{copy.sort}:</span>
             <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
-              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-blue-500 md:w-[125px]">
+              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-primary md:w-[125px]">
                 <SelectValue placeholder={copy.sort} />
               </SelectTrigger>
               <SelectContent>
@@ -435,7 +435,7 @@ export function PM25BarChart({ sites, language = "en" }: { sites: SiteData[]; la
           <div className="flex items-center gap-2">
             <span className="min-w-fit text-xs font-medium text-muted-foreground">{copy.export}:</span>
             <Select value={downloadValue} onValueChange={handleDownloadChange}>
-              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-blue-500 md:w-[105px]">
+              <SelectTrigger className="h-8 w-full rounded-lg border-border text-xs focus:border-primary md:w-[105px]">
                 <SelectValue placeholder={copy.download} />
               </SelectTrigger>
               <SelectContent>
@@ -686,9 +686,9 @@ export function AQICategoryChart({
 
   return (
     <Card className="w-full border-border font-sans shadow-lg">
-      <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-border">
+      <CardHeader className="bg-muted/40 border-b border-border">
         <CardTitle className="flex items-center gap-2 text-base text-foreground md:text-lg">
-          <PieChartIcon className="h-5 w-5 text-green-600" />
+          <PieChartIcon className="h-5 w-5 text-primary" />
           {t("aqiDistribution")}
         </CardTitle>
         <p className="mt-1 text-sm text-muted-foreground">{selectedPeriodLabel} · {sitesWithData} {sitesWithData === 1 ? copy.site : copy.sites} {copy.withData}</p>
@@ -696,7 +696,7 @@ export function AQICategoryChart({
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground min-w-fit">{copy.type}:</span>
             <Select onValueChange={(v: string) => setChartType(v as "pie" | "bar")} defaultValue="pie">
-              <SelectTrigger className="h-9 w-full rounded-xl border-border focus:border-green-500 md:w-[120px]">
+              <SelectTrigger className="h-9 w-full rounded-md border-border focus:border-primary md:w-[120px]">
                 <SelectValue placeholder={copy.type} />
               </SelectTrigger>
               <SelectContent>
@@ -725,7 +725,7 @@ export function AQICategoryChart({
                 onSelectedPeriodChange("all")
               }}
             >
-              <SelectTrigger className="h-9 w-full rounded-xl border-border focus:border-green-500 md:w-[125px]">
+              <SelectTrigger className="h-9 w-full rounded-md border-border focus:border-primary md:w-[125px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -738,7 +738,7 @@ export function AQICategoryChart({
           <div className="flex items-center gap-2">
             <span className="min-w-fit text-sm font-medium text-muted-foreground">{copy.period}:</span>
             <Select value={effectivePeriod} onValueChange={onSelectedPeriodChange}>
-              <SelectTrigger className="h-9 w-full rounded-xl border-border focus:border-green-500 md:w-[210px]">
+              <SelectTrigger className="h-9 w-full rounded-md border-border focus:border-primary md:w-[210px]">
                 <SelectValue placeholder={copy.selectPeriod} />
               </SelectTrigger>
               <SelectContent>
@@ -753,7 +753,7 @@ export function AQICategoryChart({
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground min-w-fit">{copy.export}:</span>
             <Select value={downloadValue} onValueChange={handleDownloadChange}>
-              <SelectTrigger className="h-9 w-full rounded-xl border-border focus:border-green-500 md:w-[120px]">
+              <SelectTrigger className="h-9 w-full rounded-md border-border focus:border-primary md:w-[120px]">
                 <SelectValue placeholder={copy.download} />
               </SelectTrigger>
               <SelectContent>
@@ -1045,7 +1045,7 @@ export function WeeklyComparisonChart({
         </p>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select onValueChange={handleSiteLimitChange} defaultValue="7">
-            <SelectTrigger className="w-full rounded-xl md:w-[160px]">
+            <SelectTrigger className="w-full rounded-md md:w-[160px]">
               <SelectValue placeholder={copy.sites} />
             </SelectTrigger>
             <SelectContent>
@@ -1057,7 +1057,7 @@ export function WeeklyComparisonChart({
             </SelectContent>
           </Select>
           <Select onValueChange={(v: string) => setChartType(v as "line" | "bar")} defaultValue="line">
-            <SelectTrigger className="w-full rounded-xl md:w-[160px]">
+            <SelectTrigger className="w-full rounded-md md:w-[160px]">
               <SelectValue placeholder={copy.type} />
             </SelectTrigger>
             <SelectContent>
@@ -1076,7 +1076,7 @@ export function WeeklyComparisonChart({
             </SelectContent>
           </Select>
           <Select onValueChange={(v: string) => setSortOrder(v as "highest" | "lowest" | "none")} defaultValue="none">
-            <SelectTrigger className="w-full rounded-xl md:w-[160px]">
+            <SelectTrigger className="w-full rounded-md md:w-[160px]">
               <SelectValue placeholder={copy.sort} />
             </SelectTrigger>
             <SelectContent>
@@ -1101,7 +1101,7 @@ export function WeeklyComparisonChart({
             </SelectContent>
           </Select>
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
-            <SelectTrigger className="w-full rounded-xl md:w-[160px]">
+            <SelectTrigger className="w-full rounded-md md:w-[160px]">
               <SelectValue placeholder={copy.download} />
             </SelectTrigger>
             <SelectContent>
@@ -1238,7 +1238,7 @@ export function AQIIndexVisual({ aqiCategory, pm25Value, language = "en" }: { aq
         <CardTitle className="text-base md:text-lg">{t("airQualityIndex")}</CardTitle>
         <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-4">
           <Select value={downloadValue} onValueChange={handleDownloadChange}>
-            <SelectTrigger className="w-full rounded-xl md:w-[160px]">
+            <SelectTrigger className="w-full rounded-md md:w-[160px]">
               <SelectValue placeholder={copy.download} />
             </SelectTrigger>
             <SelectContent>

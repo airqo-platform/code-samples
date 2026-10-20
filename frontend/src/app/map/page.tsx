@@ -16,9 +16,10 @@ const MapPage: React.FC = () => {
       <Navigation />
 
       {/* Map Container with Fixed Height */}
-      <div className="flex-1">
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        <h1 className="sr-only">Air quality map</h1>
         <LeafletMap />
-      </div>
+      </main>
     </div>
   )
 }

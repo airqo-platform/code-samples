@@ -33,10 +33,10 @@ export default function ErrorPopup({
 }: ErrorPopupProps) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg overflow-hidden rounded-2xl border-0 bg-card p-0 shadow-2xl">
-        <div className="h-2 bg-red-600" />
+      <DialogContent className="max-w-lg overflow-hidden rounded-lg border border-border bg-card p-0 shadow-lg">
+        <div className="h-1.5 bg-destructive" />
         <div className="px-4 pb-5 pt-6 sm:px-5 sm:pb-6">
-          <div className="relative aspect-[3/1] overflow-hidden rounded-xl bg-slate-900 shadow-inner">
+          <div className="relative aspect-[3/1] overflow-hidden rounded-md bg-muted">
             <Image
               src="/images/report-recovery-robot.png"
               alt="A recovery robot repairing a file service"
@@ -48,7 +48,7 @@ export default function ErrorPopup({
           </div>
 
           <DialogHeader className="mt-4 items-center text-center sm:text-center">
-            <DialogTitle className="text-2xl font-bold tracking-tight text-foreground">{title}</DialogTitle>
+            <DialogTitle className="text-xl font-medium tracking-tight text-foreground">{title}</DialogTitle>
             <DialogDescription className="max-w-md text-base leading-6 text-muted-foreground">
               {message}
             </DialogDescription>
@@ -59,16 +59,17 @@ export default function ErrorPopup({
               type="button"
               variant="outline"
               onClick={onClose}
-              className="min-w-28 rounded-xl border-slate-900 bg-card text-foreground hover:bg-accent"
+              className="min-w-28"
             >
               Close
             </Button>
             {onTryAgain && (
               <Button
                 type="button"
+                variant="destructive"
                 onClick={onTryAgain}
                 disabled={isRetrying}
-                className="min-w-32 rounded-xl bg-red-600 text-white shadow-sm hover:bg-red-700"
+                className="min-w-32"
               >
                 {isRetrying ? (
                   <Spinner size="sm" className="mr-2" aria-hidden="true" />

@@ -4,14 +4,14 @@ import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-  "flex gap-3 rounded-xl border p-3 text-sm",
+  "flex gap-3 rounded-md border p-3 text-sm",
   {
     variants: {
       variant: {
-        info: "border-border text-foreground",
-        warning: "border-warning/40 text-foreground",
-        destructive: "border-destructive/40 text-foreground",
-        success: "border-success/40 text-foreground",
+        info: "border-primary/15 bg-primary/5 text-foreground",
+        warning: "border-warning/25 bg-warning/10 text-foreground",
+        destructive: "border-destructive/25 bg-destructive/10 text-foreground",
+        success: "border-success/25 bg-success/10 text-foreground",
       },
     },
     defaultVariants: {
@@ -52,7 +52,7 @@ const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
           <IconComponent className="h-5 w-5 shrink-0" aria-hidden="true" />
         ) : null}
         <div className="flex-1 space-y-1">
-          {title ? <p className="font-semibold">{title}</p> : null}
+          {title ? <p className="font-medium">{title}</p> : null}
           {children ? <div>{children}</div> : null}
         </div>
       </div>

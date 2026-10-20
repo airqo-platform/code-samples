@@ -16,7 +16,6 @@ import {
   MousePointer2,
   RotateCcw,
   Route,
-  Sparkles,
   X,
 } from "lucide-react"
 import html2canvas from "html2canvas"
@@ -40,9 +39,7 @@ export default function Index() {
 
   const handleSubmit = async (payload: SiteLocatorPayload) => {
     try {
-      console.log("Submitting payload:", payload)
       const response = await submitLocations(payload)
-      console.log("API Response:", response)
       if (!response.site_location || !Array.isArray(response.site_location)) {
         throw new Error("Invalid response format from API")
       }
@@ -50,7 +47,6 @@ export default function Index() {
         lat: site.latitude,
         lng: site.longitude,
       }))
-      console.log("Processed locations to plot:", locations)
       setSuggestedLocations(locations)
       setShowResultsNotice(locations.length > 0)
       toast({
@@ -162,58 +158,50 @@ export default function Index() {
     <div className="flex min-h-screen flex-col bg-muted/40 lg:h-[100svh]">
       <Navigation />
 
-      <main className="grid flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[390px_minmax(0,1fr)]">
-        <aside className="z-10 flex flex-col border-b border-border bg-card shadow-xl lg:min-h-0 lg:border-b-0 lg:border-r">
+      <main id="main-content" tabIndex={-1} className="grid flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[390px_minmax(0,1fr)]">
+        <aside className="z-10 flex flex-col border-b border-border bg-card shadow-sm lg:min-h-0 lg:border-b-0 lg:border-r">
           <div className="border-b border-border px-5 py-5">
             <div className={`flex items-center justify-between gap-3 ${isHeaderCollapsed ? "" : "mb-2"}`}>
-              {isHeaderCollapsed ? (
-                <h1 className="text-base font-bold text-foreground">Locate monitoring sites</h1>
-              ) : (
-                <div className="inline-flex items-center gap-2 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-primary">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Network planning workspace
-                </div>
-              )}
+              <h1 className="text-xl font-medium tracking-tight text-foreground">Locate monitoring sites</h1>
               <div className="flex items-center gap-1">
                 {!isHeaderCollapsed ? (
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => setShowInfo(true)}
-                    className="rounded-full border border-border p-2 text-muted-foreground transition hover:border-primary/30 hover:bg-accent hover:text-primary"
                     aria-label="Open site locator guide"
                   >
                     <Info className="h-4 w-4" />
-                  </button>
+                  </Button>
                 ) : null}
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setIsHeaderCollapsed((current) => !current)}
-                  className="rounded-full border border-border p-2 text-muted-foreground transition hover:border-primary/30 hover:bg-accent hover:text-primary"
                   aria-label={isHeaderCollapsed ? "Expand site locator summary" : "Collapse site locator summary"}
                 >
                   {isHeaderCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-                </button>
+                </Button>
               </div>
             </div>
             {!isHeaderCollapsed ? (
               <>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">Locate monitoring sites</h1>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
                   Define a service area, protect priority locations, and generate a field-ready sensor deployment plan.
                 </p>
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-border bg-muted p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Boundary</p>
-                    <p className="mt-1 text-sm font-bold text-foreground">{boundaryReady ? "Ready" : "Required"}</p>
+                  <div className="rounded-md border border-border bg-muted/40 p-3">
+                    <p className="text-xs text-muted-foreground">Boundary</p>
+                    <p className="mt-1 text-sm font-medium text-foreground">{boundaryReady ? "Ready" : "Required"}</p>
                   </div>
-                  <div className="rounded-xl border border-border bg-muted p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Priority</p>
-                    <p className="mt-1 text-sm font-bold text-foreground">{mustHaveLocations.length}</p>
+                  <div className="rounded-md border border-border bg-muted/40 p-3">
+                    <p className="text-xs text-muted-foreground">Priority</p>
+                    <p className="mt-1 text-sm font-medium text-foreground">{mustHaveLocations.length}</p>
                   </div>
-                  <div className="rounded-xl border border-border bg-muted p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Suggested</p>
-                    <p className="mt-1 text-sm font-bold text-primary">{suggestedLocations.length}</p>
+                  <div className="rounded-md border border-border bg-muted/40 p-3">
+                    <p className="text-xs text-muted-foreground">Suggested</p>
+                    <p className="mt-1 text-sm font-medium text-primary">{suggestedLocations.length}</p>
                   </div>
                 </div>
               </>
@@ -242,7 +230,7 @@ export default function Index() {
                 disabled={!hasResults && mustHaveLocations.length === 0}
                 aria-label="Export locations to CSV"
                 variant="outline"
-                className="gap-2 rounded-xl bg-card"
+                className="gap-2"
               >
                 <Download className="h-4 w-4" />
                 Export CSV
@@ -251,20 +239,20 @@ export default function Index() {
                 onClick={handleSaveMap}
                 aria-label="Save map as image"
                 variant="outline"
-                className="gap-2 rounded-xl bg-card"
+                className="gap-2"
               >
                 <Camera className="h-4 w-4" />
                 Save map
               </Button>
             </div>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
               onClick={handleReset}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              className="mt-3 w-full gap-2"
             >
               <RotateCcw className="h-4 w-4" />
               Clear workspace
-            </button>
+            </Button>
           </div>
         </aside>
 
@@ -280,13 +268,13 @@ export default function Index() {
           />
 
           <div className="pointer-events-none absolute left-16 right-4 top-4 z-[1000] flex items-start justify-between gap-3 sm:left-20">
-            <div className="pointer-events-auto max-w-lg rounded-2xl border border-border/70 bg-card/95 p-3 shadow-lg backdrop-blur">
+            <div className="pointer-events-auto max-w-lg rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
               <div className="flex items-center gap-3">
-                <div className={`rounded-xl p-2 ${isDrawing ? "bg-amber-100 text-amber-700" : "bg-accent text-primary"}`}>
+                <div className={`rounded-md p-2 ${isDrawing ? "bg-amber-50 text-amber-700" : "bg-muted text-primary"}`}>
                   {isDrawing || isSelectingPriority ? <MousePointer2 className="h-5 w-5" /> : <Route className="h-5 w-5" />}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">
+                  <p className="text-sm font-medium text-foreground">
                     {isDrawing
                       ? "Click the map to trace your boundary"
                       : isSelectingPriority
@@ -309,55 +297,54 @@ export default function Index() {
             </div>
 
             <Button
+              variant={isDrawing ? "secondary" : "default"}
               onClick={toggleDrawing}
               aria-label={isDrawing ? "Finish drawing polygon" : "Start drawing polygon"}
-              className={`pointer-events-auto gap-2 rounded-xl px-4 shadow-lg ${
-                isDrawing ? "bg-amber-500 text-foreground hover:bg-amber-400" : "bg-slate-950 text-white hover:bg-slate-800"
-              }`}
+              className="pointer-events-auto gap-2 px-4"
             >
               {isDrawing ? <CheckCircle2 className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
               {isDrawing ? "Finish boundary" : "Draw boundary"}
             </Button>
           </div>
 
-          <div className="absolute bottom-5 left-5 z-[1000] rounded-2xl border border-border/70 bg-card/95 p-3 shadow-lg backdrop-blur">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Map legend</p>
+          <div className="absolute bottom-5 left-5 z-[1000] rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Map legend</p>
             <div className="space-y-2 text-xs font-medium text-muted-foreground">
               <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background shadow" />
+                <span className="h-3 w-3 rounded-full bg-success ring-2 ring-background shadow" />
                 Priority location
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-blue-600 ring-2 ring-background shadow" />
+                <span className="h-3 w-3 rounded-full bg-primary ring-2 ring-background shadow" />
                 Recommended site
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-sm border-2 border-blue-600 bg-accent/70" />
+                <span className="h-3 w-3 rounded-sm border-2 border-primary bg-accent/70" />
                 Analysis boundary
               </div>
             </div>
           </div>
 
           {hasResults && showResultsNotice ? (
-            <div className="absolute bottom-5 right-5 z-[1000] max-w-xs rounded-2xl border border-primary/30 bg-blue-950 p-4 text-white shadow-xl">
+            <div className="absolute bottom-5 right-5 z-[1000] max-w-xs rounded-md border border-border bg-card p-4 shadow-sm">
               <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-blue-500/20 p-2">
-                  <Sparkles className="h-5 w-5 text-blue-200" />
+                <div className="rounded-md bg-primary/10 p-2 text-primary">
+                  <Info className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold">Deployment plan ready</p>
-                  <p className="mt-1 text-xs leading-5 text-blue-100">
+                  <p className="font-medium text-foreground">Deployment plan ready</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
                     {suggestedLocations.length} recommended sites are available for review and export.
                   </p>
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setShowResultsNotice(false)}
-                  className="rounded-full p-1 text-blue-200 transition hover:bg-white/10 hover:text-white"
                   aria-label="Dismiss deployment plan notification"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}
@@ -366,22 +353,22 @@ export default function Index() {
 
       {showInfo ? (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl bg-card p-6 shadow-2xl">
+          <div className="w-full max-w-lg rounded-lg border border-border bg-card p-6 shadow-lg">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="mb-3 inline-flex rounded-xl bg-accent p-2 text-primary">
+                <div className="mb-3 inline-flex rounded-md bg-muted p-2 text-primary">
                   <Info className="h-5 w-5" />
                 </div>
-                <h2 className="text-xl font-bold text-foreground">How to build a deployment plan</h2>
+                <h2 className="text-lg font-medium text-foreground">How to build a deployment plan</h2>
               </div>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowInfo(false)}
-                className="rounded-full p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
                 aria-label="Close site locator guide"
               >
                 <X className="h-5 w-5" />
-              </button>
+              </Button>
             </div>
             <div className="mt-5 grid gap-3">
               {[
@@ -390,8 +377,8 @@ export default function Index() {
                 ["3", "Define spacing", "Choose the number of sensors and minimum distance between recommended sites."],
                 ["4", "Generate and export", "Review the suggested sites, then save the map or download the coordinates."],
               ].map(([step, title, description]) => (
-                <div key={step} className="flex gap-3 rounded-2xl border border-border p-4">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-700 text-sm font-bold text-white">
+                <div key={step} className="flex gap-3 rounded-md border border-border p-4">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-sm font-medium text-primary">
                     {step}
                   </div>
                   <div>

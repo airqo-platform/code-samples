@@ -26,7 +26,7 @@ const future: ToolCard[] = [
 
 function ToolGrid({ items }: { items: ToolCard[] }) {
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {items.map((card) => (
         <FeatureCard key={card.title} title={card.title} description={card.description} Icon={card.Icon} href={card.href} openInNewTab imageSrc={card.imageSrc} />
       ))}
@@ -37,9 +37,10 @@ function ToolGrid({ items }: { items: ToolCard[] }) {
 export default function AIModels() {
   return (
     <PageShell>
-      <Section>
+      <Section compact>
         <Container>
           <SectionHeading
+            as="h1"
             eyebrow="AI Models"
             title="AI Models at AirQo"
             description="At AirQo, we leverage cutting-edge AI to revolutionize air quality monitoring across African cities. Explore our innovative models driving real-time insights, predictive analytics, and community empowerment."
@@ -48,16 +49,16 @@ export default function AIModels() {
       </Section>
       <Section>
         <Container>
-          <SectionHeading title="Our AI-Powered Tools" />
-          <div className="mt-8">
+          <h2 className="text-2xl font-medium tracking-tight">Our AI-Powered Tools</h2>
+          <div className="mt-6">
             <ToolGrid items={tools} />
           </div>
         </Container>
       </Section>
       <Section muted>
         <Container>
-          <SectionHeading title="Future Works" />
-          <div className="mt-8">
+          <h2 className="text-2xl font-medium tracking-tight">Future Works</h2>
+          <div className="mt-6">
             <ToolGrid items={future} />
           </div>
         </Container>

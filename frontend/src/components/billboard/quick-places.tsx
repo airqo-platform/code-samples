@@ -46,11 +46,11 @@ export default function QuickPlaces({ grids, countries, place, country, onSelect
   ).slice(0, 5)
   const favourite = saved?.some(item => item.id === place?._id)
   return <section aria-label="Quick places" className="space-y-3">
-    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold">Your quick places</p>{place && country && <button type="button" onClick={() => toggle(place._id, country._id)} aria-pressed={Boolean(favourite)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm text-primary focus-visible:ring-2 focus-visible:ring-blue-500"><Star size={16} fill={favourite ? "currentColor" : "none"} />{favourite ? "Remove favourite" : "Save favourite"}</button>}</div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-medium">Your quick places</p>{place && country && <button type="button" onClick={() => toggle(place._id, country._id)} aria-pressed={Boolean(favourite)} className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-sm text-primary focus-visible:ring-2 focus-visible:ring-ring"><Star size={16} fill={favourite ? "currentColor" : "none"} />{favourite ? "Remove favourite" : "Save favourite"}</button>}</div>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">{shortcuts.map(item => {
       const grid = grids.find(g => g._id === item.id)!
       const flag = countryFlagUrl(countries.find(g => g._id === item.country)!)
-      return <button key={item.id} type="button" aria-pressed={place?._id === item.id} onClick={() => onSelect(item.id, item.country)} className={`relative flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border p-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-blue-500 ${place?._id === item.id ? "border-blue-600 bg-accent text-primary" : "border-border hover:bg-accent"}`}>
+      return <button key={item.id} type="button" aria-pressed={place?._id === item.id} onClick={() => onSelect(item.id, item.country)} className={`relative flex min-h-20 flex-col items-center justify-center gap-2 rounded-md border p-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-ring ${place?._id === item.id ? "border-primary bg-accent text-primary" : "border-border hover:bg-accent"}`}>
         {flag && <img src={flag} alt="" width={32} height={22} className="h-[22px] w-8 rounded-sm object-cover" />}
         <span className="w-full break-words text-center">{(grid.long_name || grid.name).replace(/_/g, " ")}</span>
         {saved?.some(saved => saved.id === item.id) && <Star aria-label="Favourite" size={10} fill="currentColor" className="absolute right-1 top-1 text-primary" />}

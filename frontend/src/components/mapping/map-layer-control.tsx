@@ -62,7 +62,7 @@ export function MapLayerControl({ onStyleChange, currentStyle }: MapLayerControl
           ref={modalRef}
           role="dialog"
           aria-label="Map style selector"
-          className="absolute top-16 right-0 max-h-[calc(100vh-200px)] overflow-y-auto bg-card rounded-xl shadow-2xl p-6 w-[340px] z-[2000] border border-border"
+          className="absolute top-16 right-0 max-h-[calc(100vh-200px)] overflow-y-auto bg-card rounded-lg shadow-lg p-6 w-[340px] z-[2000] border border-border"
         >
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-2">
@@ -82,7 +82,7 @@ export function MapLayerControl({ onStyleChange, currentStyle }: MapLayerControl
           >
             {MAP_STYLE_OPTIONS.map((style) => (
               <RadioGroupItem key={style.id} value={style.id}>
-                <div className="relative h-24 w-full bg-muted rounded-t-lg overflow-hidden">
+                <div className="relative h-24 w-full bg-muted rounded-t-md overflow-hidden">
                   <Image src={style.previewUrl || "/placeholder.svg"} alt={style.label} fill className="object-cover" />
                 </div>
                 <div className="p-3 text-center">

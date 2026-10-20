@@ -59,16 +59,16 @@ export function FeaturePage({
       {/* Hero */}
       <Section>
         <Container>
-          <div className="grid items-center gap-10 lg:grid-cols-2">
-            <div className="space-y-6">
+          <div className="grid items-start gap-8 lg:grid-cols-2">
+            <div className="max-w-3xl space-y-5">
               <Badge variant="accent">
                 <Icon className="h-4 w-4" />
                 {badge}
               </Badge>
-              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">{title}</h1>
-              <p className="mt-4 text-base leading-7 text-muted-foreground sm:text-lg">{description}</p>
-              <div className="flex flex-col gap-4 sm:flex-row">
-                <Button asChild size="xl">
+              <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">{title}</h1>
+              <p className="text-base leading-7 text-muted-foreground">{description}</p>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button asChild size="lg">
                   {primaryAction.external ? (
                     <a href={primaryAction.href} target="_blank" rel="noopener noreferrer">
                       {primaryAction.label}
@@ -77,35 +77,32 @@ export function FeaturePage({
                     <Link href={primaryAction.href}>{primaryAction.label}</Link>
                   )}
                 </Button>
-                <Button asChild size="xl" variant="outline">
+                <Button asChild size="lg" variant="outline">
                   <Link href="/">Back to Home</Link>
                 </Button>
               </div>
             </div>
             <div className="space-y-4">
-              <div className="surface p-6 sm:p-8">
+              <div className="rounded-lg border border-border bg-card p-5 sm:p-6">
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 grid h-10 w-10 place-items-center rounded-lg bg-accent text-accent-foreground">
-                    <Icon className="h-5 w-5" />
-                  </div>
+                  <Icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
                   <div>
-                    <h3 className="text-xl font-semibold">{info.title}</h3>
-                    <p className="text-muted-foreground">{info.description}</p>
+                    <h3 className="text-lg font-medium">{info.title}</h3>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{info.description}</p>
                   </div>
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div className="surface-muted p-4">
-                    <p className="mb-1 text-sm font-semibold text-accent-foreground">Inputs</p>
-                    <p className="text-sm text-muted-foreground">{info.inputs}</p>
+                  <div className="rounded-md border border-border bg-muted/50 p-4">
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">Inputs</p>
+                    <p className="text-sm leading-6 text-muted-foreground">{info.inputs}</p>
                   </div>
-                  <div className="surface-muted p-4">
-                    <p className="mb-1 text-sm font-semibold text-accent-foreground">Outputs</p>
-                    <p className="text-sm text-muted-foreground">{info.outputs}</p>
+                  <div className="rounded-md border border-border bg-muted/50 p-4">
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">Outputs</p>
+                    <p className="text-sm leading-6 text-muted-foreground">{info.outputs}</p>
                   </div>
                 </div>
               </div>
-              <div className="relative aspect-[10/7] overflow-hidden rounded-2xl border border-border">
-                <div className="absolute inset-0 z-10 bg-gradient-to-tr from-blue-950/50 via-transparent to-transparent" />
+              <figure className="relative m-0 aspect-[10/7] overflow-hidden rounded-md border border-border bg-muted/40">
                 <Image
                   src={image.src}
                   alt={image.alt}
@@ -113,29 +110,27 @@ export function FeaturePage({
                   sizes="(min-width:1024px) 40vw, 100vw"
                   className="object-cover"
                 />
-                <span className="absolute bottom-4 left-4 z-20 rounded-lg bg-background/90 px-4 py-2 text-sm font-semibold text-foreground backdrop-blur">
+                <figcaption className="absolute bottom-3 left-3 rounded-md bg-card/90 px-3 py-1.5 text-xs font-medium text-foreground">
                   {image.caption}
-                </span>
-              </div>
+                </figcaption>
+              </figure>
             </div>
           </div>
         </Container>
       </Section>
 
       {/* Methods */}
-      <Section>
+      <Section compact>
         <Container>
           <SectionHeading title={methodTitle} />
-          <div className={["mt-8 grid gap-4", methodGrid].join(" ")}>
+          <div className={["mt-6 grid gap-4", methodGrid].join(" ")}>
             {methods.map((method) => {
               const MethodIcon = method.icon
               return (
-                <div key={method.title} className="surface h-full p-5 transition hover:shadow-md">
-                  <div className="mb-4 grid h-10 w-10 place-items-center rounded-lg bg-accent text-accent-foreground">
-                    <MethodIcon className="h-5 w-5" />
-                  </div>
-                  <h3 className="mb-2 text-lg font-semibold">{method.title}</h3>
-                  <p className="text-sm text-muted-foreground">{method.description}</p>
+                <div key={method.title} className="h-full rounded-md border border-border bg-card p-5 shadow-sm">
+                  <MethodIcon className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <h3 className="mt-3 text-base font-medium">{method.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{method.description}</p>
                 </div>
               )
             })}
@@ -149,32 +144,32 @@ export function FeaturePage({
       {/* Deliverables */}
       <Section muted>
         <Container>
-          <div className="grid items-start gap-10 lg:grid-cols-2">
-            <div className="surface p-6 sm:p-8">
-              <h2 className="text-2xl font-bold">{deliverables.title}</h2>
-              <p className="mt-2 text-muted-foreground">{deliverables.description}</p>
+          <div className="grid items-start gap-8 lg:grid-cols-2">
+            <div className="rounded-lg border border-border bg-card p-6 sm:p-8 shadow-sm">
+              <h2 className="text-2xl font-medium tracking-tight">{deliverables.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{deliverables.description}</p>
               <ul className="mt-4 space-y-3">
                 {deliverables.items.map((item) => (
                   <li key={item} className="flex items-start gap-3">
-                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" />
-                    <span className="text-muted-foreground">{item}</span>
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" aria-hidden="true" />
+                    <span className="text-sm leading-6 text-muted-foreground">{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="rounded-2xl bg-gradient-to-br from-blue-700 via-blue-600 to-blue-500 p-6 text-white shadow-lg sm:p-8">
-              <h2 className="text-2xl font-bold">{panel.title}</h2>
-              <p className="mt-2 text-blue-50">{panel.description}</p>
+            <div className="rounded-lg border border-border bg-muted/50 p-6 sm:p-8">
+              <h2 className="text-2xl font-medium tracking-tight">{panel.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{panel.description}</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 {panel.items.map((item) => (
-                  <div key={item.title} className="rounded-xl border border-white/20 bg-white/10 p-4">
-                    <p className="text-sm font-semibold">{item.title}</p>
-                    <p className="mt-1 text-sm text-blue-50">{item.description}</p>
+                  <div key={item.title} className="rounded-md border border-border bg-card p-4">
+                    <p className="text-sm font-medium">{item.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.description}</p>
                   </div>
                 ))}
               </div>
               <div className="mt-6">
-                <Button asChild variant="secondary" className="bg-white text-blue-800 hover:bg-blue-50">
+                <Button asChild variant="default">
                   {panel.action.external ? (
                     <a href={panel.action.href} target="_blank" rel="noopener noreferrer">
                       {panel.action.label}

@@ -55,7 +55,7 @@ export function SearchField({
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             className={cn(
-              "h-11 rounded-xl border-border bg-card",
+              "h-10 rounded-md border-input bg-background",
               LeadingIcon ? "pl-9" : "",
               clearable && value ? "pr-9" : "",
             )}
@@ -76,7 +76,7 @@ export function SearchField({
         <Button
           type="submit"
           size="icon"
-          className="h-11 w-11 shrink-0 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+          className="h-10 w-10 shrink-0 rounded-md"
           disabled={loading || !value.trim()}
           aria-label={submitLabel}
         >
@@ -85,12 +85,12 @@ export function SearchField({
       </form>
 
       {showSuggestions && (
-        <ul className="absolute z-[1200] mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl">
+        <ul className="absolute z-[1200] mt-2 max-h-64 w-full overflow-y-auto rounded-md border border-border bg-card p-1 shadow-md">
           {suggestions.map((suggestion) => (
             <li key={suggestion.key}>
               <button
                 type="button"
-                className="w-full rounded-lg p-2.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-primary"
+                className="w-full rounded-md p-2.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-primary"
                 onMouseDown={(e) => {
                   e.preventDefault()
                 }}

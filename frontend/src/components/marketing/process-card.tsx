@@ -15,21 +15,25 @@ export function ProcessCard({
   imageSrc?: string
 }) {
   return (
-    <div className="relative h-full overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+    <div className="flex h-full flex-col overflow-hidden rounded-md border border-border bg-card text-card-foreground shadow-sm">
       {imageSrc && (
-        <div className="absolute inset-0 w-full h-full">
-          <Image src={imageSrc} alt={title} fill className="object-cover brightness-75" />
+        <div className="relative aspect-[16/7] w-full overflow-hidden border-b border-border bg-muted/40">
+          <Image
+            src={imageSrc}
+            alt={title}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 33vw"
+          />
         </div>
       )}
-      <div className="relative z-10 flex flex-col items-center rounded-2xl bg-slate-950/70 p-5 text-white backdrop-blur-sm">
-        <div className="mb-4 rounded-full bg-white/80 p-2">{icon}</div>
-        <div className="relative mb-6 mt-2">
-          <div className="relative flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-400 rounded-full shadow-lg">
-            <span className="text-2xl font-bold text-white">{number}</span>
-          </div>
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs font-medium text-muted-foreground">{number}</span>
+          <span className="text-primary">{icon}</span>
         </div>
-        <h3 className="text-xl font-bold mb-3">{title}</h3>
-        <p className="text-center font-medium text-white/90">{description}</p>
+        <h3 className="mt-4 text-base font-medium text-foreground">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
     </div>
   )

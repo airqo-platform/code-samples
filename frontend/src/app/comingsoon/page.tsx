@@ -2,7 +2,7 @@ import Link from "next/link"
 import { PageShell } from "@/components/layout/page-shell"
 import { Container } from "@/components/layout/container"
 import { Section } from "@/components/layout/section"
-import { SectionHeading } from "@/components/layout/section-heading"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
 export default function ComingSoon() {
@@ -10,14 +10,17 @@ export default function ComingSoon() {
     <PageShell>
       <Section compact>
         <Container size="narrow">
-          <SectionHeading
-            eyebrow="Coming Soon"
-            title="AirQo AI: Coming Soon"
-            description="Revolutionizing air quality monitoring in African cities with AI-powered insights. Get ready for real-time data, advanced analytics, and community-driven solutions!"
-          />
-          <div className="mx-auto mt-8 max-w-md text-center surface p-6">
-            <h2 className="text-xl font-semibold mb-4">Stay in the Loop</h2>
-            <p className="text-muted-foreground">Newsletter sign-up is not open yet.</p>
+          <div className="mx-auto max-w-2xl text-center">
+            <Badge variant="accent">Coming Soon</Badge>
+            <h1 className="mt-4 text-2xl font-medium tracking-tight">AirQo AI: Coming Soon</h1>
+            <p className="mt-3 text-base leading-7 text-muted-foreground">
+              Revolutionizing air quality monitoring in African cities with AI-powered insights. Get ready for real-time
+              data, advanced analytics, and community-driven solutions!
+            </p>
+          </div>
+          <div className="mx-auto mt-6 max-w-md rounded-lg border border-border bg-card p-6 text-center shadow-sm">
+            <h2 className="text-lg font-medium">Stay in the Loop</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Newsletter sign-up is not open yet.</p>
             <div className="mt-4">
               <Button asChild>
                 <a href="https://airqo.net/contact-us" target="_blank" rel="noopener noreferrer">Contact AirQo</a>

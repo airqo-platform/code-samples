@@ -145,14 +145,14 @@ export default function ReportDataModal({
     <>
       {isGenerating && <ReportLoadingScreen />}
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-card p-0 text-foreground shadow-2xl">
-        <DialogHeader className="border-b border-border bg-muted/80 px-6 py-5">
+        <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-card p-0 text-foreground shadow-lg">
+        <DialogHeader className="border-b border-border bg-muted/40 px-6 py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
               <BarChart3 className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-xl font-bold">Customize report data</DialogTitle>
+              <DialogTitle className="text-lg font-medium">Customize report data</DialogTitle>
               <DialogDescription>
                 Confirm the monitoring sites and data settings for the date range selected above.
               </DialogDescription>
@@ -162,20 +162,20 @@ export default function ReportDataModal({
 
         <div className="flex-1 space-y-6 overflow-y-auto p-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.2fr_1fr]">
-            <div className="rounded-xl border border-primary/30 bg-accent/70 p-4">
-              <Label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+            <div className="rounded-md border border-border bg-muted/40 p-4">
+              <Label className="flex items-center gap-2 text-xs font-medium text-primary">
                 <Calendar className="h-4 w-4" /> Selected date range
               </Label>
-              <p className="mt-2 text-sm font-bold text-foreground">
+              <p className="mt-2 text-sm font-medium text-foreground">
                 {format(new Date(dateRange.startDate.slice(0, 10) + "T12:00:00Z"), "MMM d, yyyy")} - {format(new Date(dateRange.endDate.slice(0, 10) + "T12:00:00Z"), "MMM d, yyyy")}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">Change this period from the Date range control in Report filters.</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-muted/50 p-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 rounded-md border border-border bg-muted/40 p-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  <Layers className="h-4 w-4 text-cyan-600" /> Data type
+                <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Layers className="h-4 w-4 text-muted-foreground" /> Data type
                 </Label>
                 <Select value={dataType} onValueChange={(value: ReportDataOptions["dataType"]) => setDataType(value)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -186,7 +186,7 @@ export default function ReportDataModal({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Average by</Label>
+                <Label className="text-xs font-medium text-muted-foreground">Average by</Label>
                 <Select value={aggregation} onValueChange={onAggregationChange}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -200,7 +200,7 @@ export default function ReportDataModal({
           </div>
           <div className="space-y-3">
             <div className="flex flex-col justify-between gap-2 border-b border-border pb-2 sm:flex-row sm:items-center">
-              <Label className="flex items-center gap-2 text-sm font-bold">
+              <Label className="flex items-center gap-2 text-sm font-medium">
                 <MapPin className="h-4 w-4 text-primary" /> Sites
                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
                   {selectedSiteIds.length > 0
@@ -249,7 +249,7 @@ export default function ReportDataModal({
               </Select>
             </div>
 
-            <div className="max-h-64 divide-y divide-border overflow-y-auto rounded-xl border border-border">
+            <div className="max-h-64 divide-y divide-border overflow-y-auto rounded-md border border-border">
               {filteredSites.length === 0 ? (
                 <div className="p-6 text-center text-sm text-muted-foreground">No sites match these filters.</div>
               ) : (
@@ -262,7 +262,7 @@ export default function ReportDataModal({
                       onClick={() => toggleSite(id)}
                       className={
                         "flex cursor-pointer items-center justify-between px-3 py-2.5 hover:bg-accent/60 " +
-                        (checked ? "bg-accent/70" : "")
+                        (checked ? "bg-primary/5" : "")
                       }
                     >
                       <div className="flex min-w-0 items-center gap-2.5">
@@ -272,7 +272,7 @@ export default function ReportDataModal({
                           onCheckedChange={() => toggleSite(id)}
                         />
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">
+                          <p className="truncate text-sm font-medium">
                             {site.siteDetails?.name || site.siteDetails?.formatted_name || id}
                           </p>
                           <p className="truncate text-xs text-muted-foreground">
@@ -292,7 +292,7 @@ export default function ReportDataModal({
 
         </div>
 
-        <DialogFooter className="flex items-center justify-between border-t border-border bg-muted/80 px-6 py-4 sm:justify-between">
+        <DialogFooter className="flex items-center justify-between border-t border-border bg-muted/40 px-6 py-4 sm:justify-between">
           <span className="text-xs text-muted-foreground">{activeSiteCount} site(s) in this report</span>
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
@@ -300,7 +300,7 @@ export default function ReportDataModal({
               type="button"
               onClick={handleGenerateReport}
               disabled={!canGenerate || isGenerating || activeSiteCount === 0}
-              className="min-w-[145px] bg-blue-600 text-white hover:bg-blue-700"
+              className="min-w-[145px]"
             >
               {isGenerating ? (
                 <><Spinner size="sm" className="mr-2" /> Building...</>

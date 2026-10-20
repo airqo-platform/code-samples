@@ -28,13 +28,13 @@ function ControlSection({
   children: ReactNode
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+    <section className="rounded-md border border-border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-3">
-        <div className="rounded-xl bg-accent p-2 text-primary">
+        <div className="rounded-md bg-muted p-2 text-primary">
           {icon}
         </div>
         <div>
-          <h2 className="text-sm font-bold text-foreground">{title}</h2>
+          <h2 className="text-sm font-medium text-foreground">{title}</h2>
           {description && <p className="text-xs text-muted-foreground">{description}</p>}
         </div>
       </div>
@@ -167,10 +167,10 @@ export function ControlPanel({
     <div className="control-panel space-y-4">
       <ControlSection icon={<MapPinned className="h-4 w-4" />} title="Select an analysis area" description="Search for a known boundary or draw one on the map.">
         <SearchBar onSearch={() => {}} onBoundaryFound={onBoundaryFound} />
-        <div className={`mt-3 rounded-xl border px-3 py-2.5 text-xs ${
+        <div className={`mt-3 rounded-md border px-3 py-2.5 text-xs ${
           polygon.length >= 3
-            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-            : "border-amber-200 bg-amber-50 text-amber-800"
+            ? "border-success/30 bg-success/5 text-success"
+            : "border-warning/30 bg-warning/5 text-warning-foreground"
         }`}>
           {polygon.length >= 3
             ? `Boundary ready with ${polygon.length} points.`
@@ -185,9 +185,7 @@ export function ControlPanel({
             type="button"
             variant={isSelectingPriority ? "default" : "outline"}
             onClick={() => onSelectingPriorityChange(!isSelectingPriority)}
-            className={`h-11 w-full gap-2 rounded-xl ${
-              isSelectingPriority ? "bg-emerald-600 text-white hover:bg-emerald-500" : "bg-card"
-            }`}
+            className="h-11 w-full gap-2"
           >
             <Crosshair className="h-4 w-4" />
             {isSelectingPriority ? "Click the map to add points" : "Pick priority points on map"}
@@ -204,7 +202,7 @@ export function ControlPanel({
                   value={newLat}
                   onChange={(e) => setNewLat(e.target.value)}
                   step="any"
-                  className="h-11 rounded-xl border-border bg-muted focus-visible:bg-card"
+                  className="h-11"
                 />
               </Field>
               <Field label="Longitude" htmlFor="priority-lng" required>
@@ -215,16 +213,16 @@ export function ControlPanel({
                   value={newLng}
                   onChange={(e) => setNewLng(e.target.value)}
                   step="any"
-                  className="h-11 rounded-xl border-border bg-muted focus-visible:bg-card"
+                  className="h-11"
                 />
               </Field>
-              <Button onClick={handleAddLocation} aria-label="Add Location" className="col-span-2 gap-2 rounded-xl bg-blue-700 text-white hover:bg-blue-600">
+              <Button onClick={handleAddLocation} aria-label="Add Location" className="col-span-2 gap-2">
                 <Plus className="h-4 w-4" />
                 Add priority point
               </Button>
             </div>
-            <div className="mt-3 rounded-xl border border-dashed border-border bg-muted p-3">
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+            <div className="mt-3 rounded-md border border-dashed border-border bg-muted/40 p-3">
+              <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
                 <Upload className="h-3.5 w-3.5" />
                 Upload coordinates
               </div>
@@ -232,7 +230,7 @@ export function ControlPanel({
             </div>
           </AccordionItem>
         </Accordion>
-        <div className="mt-3 flex items-center justify-between rounded-xl bg-muted px-3 py-2">
+        <div className="mt-3 flex items-center justify-between rounded-md bg-muted px-3 py-2">
           <span className="text-xs text-muted-foreground">{mustHaveLocations.length} priority locations added</span>
           {mustHaveLocations.length > 0 ? (
             <button
@@ -256,7 +254,7 @@ export function ControlPanel({
               min="1"
               value={numSensors}
               onChange={(e) => setNumSensors(e.target.value)}
-              className="h-11 rounded-xl border-border bg-muted focus-visible:bg-card"
+              className="h-11 rounded-md border-border bg-muted focus-visible:bg-card"
             />
           </Field>
           <Field label="Min. spacing (km)" htmlFor="min-distance">
@@ -267,22 +265,20 @@ export function ControlPanel({
               step="0.1"
               value={minDistance}
               onChange={(e) => setMinDistance(e.target.value)}
-              className="h-11 rounded-xl border-border bg-muted focus-visible:bg-card"
+              className="h-11 rounded-md border-border bg-muted focus-visible:bg-card"
             />
           </Field>
         </div>
       </ControlSection>
 
       <Button
-        className="h-12 w-full gap-2 rounded-xl bg-blue-700 text-white shadow-lg shadow-blue-700/20 hover:bg-blue-600"
+        className="h-11 w-full gap-2"
         onClick={handleSubmit}
         disabled={isLoading}
         aria-label="Submit"
       >
         {isLoading ? (
-          <Spinner size="sm" className="text-white" label="Submitting...">
-            <span className="sr-only">Submitting...</span>
-          </Spinner>
+          <Spinner size="sm" label="Submitting..." />
         ) : (
           <>
             <Sparkles className="h-4 w-4" />

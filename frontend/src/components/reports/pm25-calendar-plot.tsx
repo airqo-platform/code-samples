@@ -151,7 +151,7 @@ export function PM25CalendarPlot({ sites, language = "en" }: { sites: SiteData[]
   const years = Array.from(new Set(dailyAverages.map((average) => new Date(average.timestamp).getUTCFullYear())))
 
   return (
-    <section ref={chartRef} className="pdf-keep-together overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+    <section ref={chartRef} className="pdf-keep-together overflow-hidden rounded-md border border-border bg-card shadow-sm">
       {years.map((year, yearIndex) => {
         const yearValues = dailyAverages.filter((average) => new Date(average.timestamp).getUTCFullYear() === year)
         const values = yearValues.map((average) => average.value)
@@ -170,9 +170,9 @@ export function PM25CalendarPlot({ sites, language = "en" }: { sites: SiteData[]
 
         return (
           <div key={year} className={yearIndex > 0 ? "border-t border-border" : undefined}>
-            <div className="flex flex-col gap-3 border-b border-border bg-gradient-to-r from-accent to-indigo-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 border-b border-border bg-muted/40 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-center sm:text-left">
-                <h4 className="flex items-center justify-center gap-2 text-lg font-bold text-primary sm:justify-start md:text-xl">
+                <h4 className="flex items-center justify-center gap-2 text-base font-medium text-foreground sm:justify-start md:text-lg">
                   <CalendarDays className="h-5 w-5" />
                   {t("calendarPlot")}: {year}
                 </h4>
@@ -181,7 +181,7 @@ export function PM25CalendarPlot({ sites, language = "en" }: { sites: SiteData[]
               {yearIndex === 0 && (
                 <div data-chart-export-control>
                   <Select value={downloadValue} onValueChange={handleDownloadChange}>
-                    <SelectTrigger className="h-9 w-full rounded-xl bg-card sm:w-[130px]">
+                    <SelectTrigger className="h-9 w-full rounded-md bg-card sm:w-[130px]">
                       <SelectValue placeholder={copy.export} />
                     </SelectTrigger>
                     <SelectContent>
@@ -205,9 +205,9 @@ export function PM25CalendarPlot({ sites, language = "en" }: { sites: SiteData[]
                 .filter(({ month }) => monthsWithData.has(month))
                 .map(({ monthName, month }) => (
                 <div key={monthName} className="w-full min-w-0 sm:w-[calc(50%-0.5rem)] lg:w-[calc(25%-0.75rem)]">
-                  <h5 className="mb-1 text-center text-sm font-bold text-primary">{monthName}</h5>
+                  <h5 className="mb-1 text-center text-sm font-medium text-foreground">{monthName}</h5>
                   <div className="grid grid-cols-7 gap-px overflow-hidden rounded bg-card">
-                    {weekdays.map((weekday) => <div key={weekday} className="pb-1 text-center text-[9px] font-semibold text-muted-foreground">{weekday}</div>)}
+                    {weekdays.map((weekday) => <div key={weekday} className="pb-1 text-center text-[9px] font-medium text-muted-foreground">{weekday}</div>)}
                     {getCalendarCells(year, month, valuesByDate).map((cell, index) => cell ? (
                       <div
                         key={cell.dateKey}
@@ -227,7 +227,7 @@ export function PM25CalendarPlot({ sites, language = "en" }: { sites: SiteData[]
             </div>
 
             <div className="space-y-3 border-t border-border px-4 py-4 text-xs text-muted-foreground">
-              <div className="mx-auto w-fit rounded-lg border border-blue-500 px-3 py-1.5 text-center">
+              <div className="mx-auto w-fit rounded-lg border border-primary px-3 py-1.5 text-center">
                 {copy.daysWithData}: {yearValues.length}&nbsp; | &nbsp;{copy.missingDays}: {missingDays}
               </div>
               <div className="flex flex-nowrap items-center justify-start gap-x-2 overflow-x-auto pb-1 text-[8px] leading-none sm:justify-center sm:text-[9px] lg:gap-x-3">

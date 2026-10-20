@@ -16,10 +16,10 @@ export default function ScanBillboard({ url, downloadable = false }: { url: stri
   }
   return <div className="flex items-center gap-4">
     <div ref={code} className="shrink-0 rounded-lg bg-white p-1">
-      <a href={url} aria-label="Open this air quality billboard on your device" className="block rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+      <a href={url} aria-label="Open this air quality billboard on your device" className="block rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <QRCodeSVG value={url} size={128} level="M" marginSize={4} fgColor="#000000" bgColor="#ffffff" title="Scan to view this air quality" />
       </a>
     </div>
-    <div className="max-w-52"><p className="text-sm font-bold">Scan to view<br />this air quality</p><p className="mt-1 text-xs opacity-80">Readings, forecasts and advice on your phone.</p>{downloadable && <button type="button" onClick={download} className="mt-3 rounded-lg border border-current px-3 py-2 text-xs font-semibold focus-visible:ring-2 focus-visible:ring-blue-500">Download QR code</button>}</div>
+    <div className="max-w-52"><p className="text-sm font-medium">Scan to view<br />this air quality</p><p className="mt-1 text-xs opacity-80">Readings, forecasts and advice on your phone.</p>{downloadable && <button type="button" onClick={download} className="mt-3 rounded-md border border-current px-3 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-ring">Download QR code</button>}</div>
   </div>
 }

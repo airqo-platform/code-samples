@@ -4,12 +4,10 @@ import { Container } from "./container"
 export function SiteFooter() {
   const year = new Date().getFullYear()
   return (
-    <footer className="border-t border-border bg-muted/40">
-      <Container className="flex flex-col items-center justify-between gap-4 py-8 sm:flex-row">
-        <p className="text-sm text-muted-foreground">
-          &copy; {year} AirQo. All rights reserved.
-        </p>
-        <nav className="flex items-center gap-6 text-sm text-muted-foreground">
+    <footer className="border-t border-border">
+      <Container className="flex flex-col items-center justify-center gap-4 py-6 text-xs text-muted-foreground sm:flex-row sm:justify-between">
+        <p>&copy; {year} AirQo. All rights reserved.</p>
+        <nav className="flex items-center gap-6">
           <Link href="/" className="transition-colors hover:text-foreground">
             Home
           </Link>

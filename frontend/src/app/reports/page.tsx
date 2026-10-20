@@ -112,7 +112,9 @@ export default function ReportPage() {
   return (
     <div className="flex min-h-screen flex-col bg-muted/40 text-foreground">
       <Navigation />
-      <ReportContent />
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        <ReportContent />
+      </main>
     </div>
   )
 }
@@ -352,9 +354,9 @@ function ReportContent() {
 
   const getChangeIcon = (trend: number): ReactNode => {
     if (trend < 0) {
-      return <ArrowDown className="text-green-500 w-8 h-8" />
+      return <ArrowDown className="text-success w-8 h-8" />
     } else if (trend > 0) {
-      return <ArrowUp className="text-red-500 w-8 h-8" />
+      return <ArrowUp className="text-destructive w-8 h-8" />
     } else {
       return <Minus className="text-muted-foreground w-8 h-8" />
     }
@@ -1261,22 +1263,22 @@ function ReportContent() {
         isRetrying={isGeneratingPDF}
       />
       <header className="mb-8 border-b border-border px-1 pb-6 text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Air Quality Reports</h1>
+        <h1 className="text-2xl font-medium tracking-tight text-foreground">Air Quality Reports</h1>
         <p className="mx-auto mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
           Compare recent air quality conditions across monitoring sites and build a focused report for the locations that matter.
         </p>
       </header>
 
       {/* Filters */}
-      <div className="mb-8 rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-blue-50/50 p-5 shadow-lg shadow-slate-200/50 sm:p-6">
+      <div className="mb-8 rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-bold text-foreground">Filter report visuals</h2>
+            <h2 className="text-base font-medium text-foreground">Filter report visuals</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Use one date range and geographic selection across every chart, map, summary, and recommendation.
             </p>
           </div>
-          <Button variant="outline" onClick={resetFilters} disabled={!siteData.length} className="w-full rounded-xl border-border bg-card md:w-auto">
+          <Button variant="outline" onClick={resetFilters} disabled={!siteData.length} className="w-full md:w-auto">
             Reset Filters
           </Button>
         </div>
@@ -1340,19 +1342,17 @@ function ReportContent() {
 
       {isReportDataLoading && (
         <div
-          className="mb-8 overflow-hidden rounded-3xl border border-border bg-card p-6 shadow-lg shadow-blue-100/50"
+          className="mb-8 overflow-hidden rounded-lg border border-border bg-card p-6 shadow-sm"
           role="status"
           aria-live="polite"
         >
           <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-accent ring-8 ring-blue-50/60">
-              <Spinner size="md" />
-            </div>
+            <Spinner size="md" className="text-primary" />
             <div className="flex-1">
-              <p className="font-semibold text-foreground">Preparing your air quality overview</p>
+              <p className="font-medium text-foreground">Preparing your air quality overview</p>
               <p className="mt-1 text-sm text-muted-foreground">Loading monitoring sites, recent readings, and report filters.</p>
               <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted">
-                <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-blue-600 to-cyan-400" />
+                <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
               </div>
             </div>
           </div>
@@ -1362,10 +1362,10 @@ function ReportContent() {
       {siteData.length > 0 ? (
         <>
       {/* Filter summary */}
-      <div className="mb-8 rounded-2xl border border-border bg-gradient-to-r from-accent via-card to-cyan-50/60 p-4 shadow-sm">
+      <div className="mb-8 rounded-md border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-xs font-bold uppercase tracking-[0.14em] text-primary">Active filters</span>
+          <span className="mr-1 text-xs font-medium text-muted-foreground">Active filters</span>
           {hasActiveFilters ? (
             <>
               {(["country", "city", "district", "category"] as (keyof Filters)[]).map((key) =>
@@ -1374,7 +1374,7 @@ function ReportContent() {
                     type="button"
                     key={`${key}-${value}`}
                     onClick={() => removeFilterValue(key, value)}
-                    className="group inline-flex items-center gap-1 rounded-full border border-primary/30 bg-accent px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-accent"
+                    className="group inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent"
                   >
                     <span className="capitalize">{key}:</span> {value}
                     <X className="h-3 w-3 opacity-70 group-hover:opacity-100" />
@@ -1387,7 +1387,7 @@ function ReportContent() {
             <span className="text-sm text-muted-foreground">None selected, showing the complete network.</span>
           )}
           </div>
-          <div className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white">
+          <div className="rounded-md bg-muted px-3 py-1.5 text-sm font-medium text-foreground">
             Showing {filteredData.length} of {(customReportData ?? siteData).length} sites
           </div>
         </div>
@@ -1395,15 +1395,15 @@ function ReportContent() {
 
       {/* Selected Devices Counter */}
       {selectedDevices.length > 0 && (
-        <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-600 p-5 text-white shadow-lg shadow-blue-900/15">
+        <div className="mb-8 rounded-lg border border-border bg-card p-5 shadow-sm">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <div className="bg-card text-primary rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mr-4">
+              <div className="mr-3 flex items-center justify-center rounded-md bg-primary/10 px-3 py-2 text-lg font-medium text-primary">
                 {selectedDevices.length}
               </div>
               <div>
-                <h3 className="text-xl font-bold">Devices Selected</h3>
-                <p className="text-blue-100">
+                <h3 className="text-base font-medium text-foreground">Devices Selected</h3>
+                <p className="text-sm text-muted-foreground">
                   {selectedDevices.length === 1
                     ? "1 device selected for reporting"
                     : `${selectedDevices.length} devices selected for reporting`}
@@ -1414,7 +1414,7 @@ function ReportContent() {
               <Button
                 variant="outline"
                 onClick={clearDeviceSelection}
-                className="rounded-xl border-white bg-transparent text-white hover:bg-blue-700"
+                className=""
               >
                 Clear All
               </Button>
@@ -1429,22 +1429,22 @@ function ReportContent() {
                 if (selectedCount === 0) return null
 
                 return (
-                  <div key={`selected-${category}`} className="min-w-0 rounded-xl bg-blue-700 p-2 text-center">
-                    <div className="break-words text-sm text-blue-200">{category}</div>
-                    <div className="text-lg font-bold">{selectedCount} selected</div>
+                  <div key={`selected-${category}`} className="min-w-0 rounded-md bg-muted p-2 text-center">
+                    <div className="break-words text-xs text-muted-foreground">{category}</div>
+                    <div className="text-sm font-medium text-foreground">{selectedCount} selected</div>
                   </div>
                 )
               })}
             </div>
           )}
 
-          <div className="mt-4 pt-4 border-t border-blue-500">
+          <div className="mt-4 pt-4 border-t border-border">
             <div className="flex justify-between items-center">
-              <p className="text-blue-100">Generate a report with your selected devices</p>
+              <p className="text-sm text-muted-foreground">Generate a report with your selected devices</p>
               <Button
                 onClick={() => handleGenerateReport()}
                 disabled={!hasRequiredReportScope || reportGenerating}
-                className="rounded-xl bg-card text-primary hover:bg-accent disabled:opacity-60"
+                className="disabled:opacity-60"
               >
                 {reportGenerating ? (
                   <>
@@ -1461,15 +1461,14 @@ function ReportContent() {
       )}
 
       {/* Device Search and Selection */}
-      <div className="mb-8 rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <div className="mb-8 rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-col md:flex-row justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold mb-2 md:mb-0">Device Selection</h2>
+          <h2 className="text-base font-medium mb-2 md:mb-0">Device Selection</h2>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={selectAllDevices} size="sm" 
-            className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button variant="outline" onClick={selectAllDevices} size="sm">
               {filteredData.length > MAX_RANDOM_SITE_SELECTION ? "Select Random 20" : "Select All"}
             </Button>
-            <Button variant="outline" onClick={clearDeviceSelection} size="sm" className="rounded-xl">
+            <Button variant="outline" onClick={clearDeviceSelection} size="sm">
               Clear All
             </Button>
           </div>
@@ -1481,16 +1480,16 @@ function ReportContent() {
               placeholder="Search devices by name, city, or country"
               value={deviceSearch}
               onChange={(e) => handleDeviceSearch(e.target.value)}
-              className="h-11 flex-1 rounded-xl border-border bg-muted focus-visible:bg-card"
+              className="flex-1"
             />
             <Button
               onClick={() => handleGenerateReport()}
               disabled={!hasRequiredReportScope || reportGenerating}
-              className="rounded-xl bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap"
+              className="whitespace-nowrap"
             >
               {reportGenerating ? (
                 <>
-                  <Spinner size="sm" className="mr-2 [&>svg]:text-white" />
+                  <Spinner size="sm" className="mr-2" />
                   Generating...
                 </>
               ) : (
@@ -1503,7 +1502,7 @@ function ReportContent() {
             {getFilteredDevices()
               .slice(0, 9)
               .map((site) => (
-                <div key={getSiteSelectionId(site)} className="flex items-center space-x-2 rounded-xl border border-border bg-muted p-2.5">
+                <div key={getSiteSelectionId(site)} className="flex items-center space-x-2 rounded-md border border-border bg-muted/40 p-2.5">
                   <Checkbox
                     id={getSiteCheckboxId(site)}
                     checked={selectedDevices.includes(getSiteSelectionId(site))}
@@ -1530,15 +1529,15 @@ function ReportContent() {
       </div>
 
       {/* Report Action Buttons */}
-      <div className={`mb-4 rounded-2xl border px-4 py-3 ${
+      <div className={`mb-4 rounded-md border px-4 py-3 ${
         hasRequiredReportScope
-          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-          : "border-amber-200 bg-amber-50 text-amber-900"
+          ? "border-success/30 bg-success/5 text-foreground"
+          : "border-warning/30 bg-warning/5 text-foreground"
       }`}>
         <div className="flex items-start gap-3">
-          <div className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${hasRequiredReportScope ? "bg-emerald-500" : "bg-amber-500"}`} />
+          <div className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${hasRequiredReportScope ? "bg-success" : "bg-warning"}`} />
           <div>
-            <p className="text-sm font-bold">{hasRequiredReportScope ? "Report scope ready" : "Choose a report area"}</p>
+            <p className="text-sm font-medium">{hasRequiredReportScope ? "Report scope ready" : "Choose a report area"}</p>
             <p className="mt-0.5 text-xs leading-5 opacity-80">
               {hasRequiredReportScope
                 ? `The report will use ${filters.district.length ? "district" : "city"}-level data for the selected date range.`
@@ -1561,7 +1560,6 @@ function ReportContent() {
             handleGenerateReport()
           }}
           disabled={(!showReportOnPage && !hasRequiredReportScope) || reportGenerating}
-          className="bg-green-600 text-white hover:bg-green-700"
         >
           {reportGenerating
             ? "Generating report..."
@@ -1574,7 +1572,7 @@ function ReportContent() {
         <Button
           onClick={() => setIsReportDataModalOpen(true)}
           disabled={!hasRequiredReportScope || reportGenerating}
-          className="bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+          variant="outline"
         >
           <CalendarRange className="mr-2 h-4 w-4" />
           Customize data & sites
@@ -1590,7 +1588,7 @@ function ReportContent() {
                 setFilteredData(filterSites(siteData, filters))
               }
             }}
-            className="bg-gray-600 text-white hover:bg-gray-700"
+            variant="outline"
           >
             {customReportData ? "Use Latest Data" : "Back to All Data"}
           </Button>
@@ -1598,9 +1596,9 @@ function ReportContent() {
       </div>
 
       {showReportOnPage && (
-        <div id="report-section" className="mb-8 bg-card rounded-lg shadow-lg p-6 border border-border">
+        <div id="report-section" className="mb-8 rounded-lg border border-border bg-card p-6 shadow-sm">
           <div className="mb-5 flex w-full flex-wrap items-stretch justify-end gap-2.5 border-b border-border pb-4 lg:flex-nowrap">
-            <div className="group order-last flex h-12 w-fit max-w-full flex-none items-center gap-2.5 rounded-xl border border-border bg-card px-4 text-muted-foreground shadow-sm transition hover:border-slate-400 hover:shadow-md focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 lg:ml-auto">
+            <div className="group order-last flex h-12 w-fit max-w-full flex-none items-center gap-2.5 rounded-md border border-border bg-card px-4 text-muted-foreground shadow-sm lg:ml-auto">
               <Globe className="h-6 w-6 shrink-0 stroke-[1.7] text-muted-foreground" />
               <span className="whitespace-nowrap text-sm font-medium sm:text-base">{t("reportLanguage")}:</span>
               <Select
@@ -1609,14 +1607,14 @@ function ReportContent() {
               >
                 <SelectTrigger
                   aria-label={t("reportLanguage")}
-                  className="h-9 w-auto min-w-[108px] gap-2 border-0 bg-transparent p-0 text-sm font-bold text-foreground shadow-none ring-offset-0 hover:text-primary focus:ring-0 focus:ring-offset-0 sm:text-base [&>svg]:h-4 [&>svg]:w-4 [&>svg]:text-muted-foreground [&>svg]:opacity-100"
+                  className="h-9 w-auto min-w-[108px] gap-2 border-0 bg-transparent p-0 text-sm font-medium text-foreground shadow-none ring-offset-0 hover:text-primary focus:ring-0 focus:ring-offset-0 sm:text-base [&>svg]:h-4 [&>svg]:w-4 [&>svg]:text-muted-foreground [&>svg]:opacity-100"
                 >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent
                   align="end"
                   sideOffset={10}
-                  className="min-w-[190px] rounded-xl border-border bg-card p-1.5 shadow-xl"
+                  className="min-w-[190px] rounded-md border-border bg-card p-1.5 shadow-lg"
                 >
                   {REPORT_LANGUAGES.map((language) => (
                     <SelectItem
@@ -1633,7 +1631,7 @@ function ReportContent() {
             <Button
               variant="outline"
               onClick={() => setIsReportDataModalOpen(true)}
-              className="h-12 flex-1 rounded-xl border-0 bg-muted px-4 text-sm font-semibold text-muted-foreground shadow-none hover:bg-muted hover:text-foreground sm:flex-none sm:text-base"
+              className="h-12 flex-1 sm:flex-none sm:text-base"
             >
               <MapPinned className="mr-1.5 h-5 w-5 shrink-0 stroke-[1.7] text-muted-foreground" />
               {t("changeSites")}
@@ -1641,10 +1639,10 @@ function ReportContent() {
             <Button
               onClick={generatePDF}
               disabled={isGeneratingPDF}
-              className="h-12 flex-1 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg disabled:translate-y-0 sm:flex-none sm:text-base"
+              className="h-12 flex-1 sm:flex-none sm:text-base"
             >
               {isGeneratingPDF ? (
-                <><Spinner size="sm" className="mr-1.5 [&>svg]:text-white" />{t("preparingPdf")}</>
+                <><Spinner size="sm" className="mr-1.5" />{t("preparingPdf")}</>
               ) : (
                 <><CloudDownload className="mr-1.5 h-5 w-5 shrink-0 stroke-[1.8]" />{t("downloadPdf")}</>
               )}
@@ -1655,12 +1653,13 @@ function ReportContent() {
                   variant="outline"
                   aria-label={t("moreActions")}
                   title={t("moreActions")}
-                  className="h-12 w-12 shrink-0 rounded-full border-border bg-card p-0 text-muted-foreground shadow-sm transition hover:border-slate-400 hover:bg-accent hover:text-muted-foreground hover:shadow-md"
+                  className="h-12 w-12 shrink-0"
+                  size="icon"
                 >
                   <MoreHorizontal className="h-6 w-6" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-72 rounded-xl border-border p-2 shadow-xl">
+              <PopoverContent align="end" className="w-72 rounded-lg border-border p-2 shadow-lg">
                 <button
                   type="button"
                   onClick={() => window.print()}
@@ -1672,8 +1671,8 @@ function ReportContent() {
                 <div className="my-1 border-t border-border" />
                 <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600"><BrainCircuit className="h-4 w-4" /></span>
-                    <div><Label htmlFor="advanced-mode" className="cursor-pointer text-sm font-semibold text-foreground">Advanced analysis</Label><p className="text-xs text-muted-foreground">Spatial statistics and clusters</p></div>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground"><BrainCircuit className="h-4 w-4" /></span>
+                    <div><Label htmlFor="advanced-mode" className="cursor-pointer text-sm font-medium text-foreground">Advanced analysis</Label><p className="text-xs text-muted-foreground">Spatial statistics and clusters</p></div>
                   </div>
                   <Switch id="advanced-mode" checked={showAdvancedAnalysis} onCheckedChange={setShowAdvancedAnalysis} />
                 </div>
@@ -1684,7 +1683,7 @@ function ReportContent() {
           <div ref={reportRef} lang={reportLanguage} className="space-y-6">
             {/* Report Header */}
             <div className="text-center mb-6 border-b pb-6">
-              <h2 className="text-2xl font-bold text-foreground">{getReportTitle()}</h2>
+              <h2 className="text-xl font-medium text-foreground">{getReportTitle()}</h2>
               <p className="text-muted-foreground mt-2">
                 {getLocationInfo().city}, {getLocationInfo().country}
               </p>
@@ -1727,7 +1726,7 @@ function ReportContent() {
                 </CardContent>
               </Card>
 
-              <div className="md:col-span-2 h-[320px] rounded-xl overflow-hidden border border-border shadow">
+              <div className="md:col-span-2 h-[320px] rounded-md overflow-hidden border border-border shadow-sm">
                 {mapSites.length > 0 ? (
                   <MapContainer
                     key={mapSites.length}
@@ -1783,7 +1782,7 @@ function ReportContent() {
                     )}
                   </MapContainer>
                 ) : (
-                  <div className="h-full w-full bg-accent text-primary flex items-center justify-center text-sm">
+                  <div className="h-full w-full bg-muted text-muted-foreground flex items-center justify-center text-sm">
                     No mappable coordinates for the current selection
                   </div>
                 )}
@@ -1791,9 +1790,9 @@ function ReportContent() {
             </div>
 
             {/* Introduction */}
-            <section className="pdf-keep-together mb-8 overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-accent/80 via-card to-cyan-50/60">
+            <section className="pdf-keep-together mb-8 overflow-hidden rounded-lg border border-border bg-card">
               <div className="border-b border-border px-5 py-4 sm:px-6">
-                <h3 className="mt-1 text-xl font-semibold text-foreground">{t("introduction")}</h3>
+                <h3 className="mt-1 text-lg font-medium text-foreground">{t("introduction")}</h3>
               </div>
 
               <div className="space-y-4 px-5 py-5 text-sm leading-7 text-muted-foreground sm:px-6 sm:py-6 sm:text-base">
@@ -1841,7 +1840,7 @@ function ReportContent() {
             </section>
             {/* AQI Index Visualization */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-foreground mb-3">
+              <h3 className="text-lg font-medium text-foreground mb-3">
                 {reportDateRange ? t("averageStatus") : t("currentStatus")}
               </h3>
               <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
@@ -1855,7 +1854,7 @@ function ReportContent() {
 
             {/* Results Section with Charts */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-foreground mb-3">{t("results")}</h3>
+              <h3 className="text-lg font-medium text-foreground mb-3">{t("results")}</h3>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
@@ -1871,7 +1870,7 @@ function ReportContent() {
                   <p className="text-2xl font-bold flex items-center">
                     {calculateAveragePercentageChange(filteredData).toFixed(2)}%
                     {calculateAveragePercentageChange(filteredData) < 0 ? (
-                      <ArrowDown className="ml-1 w-5 h-5 text-green-500" />
+                      <ArrowDown className="ml-1 w-5 h-5 text-success" />
                     ) : calculateAveragePercentageChange(filteredData) > 0 ? (
                       <ArrowUp className="ml-1 w-5 h-5 text-red-500" />
                     ) : (
@@ -1906,7 +1905,7 @@ function ReportContent() {
               </div>
 
               {/* Device comparison follows the AQI Category Distribution period selection. */}
-              <section className="pdf-keep-together mt-6 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+              <section className="pdf-keep-together mt-6 overflow-hidden rounded-md border border-border bg-card shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-3 sm:px-4">
                   <h4 className="text-base font-semibold text-foreground">{t("deviceComparison")}</h4>
                   {!pdfMode && (
@@ -1938,7 +1937,7 @@ function ReportContent() {
                           onClick={() => setComparisonRowsShown(rowCount)}
                           className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition ${
                             comparisonRowsShown === rowCount
-                              ? "border-blue-600 bg-blue-600 text-white"
+                              ? "border-primary bg-primary text-primary-foreground"
                               : "border-border bg-card text-muted-foreground hover:bg-accent"
                           }`}
                           aria-pressed={comparisonRowsShown === rowCount}
@@ -2118,7 +2117,7 @@ function ReportContent() {
 
             {/* Conclusion */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-foreground mb-3">{t("conclusion")}</h3>
+              <h3 className="text-lg font-medium text-foreground mb-3">{t("conclusion")}</h3>
               <p className="text-muted-foreground mb-4">{getConclusion(selectedSite, filters, filteredData)}</p>
 
               <p className="text-muted-foreground">{getRegionalInsights(filters, filteredData)}</p>
@@ -2126,11 +2125,11 @@ function ReportContent() {
 
             {/* Recommendations */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-foreground mb-3">{t("recommendations")}</h3>
+              <h3 className="text-lg font-medium text-foreground mb-3">{t("recommendations")}</h3>
 
-              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                <h4 className="font-semibold text-yellow-800 mb-2">{t("healthRecommendations")}</h4>
-                <ul className="list-disc list-inside text-yellow-700 space-y-2">
+              <div className="rounded-md border border-warning/30 bg-warning/5 p-4">
+                <h4 className="font-medium text-warning-foreground mb-2">{t("healthRecommendations")}</h4>
+                <ul className="list-disc list-inside text-foreground space-y-2">
                   {getHealthRecommendations(
                     selectedSite ? selectedSite.aqi_category : getAverageAQICategory(filteredData),
                   ).map((rec, index) => (
@@ -2143,9 +2142,9 @@ function ReportContent() {
 
             {/* Jump to Categories Button */}
             {!pdfMode && (
-              <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-border bg-gradient-to-r from-accent via-card to-cyan-50 p-4 text-left sm:flex-row sm:items-center sm:justify-between sm:p-5">
+              <div className="mt-8 flex flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm text-left sm:flex-row sm:items-center sm:justify-between sm:p-5">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-200">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                     <Layers className="h-5 w-5" />
                   </div>
                   <div>
@@ -2160,7 +2159,7 @@ function ReportContent() {
                       categoriesElement.scrollIntoView({ behavior: "smooth" })
                     }
                   }}
-                  className="h-11 shrink-0 rounded-xl bg-blue-600 px-5 text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg"
+                  className="h-11 shrink-0"
                 >
                   View device categories
                   <ArrowDown className="ml-2 h-4 w-4" />
@@ -2172,11 +2171,11 @@ function ReportContent() {
       )}
 
       {/* Summary Cards */}
-      <section className="mb-8 rounded-[2rem] border border-border/80 bg-gradient-to-br from-muted via-card to-blue-50/70 p-4 shadow-sm sm:p-6">
+      <section className="mb-8 rounded-lg border border-border bg-card p-4 shadow-sm sm:p-6">
         <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">At a glance</p>
-            <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground sm:text-2xl">Network snapshot</h2>
+            <p className="text-xs font-medium text-muted-foreground">At a glance</p>
+            <h2 className="mt-1 text-xl font-medium text-foreground">Network snapshot</h2>
           </div>
           <p className="text-sm text-muted-foreground">Based on your current report filters</p>
         </div>
@@ -2184,12 +2183,12 @@ function ReportContent() {
           <SummaryCard
             title="Total Monitoring Sites"
             value={filteredData.length.toString()}
-            icon={<Globe className="h-7 w-7 text-blue-500" />}
+            icon={<Globe className="h-7 w-7 text-muted-foreground" />}
           />
           <SummaryCard
             title="Average PM₂.₅"
             value={`${calculateAveragePM25(filteredData).toFixed(1)} \u00B5g/m\u00B3`}
-            icon={<BarChart3 className="h-7 w-7 text-emerald-500" />}
+            icon={<BarChart3 className="h-7 w-7 text-muted-foreground" />}
           />
           <SummaryCard
             title="Weekly Change"
@@ -2201,9 +2200,9 @@ function ReportContent() {
       </section>
       {/* No results message */}
       {filteredData.length === 0 && (
-        <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-6 text-center mb-8">
-          <h3 className="text-xl font-semibold text-yellow-800 mb-2">No sites match your filters</h3>
-          <p className="text-yellow-700">
+        <div className="rounded-md border border-warning/30 bg-warning/5 p-6 text-center mb-8">
+          <h3 className="text-lg font-medium text-foreground mb-2">No sites match your filters</h3>
+          <p className="text-muted-foreground">
             Try adjusting your filter criteria or{" "}
             <button onClick={resetFilters} className="text-primary underline">
               reset all filters
@@ -2214,14 +2213,14 @@ function ReportContent() {
       )}
 
       {/* Categories Controls */}
-      <div id="categories-section" className="mb-5 flex scroll-mt-6 flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <div id="categories-section" className="mb-5 flex scroll-mt-6 flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-200">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-primary/10 p-3 text-primary">
             <Layers className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Explore the network</p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-foreground">Device Categories</h2>
+            <p className="text-xs font-medium text-muted-foreground">Explore the network</p>
+            <h2 className="mt-1 text-xl font-medium text-foreground">Device Categories</h2>
             <p className="mt-1 text-sm text-muted-foreground">Review monitoring sites grouped by their surrounding environment.</p>
           </div>
         </div>
@@ -2248,7 +2247,7 @@ function ReportContent() {
               setCollapsedCategories(collapsed)
             }
           }}
-          className="h-10 shrink-0 rounded-xl border-primary/30 bg-accent/60 px-4 font-semibold text-primary hover:border-blue-300 hover:bg-accent"
+          className="h-10 shrink-0"
         >
           {Object.keys(sitesByCategory).every((category) => collapsedCategories[category] !== false)
             ? "Expand All Categories"
@@ -2260,16 +2259,16 @@ function ReportContent() {
       {Object.entries(sitesByCategory).map(([category, sites]) => (
         <div
           key={category}
-          className="mb-5 overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all duration-300 ease-in-out hover:shadow-md"
+          className="mb-5 overflow-hidden rounded-md border border-border bg-card shadow-sm"
         >
-          <div className="flex cursor-pointer flex-col gap-3 bg-gradient-to-r from-accent via-card to-cyan-50/50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex cursor-pointer flex-col gap-3 bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div className="flex items-center">
               <div onClick={() => toggleCategoryCollapse(category)} className="flex min-w-0 flex-wrap items-center gap-2 cursor-pointer">
-                <h2 className="text-xl sm:text-2xl font-bold text-foreground break-words">{category} Sites</h2>
-                <div className="shrink-0 px-3 py-1 bg-accent text-primary rounded-full text-sm font-medium">
+                <h2 className="text-lg font-medium text-foreground break-words">{category} Sites</h2>
+                <div className="shrink-0 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
                   {sites.length} {sites.length === 1 ? "device" : "devices"}
                 </div>
-                <div className="shrink-0 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                <div className="shrink-0 rounded-md bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
                   {sites.filter((site) => selectedDevices.includes(getSiteSelectionId(site))).length} selected
                 </div>
               </div>
@@ -2300,7 +2299,6 @@ function ReportContent() {
                     setSelectedDevices(newSelectedDevices)
                   }
                 }}
-                className="text-primary border-primary/30 hover:bg-accent"
               >
                 {sites.every((site) => selectedDevices.includes(getSiteSelectionId(site))) ? "Deselect All" : "Select All"}
               </Button>
@@ -2318,7 +2316,7 @@ function ReportContent() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="text-blue-500"
+                  className="text-muted-foreground"
                 >
                   <path d="m18 15-6-6-6 6" />
                 </svg>
@@ -2354,9 +2352,9 @@ function ReportContent() {
 
       {/* Health Tips Section */}
       {!pdfMode && (
-        <Card className="w-full shadow-lg border border-border bg-card mt-8">
-          <CardHeader className="text-center bg-blue-500 text-white rounded-t-lg">
-            <CardTitle className="text-2xl font-bold flex items-center justify-center space-x-2">
+        <Card className="w-full rounded-md border border-border bg-card mt-8">
+          <CardHeader className="text-center bg-muted rounded-t-md px-5 py-4">
+            <CardTitle className="text-lg font-medium flex items-center justify-center space-x-2">
               <HeartPulse className="w-6 h-6" />
               <span>Health Recommendations</span>
             </CardTitle>
@@ -2437,16 +2435,16 @@ function FilterMultiSelect({
 
   return (
     <div
-      className={`rounded-2xl border p-3 transition ${
+      className={`rounded-md border p-3 transition ${
         values.length
-          ? "border-primary/30 bg-accent/60 shadow-[0_0_0_1px_rgba(37,99,235,0.04)]"
+          ? "border-primary/30 bg-card"
           : "border-border bg-card"
       }`}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <label className="block text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</label>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-          values.length ? "bg-blue-700 text-white" : "bg-muted text-muted-foreground"
+        <label className="block text-xs font-medium text-muted-foreground">{label}</label>
+        <span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${
+          values.length ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
         }`}>
           {values.length || "All"}
         </span>
@@ -2457,19 +2455,19 @@ function FilterMultiSelect({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className={`min-h-12 h-auto w-full justify-between rounded-xl px-3 py-2 text-left ${
+            className={`min-h-12 h-auto w-full justify-between rounded-md px-3 py-2 text-left ${
               values.length
                 ? "border-primary/30 bg-card hover:bg-card"
-                : "border-border bg-muted hover:bg-accent"
+                : "border-border bg-card hover:bg-muted"
             }`}
             disabled={disabled}
           >
             <span className={`min-w-0 flex-1 ${values.length ? "text-foreground" : "text-muted-foreground"}`}>
               {values.length ? (
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-sm font-semibold">{values.slice(0, 2).join(", ")}</span>
+                  <span className="truncate text-sm font-medium">{values.slice(0, 2).join(", ")}</span>
                   {values.length > 2 && (
-                    <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-primary">
+                    <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                       +{values.length - 2}
                     </span>
                   )}
@@ -2481,13 +2479,13 @@ function FilterMultiSelect({
             <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-72 rounded-2xl border-border p-3 shadow-xl">
+        <PopoverContent align="start" className="w-72 rounded-lg border-border p-3 shadow-lg">
           <div className="mb-3 flex items-center gap-2">
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={`Search ${label.toLowerCase()}`}
-              className="h-10 rounded-xl border-border bg-muted"
+              className="h-10"
             />
             {values.length > 0 && (
               <Button variant="ghost" size="sm" onClick={clearAll} className="text-primary hover:text-primary">
@@ -2500,10 +2498,10 @@ function FilterMultiSelect({
               filteredOptions.map((option) => (
                 <label
                   key={option}
-                  className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 transition ${
+                  className={`flex cursor-pointer items-center gap-2 rounded-md border p-2.5 transition ${
                     values.includes(option)
-                      ? "border-primary/30 bg-accent text-primary"
-                      : "border-transparent hover:bg-accent"
+                      ? "border-primary/20 bg-primary/5 text-foreground"
+                      : "border-transparent hover:bg-muted"
                   }`}
                 >
                   <Checkbox checked={values.includes(option)} onCheckedChange={() => toggleValue(option)} />
@@ -2558,87 +2556,84 @@ function SiteCard({
     switch (category.toLowerCase()) {
       case "good":
         return {
-          accent: "bg-emerald-500",
+          accent: "bg-border",
           badge: "border-emerald-200 bg-emerald-100 text-emerald-800",
-          card: "border-emerald-200 bg-gradient-to-br from-white via-white to-emerald-50/80",
-          metric: "text-emerald-700",
-          soft: "bg-emerald-50 text-emerald-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       case "moderate":
         return {
-          accent: "bg-amber-400",
+          accent: "bg-border",
           badge: "border-amber-200 bg-amber-100 text-amber-800",
-          card: "border-amber-200 bg-gradient-to-br from-white via-white to-amber-50/90",
-          metric: "text-amber-700",
-          soft: "bg-amber-50 text-amber-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       case "unhealthy for sensitive groups":
         return {
-          accent: "bg-orange-500",
+          accent: "bg-border",
           badge: "border-orange-200 bg-orange-100 text-orange-800",
-          card: "border-orange-200 bg-gradient-to-br from-white via-white to-orange-50/90",
-          metric: "text-orange-700",
-          soft: "bg-orange-50 text-orange-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       case "unhealthy":
         return {
-          accent: "bg-red-500",
+          accent: "bg-border",
           badge: "border-red-200 bg-red-100 text-red-800",
-          card: "border-red-200 bg-gradient-to-br from-white via-white to-red-50/90",
-          metric: "text-red-700",
-          soft: "bg-red-50 text-red-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       case "very unhealthy":
         return {
-          accent: "bg-purple-500",
+          accent: "bg-border",
           badge: "border-purple-200 bg-purple-100 text-purple-800",
-          card: "border-purple-200 bg-gradient-to-br from-white via-white to-purple-50/90",
-          metric: "text-purple-700",
-          soft: "bg-purple-50 text-purple-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       case "hazardous":
         return {
-          accent: "bg-rose-800",
+          accent: "bg-border",
           badge: "border-rose-300 bg-rose-100 text-rose-900",
-          card: "border-rose-300 bg-gradient-to-br from-white via-white to-rose-100/80",
-          metric: "text-rose-900",
-          soft: "bg-rose-100 text-rose-900",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       default:
         return {
-          accent: "bg-slate-400",
+          accent: "bg-border",
           badge: "border-slate-200 bg-slate-100 text-slate-700",
-          card: "border-slate-200 bg-gradient-to-br from-white via-white to-slate-50",
-          metric: "text-slate-800",
-          soft: "bg-slate-100 text-slate-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
     }
   }
 
   const theme = getCategoryTheme(aqiCategory)
   const trendTone = percentChange < 0
-    ? "bg-emerald-50 text-emerald-700"
+    ? "bg-success/10 text-success"
     : percentChange > 0
-      ? "bg-red-50 text-red-700"
+      ? "bg-destructive/10 text-destructive"
       : "bg-muted text-muted-foreground"
-  const wasJustSelected = getSiteSelectionId(site) === lastSelectedId
 
   return (
     <Card
-      className={`group relative w-full overflow-hidden rounded-2xl border shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${theme.card} ${
-        isSelected ? "ring-2 ring-blue-500 ring-offset-2" : ""
-      } ${isCheckboxSelected ? "shadow-blue-200/60 ring-2 ring-blue-400/70" : ""} ${
-        wasJustSelected ? "-translate-y-1 shadow-xl" : ""
-      }`}
+      className={`group relative w-full overflow-hidden rounded-md border shadow-sm ${theme.card} ${
+        isSelected ? "ring-1 ring-primary" : ""
+      } ${isCheckboxSelected ? "ring-1 ring-primary" : ""}`}
     >
       <div className={`absolute inset-x-0 top-0 h-1.5 ${theme.accent}`} />
       <CardContent className="p-4 pt-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate text-base font-bold text-foreground">{siteName}</h3>
+              <h3 className="truncate text-base font-medium text-foreground">{siteName}</h3>
               {isCheckboxSelected && (
-                <span className="rounded-full bg-blue-600 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                <span className="rounded-md bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground">
                   Selected
                 </span>
               )}
@@ -2662,27 +2657,27 @@ function SiteCard({
         </div>
 
         <div className="mt-3 grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)] gap-2">
-          <div className="rounded-xl border border-border/80 bg-card/80 p-3 shadow-sm backdrop-blur">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Current PM₂.₅</p>
-            <p className={`mt-0.5 text-2xl font-bold tracking-tight ${theme.metric}`}>
-              {pm25Value.toFixed(1)} <span className="text-sm font-semibold">µg/m³</span>
+          <div className="rounded-md border border-border bg-card p-3 shadow-none">
+            <p className="text-[10px] font-medium text-muted-foreground">Current PM₂.₅</p>
+            <p className={`mt-0.5 text-2xl font-medium tracking-tight ${theme.metric}`}>
+              {pm25Value.toFixed(1)} <span className="text-sm font-medium">µg/m³</span>
             </p>
           </div>
-          <div className="flex flex-col justify-between rounded-xl border border-border/80 bg-card/70 p-3 shadow-sm backdrop-blur">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">AQI status</p>
-            <span className={`mt-1.5 w-fit rounded-full border px-2 py-0.5 text-[11px] font-bold ${theme.badge}`}>
+          <div className="flex flex-col justify-between rounded-md border border-border bg-card p-3 shadow-none">
+            <p className="text-[10px] font-medium text-muted-foreground">AQI status</p>
+            <span className={`mt-1.5 w-fit rounded-md border px-2 py-0.5 text-[11px] font-medium ${theme.badge}`}>
               {aqiCategory}
             </span>
           </div>
         </div>
 
-        <div className="mt-2 rounded-xl border border-border/80 bg-card/90 p-3 shadow-sm">
+        <div className="mt-2 rounded-md border border-border bg-card p-3 shadow-none">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-bold text-foreground">Weekly comparison</p>
+              <p className="text-sm font-medium text-foreground">Weekly comparison</p>
               <p className="text-[10px] text-muted-foreground">Weekly average · µg/m³</p>
             </div>
-            <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${trendTone}`}>
+            <div className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${trendTone}`}>
               {percentChange < 0 ? (
                 <ArrowDown className="h-3.5 w-3.5" />
               ) : percentChange > 0 ? (
@@ -2696,16 +2691,16 @@ function SiteCard({
 
           <div className="mt-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Previous</p>
-              <p className="text-sm font-bold text-muted-foreground">{previousWeek.toFixed(1)}</p>
+              <p className="text-[10px] font-medium text-muted-foreground">Previous</p>
+              <p className="text-sm font-medium text-muted-foreground">{previousWeek.toFixed(1)}</p>
               <p className="hidden">µg/m³</p>
             </div>
-            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${theme.soft}`}>
+            <div className={`flex h-8 w-8 items-center justify-center rounded-md ${theme.soft}`}>
               {percentChange < 0 ? <ArrowDown className="h-4 w-4" /> : percentChange > 0 ? <ArrowUp className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Current</p>
-              <p className="text-sm font-bold text-foreground">{currentWeek.toFixed(1)}</p>
+              <p className="text-[10px] font-medium text-muted-foreground">Current</p>
+              <p className="text-sm font-medium text-foreground">{currentWeek.toFixed(1)}</p>
               <p className="hidden">µg/m³</p>
             </div>
           </div>
@@ -2720,11 +2715,7 @@ function SiteCard({
               e.stopPropagation()
               onSelect()
             }}
-            className={`mt-3 h-9 w-full rounded-lg text-xs font-semibold transition ${
-              isSelected
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "border-primary/30 bg-card/80 text-primary hover:border-blue-300 hover:bg-accent"
-            }`}
+            className="mt-3 h-9 w-full"
           >
             {reportDisabled ? "Select a city or district first" : isSelected ? "Selected for report" : "View detailed report"}
           </Button>
@@ -2746,18 +2737,17 @@ function SummaryCard({
   trend?: number
 }) {
   return (
-    <Card className="group relative w-full overflow-hidden rounded-2xl border-border shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-400" />
+    <Card className="group relative w-full overflow-hidden rounded-md border border-border bg-card shadow-sm">
       <CardContent className="p-5 sm:p-6">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">{title}</h3>
-            <div className="mt-2 flex items-center text-3xl font-bold tracking-tight text-foreground">
+            <h3 className="text-xs font-medium text-muted-foreground">{title}</h3>
+            <div className="mt-2 flex items-center text-2xl font-medium tracking-tight text-foreground">
               {value}
               {trend !== undefined && (
                 <span
-                  className={`ml-2 rounded-full px-2 py-1 text-xs font-bold ${
-                    trend < 0 ? "bg-emerald-50 text-emerald-700" : trend > 0 ? "bg-red-50 text-red-700" : "bg-muted text-muted-foreground"
+                  className={`ml-2 rounded-md px-2 py-1 text-xs font-medium ${
+                    trend < 0 ? "bg-success/10 text-success" : trend > 0 ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {trend < 0 ? "↓" : trend > 0 ? "↑" : "−"}
@@ -2765,7 +2755,7 @@ function SummaryCard({
               )}
             </div>
           </div>
-          <div className="rounded-2xl bg-gradient-to-br from-accent to-cyan-50 p-3.5 ring-1 ring-blue-100 transition-transform group-hover:scale-105">{icon}</div>
+          <div className="rounded-md bg-muted p-3 text-muted-foreground">{icon}</div>
         </div>
       </CardContent>
     </Card>
@@ -2774,9 +2764,9 @@ function SummaryCard({
 
 function HealthTipBox({ title, description }: { title: string; description: string }) {
   return (
-    <div className="bg-accent rounded-lg p-4 border border-border">
-      <h3 className="text-lg font-semibold text-primary mb-2">{title}</h3>
-      <p className="text-primary text-sm">{description}</p>
+    <div className="rounded-md border border-border bg-muted/40 p-4">
+      <h3 className="text-sm font-medium text-foreground mb-2">{title}</h3>
+      <p className="text-sm text-muted-foreground">{description}</p>
     </div>
   )
 }

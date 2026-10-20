@@ -32,7 +32,7 @@ export function SectionHeading({
       )}
       <Tag
         className={cn(
-          "text-3xl font-bold tracking-tight md:text-4xl",
+          "text-2xl font-medium tracking-tight md:text-3xl",
           eyebrow && "mt-4",
           isCenter && "text-center",
         )}
@@ -40,7 +40,7 @@ export function SectionHeading({
         {title}
       </Tag>
       {description && (
-        <p className="mt-4 text-base leading-7 text-muted-foreground sm:text-lg">
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
           {description}
         </p>
       )}
