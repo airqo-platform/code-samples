@@ -1,17 +1,17 @@
 "use client"
 import type React from "react"
 import dynamic from "next/dynamic"
-import Loading from "../Loading"
+import { AppLoader } from "@/components/layout/app-loader"
 import Navigation from "@/components/navigation/navigation"
 
-const LeafletMap = dynamic(() => import("@/components/map/LeafletMap"), {
+const LeafletMap = dynamic(() => import("@/components/mapping/leaflet-map"), {
   ssr: false,
-  loading: () => <Loading />,
+  loading: () => <AppLoader />,
 })
 
 const MapPage: React.FC = () => {
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col min-h-[100svh] h-[100svh]">
       {/* Add Navigation Component */}
       <Navigation />
 

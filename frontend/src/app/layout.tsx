@@ -3,8 +3,9 @@ import { Suspense } from "react"
 import type { Metadata } from "next"
 import localFont from "next/font/local"
 import "@/styles/globals.css"
-import GoogleAnalytics from "@/components/GoogleAnalytics"
-import AppDataWarmup from "@/components/AppDataWarmup"
+import GoogleAnalytics from "@/components/analytics/google-analytics"
+import AppDataWarmup from "@/components/app/app-data-warmup"
+import { Toaster } from "@/components/ui/toaster"
 
 const geistSans = localFont({
   src: "../../public/fonts/GeistVF.woff",
@@ -28,13 +29,14 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="bg-background text-foreground font-sans antialiased">
         <AppDataWarmup />
         <Suspense fallback={null}>
           <GoogleAnalytics />
         </Suspense>
         {children}
+        <Toaster />
       </body>
     </html>
   )

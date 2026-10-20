@@ -1,10 +1,10 @@
 "use client"
 import { useState } from "react"
-import { ControlPanel } from "@/components/Controls/ControlPanel"
+import { ControlPanel } from "@/components/controls/control-panel"
 import type { Location, SiteLocatorPayload } from "@/lib/types"
 import { submitLocations } from "@/lib/api"
-import { useToast } from "@/ui/use-toast"
-import { Button } from "@/ui/button"
+import { useToast } from "@/hooks/use-toast"
+import { Button } from "@/components/ui/button"
 import {
   Camera,
   CheckCircle2,
@@ -23,7 +23,7 @@ import html2canvas from "html2canvas"
 import Navigation from "@/components/navigation/navigation"
 import dynamic from "next/dynamic"
 
-const MapComponent = dynamic(() => import("@/components/map/MapComponent"), {
+const MapComponent = dynamic(() => import("@/components/mapping/map-component"), {
   ssr: false,
 })
 
@@ -159,17 +159,17 @@ export default function Index() {
   const hasResults = suggestedLocations.length > 0
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-100 lg:h-screen lg:overflow-hidden">
+    <div className="flex min-h-screen flex-col bg-muted/40 lg:h-[100svh]">
       <Navigation />
 
       <main className="grid flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[390px_minmax(0,1fr)]">
-        <aside className="z-10 flex flex-col border-r border-slate-200 bg-white shadow-xl lg:min-h-0">
-          <div className="border-b border-slate-200 px-5 py-5">
+        <aside className="z-10 flex flex-col border-b border-border bg-card shadow-xl lg:min-h-0 lg:border-b-0 lg:border-r">
+          <div className="border-b border-border px-5 py-5">
             <div className={`flex items-center justify-between gap-3 ${isHeaderCollapsed ? "" : "mb-2"}`}>
               {isHeaderCollapsed ? (
-                <h1 className="text-base font-bold text-slate-950">Locate monitoring sites</h1>
+                <h1 className="text-base font-bold text-foreground">Locate monitoring sites</h1>
               ) : (
-                <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                <div className="inline-flex items-center gap-2 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-primary">
                   <Sparkles className="h-3.5 w-3.5" />
                   Network planning workspace
                 </div>
@@ -179,7 +179,7 @@ export default function Index() {
                   <button
                     type="button"
                     onClick={() => setShowInfo(true)}
-                    className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                    className="rounded-full border border-border p-2 text-muted-foreground transition hover:border-primary/30 hover:bg-accent hover:text-primary"
                     aria-label="Open site locator guide"
                   >
                     <Info className="h-4 w-4" />
@@ -188,7 +188,7 @@ export default function Index() {
                 <button
                   type="button"
                   onClick={() => setIsHeaderCollapsed((current) => !current)}
-                  className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                  className="rounded-full border border-border p-2 text-muted-foreground transition hover:border-primary/30 hover:bg-accent hover:text-primary"
                   aria-label={isHeaderCollapsed ? "Expand site locator summary" : "Collapse site locator summary"}
                 >
                   {isHeaderCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
@@ -197,23 +197,23 @@ export default function Index() {
             </div>
             {!isHeaderCollapsed ? (
               <>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-950">Locate monitoring sites</h1>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">Locate monitoring sites</h1>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   Define a service area, protect priority locations, and generate a field-ready sensor deployment plan.
                 </p>
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Boundary</p>
-                    <p className="mt-1 text-sm font-bold text-slate-900">{boundaryReady ? "Ready" : "Required"}</p>
+                  <div className="rounded-xl border border-border bg-muted p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Boundary</p>
+                    <p className="mt-1 text-sm font-bold text-foreground">{boundaryReady ? "Ready" : "Required"}</p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Priority</p>
-                    <p className="mt-1 text-sm font-bold text-slate-900">{mustHaveLocations.length}</p>
+                  <div className="rounded-xl border border-border bg-muted p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Priority</p>
+                    <p className="mt-1 text-sm font-bold text-foreground">{mustHaveLocations.length}</p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Suggested</p>
-                    <p className="mt-1 text-sm font-bold text-blue-700">{suggestedLocations.length}</p>
+                  <div className="rounded-xl border border-border bg-muted p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Suggested</p>
+                    <p className="mt-1 text-sm font-bold text-primary">{suggestedLocations.length}</p>
                   </div>
                 </div>
               </>
@@ -235,14 +235,14 @@ export default function Index() {
             />
           </div>
 
-          <div className="border-t border-slate-200 bg-slate-50 p-4">
+          <div className="border-t border-border bg-muted p-4">
             <div className="grid grid-cols-2 gap-2">
               <Button
                 onClick={handleExportCSV}
                 disabled={!hasResults && mustHaveLocations.length === 0}
                 aria-label="Export locations to CSV"
                 variant="outline"
-                className="gap-2 rounded-xl bg-white"
+                className="gap-2 rounded-xl bg-card"
               >
                 <Download className="h-4 w-4" />
                 Export CSV
@@ -251,7 +251,7 @@ export default function Index() {
                 onClick={handleSaveMap}
                 aria-label="Save map as image"
                 variant="outline"
-                className="gap-2 rounded-xl bg-white"
+                className="gap-2 rounded-xl bg-card"
               >
                 <Camera className="h-4 w-4" />
                 Save map
@@ -260,7 +260,7 @@ export default function Index() {
             <button
               type="button"
               onClick={handleReset}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
               <RotateCcw className="h-4 w-4" />
               Clear workspace
@@ -268,7 +268,7 @@ export default function Index() {
           </div>
         </aside>
 
-        <section className="relative min-h-[560px] overflow-hidden bg-slate-200">
+        <section className="relative min-h-[560px] overflow-hidden bg-muted">
           <MapComponent
             polygon={polygon}
             mustHaveLocations={mustHaveLocations}
@@ -280,13 +280,13 @@ export default function Index() {
           />
 
           <div className="pointer-events-none absolute left-16 right-4 top-4 z-[1000] flex items-start justify-between gap-3 sm:left-20">
-            <div className="pointer-events-auto max-w-lg rounded-2xl border border-white/70 bg-white/95 p-3 shadow-lg backdrop-blur">
+            <div className="pointer-events-auto max-w-lg rounded-2xl border border-border/70 bg-card/95 p-3 shadow-lg backdrop-blur">
               <div className="flex items-center gap-3">
-                <div className={`rounded-xl p-2 ${isDrawing ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                <div className={`rounded-xl p-2 ${isDrawing ? "bg-amber-100 text-amber-700" : "bg-accent text-primary"}`}>
                   {isDrawing || isSelectingPriority ? <MousePointer2 className="h-5 w-5" /> : <Route className="h-5 w-5" />}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">
+                  <p className="text-sm font-semibold text-foreground">
                     {isDrawing
                       ? "Click the map to trace your boundary"
                       : isSelectingPriority
@@ -295,7 +295,7 @@ export default function Index() {
                           ? "Boundary ready for analysis"
                           : "Choose or draw a boundary"}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     {isDrawing
                       ? `${polygon.length} points added. Use at least three points.`
                       : isSelectingPriority
@@ -312,7 +312,7 @@ export default function Index() {
               onClick={toggleDrawing}
               aria-label={isDrawing ? "Finish drawing polygon" : "Start drawing polygon"}
               className={`pointer-events-auto gap-2 rounded-xl px-4 shadow-lg ${
-                isDrawing ? "bg-amber-500 text-slate-950 hover:bg-amber-400" : "bg-slate-950 text-white hover:bg-slate-800"
+                isDrawing ? "bg-amber-500 text-foreground hover:bg-amber-400" : "bg-slate-950 text-white hover:bg-slate-800"
               }`}
             >
               {isDrawing ? <CheckCircle2 className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
@@ -320,26 +320,26 @@ export default function Index() {
             </Button>
           </div>
 
-          <div className="absolute bottom-5 left-5 z-[1000] rounded-2xl border border-white/70 bg-white/95 p-3 shadow-lg backdrop-blur">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Map legend</p>
-            <div className="space-y-2 text-xs font-medium text-slate-700">
+          <div className="absolute bottom-5 left-5 z-[1000] rounded-2xl border border-border/70 bg-card/95 p-3 shadow-lg backdrop-blur">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Map legend</p>
+            <div className="space-y-2 text-xs font-medium text-muted-foreground">
               <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white shadow" />
+                <span className="h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background shadow" />
                 Priority location
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-blue-600 ring-2 ring-white shadow" />
+                <span className="h-3 w-3 rounded-full bg-blue-600 ring-2 ring-background shadow" />
                 Recommended site
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-sm border-2 border-blue-600 bg-blue-100/70" />
+                <span className="h-3 w-3 rounded-sm border-2 border-blue-600 bg-accent/70" />
                 Analysis boundary
               </div>
             </div>
           </div>
 
           {hasResults && showResultsNotice ? (
-            <div className="absolute bottom-5 right-5 z-[1000] max-w-xs rounded-2xl border border-blue-200 bg-blue-950 p-4 text-white shadow-xl">
+            <div className="absolute bottom-5 right-5 z-[1000] max-w-xs rounded-2xl border border-primary/30 bg-blue-950 p-4 text-white shadow-xl">
               <div className="flex items-start gap-3">
                 <div className="rounded-xl bg-blue-500/20 p-2">
                   <Sparkles className="h-5 w-5 text-blue-200" />
@@ -366,18 +366,18 @@ export default function Index() {
 
       {showInfo ? (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-lg rounded-3xl bg-card p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="mb-3 inline-flex rounded-xl bg-blue-100 p-2 text-blue-700">
+                <div className="mb-3 inline-flex rounded-xl bg-accent p-2 text-primary">
                   <Info className="h-5 w-5" />
                 </div>
-                <h2 className="text-xl font-bold text-slate-950">How to build a deployment plan</h2>
+                <h2 className="text-xl font-bold text-foreground">How to build a deployment plan</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setShowInfo(false)}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-900"
+                className="rounded-full p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
                 aria-label="Close site locator guide"
               >
                 <X className="h-5 w-5" />
@@ -390,13 +390,13 @@ export default function Index() {
                 ["3", "Define spacing", "Choose the number of sensors and minimum distance between recommended sites."],
                 ["4", "Generate and export", "Review the suggested sites, then save the map or download the coordinates."],
               ].map(([step, title, description]) => (
-                <div key={step} className="flex gap-3 rounded-2xl border border-slate-200 p-4">
+                <div key={step} className="flex gap-3 rounded-2xl border border-border p-4">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-700 text-sm font-bold text-white">
                     {step}
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900">{title}</p>
-                    <p className="mt-1 text-sm leading-5 text-slate-600">{description}</p>
+                    <p className="font-semibold text-foreground">{title}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted-foreground">{description}</p>
                   </div>
                 </div>
               ))}

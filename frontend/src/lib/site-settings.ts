@@ -41,36 +41,3 @@ export const defaultSiteSettings: SiteSettings = {
   ],
 }
 
-export function sanitizeSiteSettings(value: unknown): SiteSettings {
-  if (!value || typeof value !== "object") return defaultSiteSettings
-
-  const candidate = value as Partial<SiteSettings>
-  const pages = Array.isArray(candidate.pages)
-    ? candidate.pages
-        .filter(
-          (page): page is ManagedPage =>
-            Boolean(
-              page &&
-                typeof page.id === "string" &&
-                page.id.trim() &&
-                typeof page.name === "string" &&
-                page.name.trim() &&
-                typeof page.path === "string" &&
-                page.path.trim() &&
-                typeof page.enabled === "boolean",
-            ),
-        )
-        .map((page) => ({
-          ...page,
-          path: page.path.startsWith("/") ? page.path : `/${page.path}`,
-        }))
-    : defaultSiteSettings.pages
-
-  const configuredFeatures = Array.isArray(candidate.features) ? candidate.features : []
-  const features = defaultSiteSettings.features.map((feature) => {
-    const configured = configuredFeatures.find((item) => item?.id === feature.id)
-    return typeof configured?.enabled === "boolean" ? { ...feature, enabled: configured.enabled } : feature
-  })
-
-  return { pages, features }
-}

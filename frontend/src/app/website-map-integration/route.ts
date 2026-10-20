@@ -15,7 +15,9 @@ export async function GET(request: NextRequest) {
     })
   }
   const html = await readFile(path.join(process.cwd(), "src/embed/map.html"), "utf8")
-  return new Response(html, {
+  // Mapbox public tokens use a safe charset and the placeholder sits in a JS string, not HTML.
+  const rendered = html.replace(/__MAPBOX_TOKEN__/g, process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "")
+  return new Response(rendered, {
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
   })
 }

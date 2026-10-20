@@ -3,10 +3,8 @@ import type {
   SiteLocatorResponse,
   LegacyCategorizeSiteResponse,
   SourceMetadataResponse,
-  AirQualityReportPayload,
-  AirQualityReportResponse,
-  Grid,
 } from "./types"
+import { RETRYABLE_API_STATUSES, delay } from "./api-shared"
 
 class ApiRequestError extends Error {
   status: number
@@ -18,10 +16,8 @@ class ApiRequestError extends Error {
   }
 }
 
-const RETRYABLE_API_STATUSES = new Set([429, 500, 502, 503, 504])
 const SPATIAL_RETRYABLE_STATUSES = new Set([401, 500])
 const EXTENDED_API_MAX_ATTEMPTS = 5
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function baseFetch<T>(
   endpoint: string,
@@ -219,24 +215,3 @@ function normalizeLegacyCategorizeSiteResponse(
   }
 }
 
-export async function getAirQualityReport(payload: AirQualityReportPayload): Promise<AirQualityReportResponse> {
-  try {
-    return await baseFetch<AirQualityReportResponse>("spatial/air_quality_report", {
-      method: "POST",
-      json: payload,
-    })
-  } catch (error) {
-    console.error("Error getting air quality report:", error)
-    throw error
-  }
-}
-
-export async function fetchGrids(): Promise<Grid[]> {
-  try {
-    const data = await baseFetch<{ grids: Grid[] }>("devices/grids/summary")
-    return data.grids
-  } catch (error) {
-    console.error("Error fetching grids:", error)
-    throw error
-  }
-}

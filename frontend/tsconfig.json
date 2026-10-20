@@ -26,20 +26,11 @@
       "@/*": [
         "./src/*"
       ],
-      "@components/*": [
-        "./src/components/*"
-      ],
-      "@utils/*": [
-        "./src/utils/*"
-      ],
       "@styles/*": [
         "./src/styles/*"
       ],
       "@public/*": [
         "./public/*"
-      ],
-      "@services/*": [
-        "./src/services/*"
       ]
     }
   },
