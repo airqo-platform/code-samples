@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
-import "leaflet-geosearch/dist/geosearch.css"
 import Papa from "papaparse"
 import { useMap, useMapEvents } from "react-leaflet"
 import {
@@ -46,6 +45,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { getMapTileConfig } from "@/lib/map-config"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
+import { MapInstanceBridge } from "@/components/mapping/map-instance-bridge"
+import { MapSearchControl } from "@/components/mapping/map-search-control"
+import { MapZoomControls } from "@/components/mapping/map-control-button"
 import "leaflet/dist/leaflet.css"
 
 const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false })
@@ -319,6 +321,7 @@ function SiteCategoryContent() {
   const [showInfo, setShowInfo] = useState(false)
   const [loading, setLoading] = useState(false)
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null)
+  const [mapInstance, setMapInstance] = useState<import("leaflet").Map | null>(null)
   const [defaultMarkerIcon, setDefaultMarkerIcon] = useState<import("leaflet").Icon | null>(null)
   const { toast } = useToast()
   const sitesRef = useRef<SiteCategoryInfo[]>([])
@@ -557,91 +560,6 @@ function SiteCategoryContent() {
     return null
   }
 
-  const SearchControl = () => {
-    const map = useMap()
-
-    useEffect(() => {
-      let disposed = false
-      let searchControl: any = null
-      let handleSearchLocation: ((result: any) => Promise<void>) | null = null
-
-      const setupSearch = async () => {
-        const geosearch = await import("leaflet-geosearch")
-        if (disposed) return
-
-        const provider = new geosearch.OpenStreetMapProvider()
-        searchControl = new geosearch.GeoSearchControl({
-          provider,
-          style: "bar",
-          autoComplete: true,
-          autoCompleteDelay: 250,
-          position: "topright",
-          showMarker: false,
-          updateMap: false,
-        } as any)
-
-        map.addControl(searchControl)
-
-        const searchBar = document.querySelector(".leaflet-control-geosearch form")
-        if (searchBar) {
-          searchBar.classList.add("bg-card", "text-foreground", "border", "border-border", "rounded-md", "relative")
-
-          const searchContainer = document.querySelector(".leaflet-control-geosearch")
-          if (searchContainer) {
-            searchContainer.classList.add(
-              "!right-3",
-              "!top-3",
-              "!left-auto",
-              "!transform-none",
-              "!w-[calc(100%_-_5rem)]",
-              "sm:!right-4",
-              "sm:!top-4",
-              "sm:!w-80",
-            )
-          }
-
-          const existingIcon = searchBar.querySelector(".categorize-search-icon")
-          if (!existingIcon) {
-            const searchIcon = document.createElement("div")
-            searchIcon.className = "categorize-search-icon absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-            searchIcon.innerHTML =
-              '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>'
-            searchBar.appendChild(searchIcon)
-          }
-
-          const searchInput = searchBar.querySelector("input")
-          if (searchInput) {
-            searchInput.setAttribute("placeholder", "Search for a place")
-            ;(searchInput as HTMLInputElement).style.paddingLeft = "2.5rem"
-          }
-        }
-
-        handleSearchLocation = async (result: any) => {
-          const location = result?.location
-          if (!location || typeof location.x !== "number" || typeof location.y !== "number") return
-          await selectOrFetchLocation(location.y, location.x)
-        }
-
-        map.on("geosearch/showlocation", handleSearchLocation)
-      }
-
-      void setupSearch()
-
-      return () => {
-        disposed = true
-        if (handleSearchLocation) {
-          map.off("geosearch/showlocation", handleSearchLocation)
-        }
-        if (searchControl) {
-          map.removeControl(searchControl)
-        }
-      }
-    }, [map])
-
-    return null
-  }
-
-
   const selectedKey = selectedSite ? siteKey(selectedSite) : null
   const pollutantEntries = selectedSite
     ? Object.entries(selectedSite.satellite_pollutants_mean).filter(
@@ -710,9 +628,9 @@ function SiteCategoryContent() {
       <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 px-2 pb-2">
         <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:flex-row">
           <div className="relative h-[50vh] min-h-[320px] w-full shrink-0 overflow-hidden bg-muted sm:h-[54vh] lg:h-full lg:min-h-0 lg:flex-1">
-            <MapContainer className="h-full w-full" center={[1.3733, 32.2903]} zoom={7}>
+            <MapContainer className="h-full w-full" center={[1.3733, 32.2903]} zoom={7} zoomControl={false}>
               <TileLayer {...getMapTileConfig("streets")} />
-              <SearchControl />
+              <MapInstanceBridge onReady={setMapInstance} />
               <MapEvents />
               <MapResizeFix />
               <ProfiledLocationMapController center={mapCenter} />
@@ -734,6 +652,20 @@ function SiteCategoryContent() {
                 </Marker>
               ))}
             </MapContainer>
+            <MapSearchControl
+              map={mapInstance}
+              onSelect={(r) => selectOrFetchLocation(r.center[0], r.center[1])}
+              className="absolute left-3 top-3 z-[1100]"
+            />
+            <MapZoomControls
+              onGeolocate={() => {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                  mapInstance?.flyTo([pos.coords.latitude, pos.coords.longitude], 13, { animate: true, duration: 0.8 })
+                })
+              }}
+              onZoomIn={() => mapInstance?.zoomIn()}
+              onZoomOut={() => mapInstance?.zoomOut()}
+            />
             <Button onClick={() => setShowInfo(true)} aria-label="How Categorize Works" title="How Categorize Works" className="absolute bottom-4 left-4 z-[1000] h-11 w-11 rounded-full bg-primary p-0 text-primary-foreground shadow-sm hover:bg-primary/90">
               <Info className="h-5 w-5" />
             </Button>

@@ -210,130 +210,6 @@
   display: none;
 }
 
-/* Geosearch control (tokenized) */
-.leaflet-control-geosearch {
-  position: absolute !important;
-  top: 20px !important;
-  right: 20px !important;
-  left: auto !important;
-  transform: none !important;
-  z-index: 1000 !important;
-  width: 250px !important;
-}
-
-/* Map page only: drop search below the top-left filter pills (36px + 12px gap) */
-.map-page-geosearch {
-  position: absolute !important;
-  top: 60px !important;
-  left: 12px !important;
-  right: auto !important;
-  margin: 0 !important;
-  width: min(17rem, calc(100vw - 8.5rem)) !important;
-}
-
-.leaflet-control-geosearch form {
-  position: relative !important;
-  background: hsl(var(--card)) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-  border: 1px solid hsl(var(--border)) !important;
-  width: 100% !important;
-  transition: all 0.2s ease !important;
-}
-
-.leaflet-control-geosearch form:hover,
-.leaflet-control-geosearch form:focus-within {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
-  border-color: hsl(var(--ring)) !important;
-}
-
-.leaflet-control-geosearch form input {
-  width: 100% !important;
-  height: 36px !important;
-  padding: 2px 12px !important;
-  font-size: 14px !important;
-  color: hsl(var(--foreground)) !important;
-  background: transparent !important;
-  border-radius: 8px !important;
-  outline: none !important;
-}
-
-.leaflet-control-geosearch form input::placeholder {
-  color: hsl(var(--muted-foreground)) !important;
-}
-
-.leaflet-control-geosearch .results {
-  position: absolute !important;
-  top: 100% !important;
-  left: 0 !important;
-  right: 0 !important;
-  margin-top: 8px !important;
-  margin-bottom: 8px !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-  background: hsl(var(--popover)) !important;
-  max-height: 300px !important;
-  overflow-y: auto !important;
-  z-index: 1000 !important;
-}
-
-.leaflet-control-geosearch .results > * {
-  padding: 10px 12px !important;
-  font-size: 13px !important;
-  color: hsl(var(--popover-foreground)) !important;
-  transition: all 0.2s ease !important;
-}
-
-.leaflet-control-geosearch .results > *:hover {
-  background-color: hsl(var(--accent)) !important;
-  color: hsl(var(--accent-foreground)) !important;
-}
-
-.leaflet-control-geosearch .results > *:last-child {
-  border-bottom: none !important;
-}
-
-.leaflet-control-geosearch .results::-webkit-scrollbar {
-  width: 6px;
-}
-
-.leaflet-control-geosearch .results::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
-  border-radius: 3px;
-}
-
-.leaflet-control-geosearch .results::-webkit-scrollbar-thumb {
-  background: hsl(var(--primary));
-  border-radius: 3px;
-}
-
-.leaflet-control-geosearch .results::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary));
-}
-
-.leaflet-control-geosearch form .reset {
-  margin-top: 4px !important;
-  background: none !important;
-  border: none !important;
-  padding: 8px !important;
-  cursor: pointer !important;
-  color: hsl(var(--muted-foreground)) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  transition: color 0.2s ease !important;
-}
-
-.leaflet-control-geosearch form .reset:hover {
-  color: hsl(var(--foreground)) !important;
-}
-
-.leaflet-control-geosearch form .reset::after {
-  content: "" !important;
-  font-size: 20px !important;
-  line-height: 1 !important;
-}
-
 .leaflet-control {
   background-clip: padding-box;
 }
@@ -378,68 +254,13 @@
   box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 5px rgba(0, 0, 0, 0.3);
 }
 
-.map-style-selector {
-  position: absolute;
-  top: 80px;
-  right: 10px;
-  z-index: 1000;
-  background: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
-  border-radius: 4px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
-  padding: 8px;
-}
-
-.map-style-button {
-  display: block;
-  margin: 4px 0;
-  padding: 6px 10px;
-  border-radius: 4px;
-  border: none;
-  background: hsl(var(--muted));
-  color: hsl(var(--foreground));
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  font-size: 12px;
-  transition: all 0.2s ease;
-}
-
-.map-style-button:hover {
-  background: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
-}
-
-.map-style-button.active {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-}
-
-.map-style-tooltip {
-  position: absolute;
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 1001;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.map-style-button:hover + .map-style-tooltip {
-  opacity: 1;
-}
-
 .leaflet-container {
   z-index: 0;
   font-family: inherit;
 }
 
 /* Popups are rendered in a dedicated highPopupPane that is created on the map
-   container (a sibling of .leaflet-map-pane) by MapHandleBridge, so their
+   container (a sibling of .leaflet-map-pane) by MapInstanceBridge, so their
    z-index can rise above the React overlay controls (z-[1100]). Raising the
    default .leaflet-popup-pane is inert: it is nested inside .leaflet-map-pane,
    whose stacking context (z-index 400) traps it. */

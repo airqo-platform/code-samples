@@ -1,20 +1,19 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Camera,
   ChevronDown,
   ChevronUp,
   Layers,
   Link2,
-  LocateFixed,
-  Minus,
-  Plus,
   RefreshCw,
   Palette,
 } from "lucide-react"
 import Image from "next/image"
 import { MAP_STYLE_OPTIONS } from "@/lib/map-config"
+import { MapControlButton, MapZoomControls } from "./map-control-button"
+import { cn } from "@/lib/utils"
 
 const PM25_UNIT = "µg/m³"
 
@@ -36,14 +35,14 @@ interface MapOverlayControlsProps {
   onShowEmojisChange: (v: boolean) => void
   showFires: boolean
   onShowFiresChange: (v: boolean) => void
-  onGeolocate: () => void
-  onZoomIn: () => void
-  onZoomOut: () => void
   onCopyLink: () => void
   onRefresh: () => void
   onCapture: () => void
   isRefreshing: boolean
   isCapturing: boolean
+  onGeolocate: () => void
+  onZoomIn: () => void
+  onZoomOut: () => void
 }
 
 const AQI_LEGEND = [
@@ -54,39 +53,6 @@ const AQI_LEGEND = [
   { image: "/images/VeryUnhealthy.png", label: "Very Unhealthy", range: `125.5 – 225.4 ${PM25_UNIT}` },
   { image: "/images/Hazardous.png", label: "Hazardous", range: `225.5+ ${PM25_UNIT}` },
 ]
-
-const ControlButton = ({
-  onClick,
-  ariaLabel,
-  title,
-  disabled,
-  children,
-  className = "",
-}: {
-  onClick: () => void
-  ariaLabel: string
-  title?: string
-  disabled?: boolean
-  children: React.ReactNode
-  className?: string
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    aria-label={ariaLabel}
-    title={title ?? ariaLabel}
-    className={[
-      "min-h-11 min-w-11 h-11 w-11 sm:h-12 sm:w-12 rounded-full border border-border bg-card text-foreground shadow-md",
-      "flex items-center justify-center transition-colors duration-150",
-      "hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background",
-      "disabled:opacity-50 disabled:cursor-not-allowed",
-      className,
-    ].join(" ")}
-  >
-    {children}
-  </button>
-)
 
 export function MapOverlayControls(props: MapOverlayControlsProps) {
   const [layersOpen, setLayersOpen] = useState(false)
@@ -182,14 +148,14 @@ export function MapOverlayControls(props: MapOverlayControlsProps) {
       <div className="absolute right-3 top-3 z-[1100] flex flex-col gap-2 sm:flex-col">
         <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-col sm:gap-2">
           <div ref={layersRef} className="relative">
-            <ControlButton
+            <MapControlButton
               onClick={() => setLayersOpen((v) => !v)}
               ariaLabel="Map layers and style"
               title="Layers"
               className="relative"
             >
               <Layers className="h-5 w-5" />
-            </ControlButton>
+            </MapControlButton>
 
             {layersOpen && (
               <div
@@ -304,48 +270,29 @@ export function MapOverlayControls(props: MapOverlayControlsProps) {
             )}
           </div>
 
-          <ControlButton
+          <MapControlButton
             onClick={props.onCopyLink}
             ariaLabel="Copy link"
             title="Copy link"
             className="hidden sm:flex"
           >
             <Link2 className="h-5 w-5" />
-          </ControlButton>
-          <ControlButton onClick={props.onRefresh} ariaLabel="Refresh data" title="Refresh" disabled={props.isRefreshing}>
-            <RefreshCw className={`h-5 w-5 ${props.isRefreshing ? "animate-spin" : ""}`} />
-          </ControlButton>
-          <ControlButton onClick={props.onCapture} ariaLabel="Capture map view" title="Capture" disabled={props.isCapturing}>
-            <Camera className={`h-5 w-5 ${props.isCapturing ? "animate-pulse" : ""}`} />
-          </ControlButton>
+          </MapControlButton>
+          <MapControlButton onClick={props.onRefresh} ariaLabel="Refresh data" title="Refresh" disabled={props.isRefreshing}>
+            <RefreshCw className={cn("h-5 w-5", props.isRefreshing ? "animate-spin" : "")} />
+          </MapControlButton>
+          <MapControlButton onClick={props.onCapture} ariaLabel="Capture map view" title="Capture" disabled={props.isCapturing}>
+            <Camera className={cn("h-5 w-5", props.isCapturing ? "animate-pulse" : "")} />
+          </MapControlButton>
         </div>
       </div>
 
       {/* Bottom-right: geolocate + zoom */}
-      <div className="absolute bottom-3 right-3 z-[1100] flex flex-col gap-2">
-        <ControlButton onClick={props.onGeolocate} ariaLabel="Find my location" title="Find my location">
-          <LocateFixed className="h-5 w-5" />
-        </ControlButton>
-        <div className="flex flex-col overflow-hidden rounded-full border border-border bg-card shadow-md">
-          <button
-            type="button"
-            onClick={props.onZoomIn}
-            aria-label="Zoom in"
-            className="flex h-11 w-11 items-center justify-center text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
-          <div className="h-px w-full bg-border" aria-hidden="true" />
-          <button
-            type="button"
-            onClick={props.onZoomOut}
-            aria-label="Zoom out"
-            className="flex h-11 w-11 items-center justify-center text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
-          >
-            <Minus className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
+      <MapZoomControls
+        onGeolocate={props.onGeolocate}
+        onZoomIn={props.onZoomIn}
+        onZoomOut={props.onZoomOut}
+      />
 
       {/* Bottom-left: collapsible legend */}
       <div ref={legendRef} className="absolute bottom-3 left-3 z-[1100] hidden md:block">

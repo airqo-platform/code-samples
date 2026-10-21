@@ -5,6 +5,7 @@ import Image from "next/image"
 import { X, Palette } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { MapControlButton } from "./map-control-button"
 import { MAP_STYLE_OPTIONS } from "@/lib/map-config"
 
 interface MapLayerControlProps {
@@ -45,17 +46,13 @@ export function MapLayerControl({ onStyleChange, currentStyle }: MapLayerControl
 
   return (
     <div className="relative">
-      <Button
-        onClick={() => {
-          setIsOpen(!isOpen)
-        }}
-        className="h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105 hover:bg-primary/90"
-        aria-label="Change map style"
-        aria-expanded={isOpen}
-        aria-haspopup="dialog"
+      <MapControlButton
+        onClick={() => setIsOpen(!isOpen)}
+        ariaLabel="Change map style"
+        title="Change map style"
       >
-        <Palette className="h-6 w-6" />
-      </Button>
+        <Palette className="h-5 w-5" />
+      </MapControlButton>
 
       {isOpen && (
         <div

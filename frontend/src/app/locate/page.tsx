@@ -268,8 +268,8 @@ export default function Index() {
               isSelectingPriority={isSelectingPriority}
             />
 
-            <div className="pointer-events-none absolute left-16 right-4 top-4 z-[1000] flex items-start justify-between gap-3 sm:left-20">
-              <div className="pointer-events-auto max-w-lg rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
+            <div className="pointer-events-none absolute left-4 top-20 z-[1000] hidden items-start justify-between gap-3 sm:flex sm:max-w-md">
+              <div className="pointer-events-auto rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
                 <div className="flex items-center gap-3">
                   <div className={`rounded-md p-2 ${isDrawing ? "bg-amber-50 text-amber-700" : "bg-muted text-primary"}`}>
                     {isDrawing || isSelectingPriority ? <MousePointer2 className="h-5 w-5" /> : <Route className="h-5 w-5" />}
@@ -296,15 +296,17 @@ export default function Index() {
                   </div>
                 </div>
               </div>
+            </div>
 
+            <div className="pointer-events-none absolute right-3 top-3 z-[1100]">
               <Button
                 variant={isDrawing ? "secondary" : "default"}
                 onClick={toggleDrawing}
                 aria-label={isDrawing ? "Finish drawing polygon" : "Start drawing polygon"}
-                className="pointer-events-auto gap-2 px-4"
+                className="pointer-events-auto gap-2 px-3"
               >
                 {isDrawing ? <CheckCircle2 className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
-                {isDrawing ? "Finish boundary" : "Draw boundary"}
+                <span className="hidden sm:inline">{isDrawing ? "Finish boundary" : "Draw boundary"}</span>
               </Button>
             </div>
 
@@ -327,7 +329,7 @@ export default function Index() {
             </div>
 
             {hasResults && showResultsNotice ? (
-              <div className="absolute bottom-5 right-5 z-[1000] max-w-xs rounded-md border border-border bg-card p-4 shadow-sm">
+              <div className="absolute bottom-24 right-3 z-[1000] max-w-xs rounded-md border border-border bg-card p-4 shadow-sm">
                 <div className="flex items-start gap-3">
                   <div className="rounded-md bg-primary/10 p-2 text-primary">
                     <Info className="h-5 w-5" />

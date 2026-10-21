@@ -69,7 +69,7 @@ frontend/
 │   │   ├── layout/              # PageShell, Container, Section, SectionHeading, SiteFooter, AppLoader
 │   │   ├── marketing/           # FeaturePage, FeatureCard, ProcessCard
 │   │   ├── navigation/          # Navigation (Sheet drawer on mobile)
-│   │   ├── mapping/             # LeafletMap, MapOverlayControls, MapLayerControl, NavigationControls
+│   │   ├── mapping/             # LeafletMap, MapOverlayControls, MapLayerControl, MapSearchControl, MapControlButton, MapZoomControls, MapInstanceBridge
 │   │   ├── controls/            # ControlPanel, FileUpload, PriorityLocationSearch, SearchBar
 │   │   ├── reports/             # nexus-date-range-picker, pm25-calendar-plot, report-data-modal, report-loading-screen, error-popup
 │   │   ├── charts/              # AirQualityChart
@@ -77,9 +77,9 @@ frontend/
 │   │   ├── analytics/           # GoogleAnalytics
 │   │   └── app/                 # AppDataWarmup
 │   ├── hooks/                   # use-toast, use-site-settings
-│   ├── lib/                     # api.ts, api-service.ts, api-shared.ts, airqo-grid-cache.ts, browser-api-cache.ts, map-config.ts, report-retry.ts, types.ts, utils.ts, ...
+│   ├── lib/                     # api.ts, api-service.ts, api-shared.ts, airqo-grid-cache.ts, browser-api-cache.ts, map-config.ts, mapbox-geocoding.ts, report-retry.ts, types.ts, utils.ts, ...
 │   ├── styles/globals.css       # Semantic HSL tokens, loader classes, map styles
-│   ├── types/                   # css.d.ts, leaflet-geosearch.d.ts
+│   ├── types/                   # css.d.ts
 │   └── embed/                   # Standalone map HTML (website-map-integration)
 ├── package.json
 └── tailwind.config.ts
@@ -111,7 +111,7 @@ frontend/
 - **Primitives (`components/ui/`):** `button`, `card`, `badge`, `input`, `textarea`, `select`, `dialog`, `sheet`, `accordion`, `alert`, `field`, `search-field`, `radio-group`, `spinner`, `toast`, `toaster`, `loading-overlay`, `loading-state`, `checkbox`, `label`, `popover`, `switch`, `tabs`.
 - **Layout:** `PageShell`, `Container`, `Section`, `SectionHeading`, `SiteFooter`, `AppLoader`.
 - **Marketing:** `FeaturePage`, `FeatureCard`, `ProcessCard`.
-- **Mapping:** `LeafletMap`, `MapOverlayControls`, `MapLayerControl`, `NavigationControls`, `map-config`.
+- **Mapping:** `LeafletMap`, `MapOverlayControls`, `MapLayerControl`, `MapSearchControl`, `MapControlButton`, `MapZoomControls`, `MapInstanceBridge`, `map-config`, `lib/mapbox-geocoding.ts`. `NavigationControls` was removed (replaced by `MapZoomControls`); the old Leaflet geosearch plugin, its type shim, and the legacy style-button CSS are gone — search goes through `MapSearchControl`.
 - **Reports:** `nexus-date-range-picker`, `pm25-calendar-plot`, `report-data-modal`, `report-loading-screen`.
 - **Charts:** `AirQualityChart`.
 - If a variant is needed, **extend the shared component via props/slots**, or create a named component in the correct folder. Never implement a one-off button/card/loader/marker/search/table/dialog.
@@ -147,7 +147,7 @@ frontend/
   - Bottom-right: geolocate + zoom.
   - Bottom-left: legend (desktop open, mobile hidden).
   - **No Home/reset control.**
-- **Search** (`leaflet-geosearch` + Mapbox provider) sits below top-left pills (`top: 60px`, `left: 12px` via `.map-page-geosearch`), never under top-right controls.
+- **Search:** the shared `MapSearchControl` (UI `Input` + `lib/mapbox-geocoding.ts`, Mapbox geocoding with Nominatim fallback) is used by all three maps (`/map`, `/locate`, `/categorize`). It sits below the top-left pills on `/map` and never under top-right controls. Do not reintroduce a Leaflet search plugin or inject plugin-generated DOM/CSS — build search UI from existing primitives.
 - **Screenshot** (`html2canvas`) captures only the Leaflet map canvas (tiles + markers), not UI chrome. Uses CORS-safe tile loading and validates the blob.
 - **Side panel** must stay open on node click; stop map click propagation to avoid accidental close.
 

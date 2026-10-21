@@ -8,8 +8,8 @@ import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet"
 import Image from "next/image"
 import L from "leaflet"
 import type { PopupOptions } from "leaflet"
-import { GeoSearchControl } from "leaflet-geosearch"
-import "leaflet-geosearch/dist/geosearch.css"
+import { MapInstanceBridge } from "./map-instance-bridge"
+import { MapSearchControl } from "./map-search-control"
 import {
   Area,
   AreaChart,
@@ -103,42 +103,6 @@ const isDailyForecastCacheCurrent = (
     now.getTime() >= refreshBoundary ? refreshBoundary : refreshBoundary - MAP_API_CACHE_MAX_AGE_MS
 
   return cachedAtMs >= currentCycleStartedAt
-}
-
-// Create a custom MapboxProvider class since the import might not work directly
-class MapboxProvider {
-  constructor(options: { params: { access_token: string } }) {
-    this.accessToken = options.params.access_token
-  }
-
-  private accessToken: string
-
-  async search({ query }: { query: string }) {
-    try {
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-          query,
-        )}.json?access_token=${this.accessToken}&limit=5`,
-      )
-      const data = await response.json()
-
-      return data.features.map((feature: any) => ({
-        x: feature.center[0], // longitude
-        y: feature.center[1], // latitude
-        label: feature.place_name,
-        bounds: feature.bbox
-          ? [
-              [feature.bbox[1], feature.bbox[0]], // southwest
-              [feature.bbox[3], feature.bbox[2]], // northeast
-            ]
-          : undefined,
-        raw: feature,
-      }))
-    } catch (error) {
-      console.error("Mapbox geocoding error:", error)
-      return []
-    }
-  }
 }
 
 // Import air quality images from public directory
@@ -687,197 +651,6 @@ const customPopupOptions: PopupOptions = {
   // are not trapped inside .leaflet-map-pane's stacking context (z-index 400)
   // and can paint above the React overlay controls (z-1100).
   pane: "highPopupPane",
-}
-
-// ─── Search ─────────────────────────────────────────────────────────────────
-
-const SearchControl: React.FC<{ defaultCenter: [number, number]; defaultZoom: number }> = ({
-  defaultCenter,
-  defaultZoom,
-}) => {
-  const map = useMap()
-  const markersRef = useRef<L.Marker[]>([])
-
-  useEffect(() => {
-    const provider = new MapboxProvider({
-      params: { access_token: process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "" },
-    })
-
-    const searchControl = new GeoSearchControl({
-      provider,
-      style: "bar",
-      position: "topleft",
-    })
-
-    map.addControl(searchControl)
-
-    // leaflet-geosearch may render two nodes: a hidden control inside the
-    // leaflet-top.leaflet-left container and the visible bar form. Style all of them.
-    const searchContainers = map.getContainer().querySelectorAll<HTMLElement>(".leaflet-control-geosearch")
-    searchContainers.forEach((searchContainer) => {
-      searchContainer.classList.add("map-page-geosearch")
-      // Explicit inline placement: below the 36px pollutant/provider pills
-      searchContainer.style.position = "absolute"
-      searchContainer.style.top = "60px"
-      searchContainer.style.left = "12px"
-      searchContainer.style.right = "auto"
-      searchContainer.style.margin = "0"
-      searchContainer.style.width = "min(17rem, calc(100vw - 8.5rem))"
-      searchContainer.style.zIndex = "1100"
-    })
-
-    const searchBars = map.getContainer().querySelectorAll(".leaflet-control-geosearch form")
-    searchBars.forEach((searchBar) => {
-      searchBar.classList.add("bg-card", "text-foreground", "border", "border-border", "rounded-md", "relative")
-
-      // Add the search icon exactly once per form
-      if (!searchBar.querySelector(".map-search-icon")) {
-        const searchIcon = document.createElement("div")
-        searchIcon.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      `
-        searchIcon.className = "map-search-icon absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none"
-        searchBar.appendChild(searchIcon)
-      }
-
-      const searchInput = searchBar.querySelector("input")
-      if (searchInput) {
-        searchInput.setAttribute("placeholder", "Search for a place")
-        searchInput.style.paddingLeft = "2.5rem"
-        searchInput.classList.add("w-full", "pl-10", "pr-4", "py-2", "rounded-md", "focus:outline-none", "focus:border-transparent")
-      }
-    })
-
-    const searchResults = map.getContainer().querySelectorAll(".leaflet-control-geosearch .results")
-    searchResults.forEach((resultList) => {
-      resultList.classList.add("bg-card", "text-foreground")
-    })
-
-    const handleMarkerClear = () => {
-      markersRef.current.forEach((marker) => marker.remove())
-      markersRef.current = []
-      map.setView(defaultCenter, defaultZoom)
-    }
-    map.on("geosearch/marker/clear", handleMarkerClear)
-
-    const handleShowLocation = async (result: any) => {
-      try {
-        const { x, y, label } = result.location
-
-        if (typeof x !== "number" || typeof y !== "number" || !label) {
-          throw new Error("Invalid location data")
-        }
-
-        map.setView([y, x], 13, { animate: true, duration: 1 })
-
-        markersRef.current.forEach((marker) => marker.remove())
-        markersRef.current = []
-
-        const marker = L.marker([y, x], { icon: DefaultIcon }).addTo(map)
-        markersRef.current.push(marker)
-
-        const container = document.createElement("div")
-        const root = ReactDOM.createRoot(container)
-        root.render(
-          <LoadingPopupContent
-            label={label}
-            onClose={() => {
-              marker.closePopup()
-              root.unmount()
-            }}
-          />,
-        )
-
-        marker.bindPopup(container, { ...customPopupOptions, offset: [0, 0] }).openPopup()
-
-        const loadSatellitePrediction = async (): Promise<void> => {
-          root.render(
-            <LoadingPopupContent
-              label={label}
-              onClose={() => {
-                marker.closePopup()
-                root.unmount()
-              }}
-            />,
-          )
-
-          try {
-            const response = await getSatelliteData({
-              latitude: y,
-              longitude: x,
-              timestamp: getTodayDate(),
-            })
-            const prediction = unwrapSatelliteData(response)
-
-            if (!prediction || !isSatelliteData(prediction)) {
-              throw new Error("Invalid API response format")
-            }
-
-            root.render(
-              <PopupContent
-                label={prediction.place_name || label}
-                data={prediction}
-                onClose={() => {
-                  marker.closePopup()
-                  root.unmount()
-                }}
-              />,
-            )
-          } catch (error) {
-            console.error("Error fetching air quality data:", error)
-            const responseStatus =
-              typeof error === "object" && error !== null && "response" in error
-                ? (error as { response?: { status?: number } }).response?.status
-                : undefined
-
-            root.render(
-              <ErrorPopupContent
-                label={label}
-                onClose={() => marker.closePopup()}
-                onRetry={responseStatus === 401 ? () => void loadSatellitePrediction() : undefined}
-                errorMessage={
-                  responseStatus === 401
-                    ? "The satellite request was not authorized."
-                    : error instanceof Error
-                      ? error.message
-                      : "Failed to load air quality data"
-                }
-              />,
-            )
-          }
-        }
-
-        await loadSatellitePrediction()
-      } catch (error) {
-        console.error("Error handling location:", error)
-      }
-    }
-    map.on("geosearch/showlocation", handleShowLocation)
-
-    const searchInput = map.getContainer().querySelector<HTMLInputElement>(".leaflet-control-geosearch input")
-    const handleSearchInput = (event: Event) => {
-      const target = event.target as HTMLInputElement
-      if (!target.value) {
-        map.setView(defaultCenter, defaultZoom)
-        markersRef.current.forEach((marker) => marker.remove())
-        markersRef.current = []
-      }
-    }
-    if (searchInput) {
-      searchInput.addEventListener("input", handleSearchInput)
-    }
-
-    return () => {
-      map.off("geosearch/marker/clear", handleMarkerClear)
-      map.off("geosearch/showlocation", handleShowLocation)
-      searchInput?.removeEventListener("input", handleSearchInput)
-      map.removeControl(searchControl)
-    }
-  }, [map, defaultCenter, defaultZoom])
-
-  return null
 }
 
 // ─── Node popup (Nexus-style side-panel reading details) ────────────────────
@@ -3369,6 +3142,8 @@ const LeafletMap: React.FC = () => {
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const leafletMapRef = useRef<L.Map | null>(null)
+  const [mapInstance, setMapInstance] = useState<L.Map | null>(null)
+  const searchMarkerRef = useRef<L.Marker | null>(null)
 
   useEffect(() => {
     if (!heatmapEnabled) setShowHeatmaps(false)
@@ -3682,6 +3457,108 @@ const LeafletMap: React.FC = () => {
     }
   }, [hourlyForecastEnabled, hourlyForecastPreferenceLoaded, hourlyForecastRequest, selectedNode?.site_id])
 
+  const handleMapSearchSelect = useCallback(
+    async (result: { label: string; center: [number, number] }) => {
+      const map = leafletMapRef.current
+      if (!map) return
+
+      const [lat, lng] = result.center
+      map.flyTo([lat, lng], 13, { animate: true, duration: 1 })
+
+      if (searchMarkerRef.current) {
+        searchMarkerRef.current.remove()
+        searchMarkerRef.current = null
+      }
+
+      const marker = L.marker([lat, lng], { icon: DefaultIcon }).addTo(map)
+      searchMarkerRef.current = marker
+
+      const container = document.createElement("div")
+      const root = ReactDOM.createRoot(container)
+      root.render(
+        <LoadingPopupContent
+          label={result.label}
+          onClose={() => {
+            marker.closePopup()
+            root.unmount()
+          }}
+        />,
+      )
+
+      marker.bindPopup(container, { ...customPopupOptions, offset: [0, 0] }).openPopup()
+
+      const loadSatellitePrediction = async (): Promise<void> => {
+        root.render(
+          <LoadingPopupContent
+            label={result.label}
+            onClose={() => {
+              marker.closePopup()
+              root.unmount()
+            }}
+          />,
+        )
+
+        try {
+          const response = await getSatelliteData({
+            latitude: lat,
+            longitude: lng,
+            timestamp: getTodayDate(),
+          })
+          const prediction = unwrapSatelliteData(response)
+
+          if (!prediction || !isSatelliteData(prediction)) {
+            throw new Error("Invalid API response format")
+          }
+
+          root.render(
+            <PopupContent
+              label={prediction.place_name || result.label}
+              data={prediction}
+              onClose={() => {
+                marker.closePopup()
+                root.unmount()
+              }}
+            />,
+          )
+        } catch (error) {
+          console.error("Error fetching air quality data:", error)
+          const responseStatus =
+            typeof error === "object" && error !== null && "response" in error
+              ? (error as { response?: { status?: number } }).response?.status
+              : undefined
+
+          root.render(
+            <ErrorPopupContent
+              label={result.label}
+              onClose={() => marker.closePopup()}
+              onRetry={responseStatus === 401 ? () => void loadSatellitePrediction() : undefined}
+              errorMessage={
+                responseStatus === 401
+                  ? "The satellite request was not authorized."
+                  : error instanceof Error
+                    ? error.message
+                    : "Failed to load air quality data"
+              }
+            />,
+          )
+        }
+      }
+
+      await loadSatellitePrediction()
+    },
+    [],
+  )
+
+  const handleMapSearchClear = useCallback(() => {
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.remove()
+      searchMarkerRef.current = null
+    }
+    if (leafletMapRef.current) {
+      leafletMapRef.current.setView(defaultCenter, defaultZoom)
+    }
+  }, [defaultCenter, defaultZoom])
+
   const isPanelOpen = !!selectedNode
 
   return (
@@ -3694,7 +3571,12 @@ const LeafletMap: React.FC = () => {
           zoomControl={false}
         >
           <TileLayer key={currentStyle} {...getMapTileConfig(currentStyle)} crossOrigin="anonymous" />
-          <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
+          <MapInstanceBridge
+            onReady={(m) => {
+              leafletMapRef.current = m
+              setMapInstance(m)
+            }}
+          />
           <ClearSelectionOnMapClick onClear={() => setSelectedNode(null)} />
           <NexusMapNodes
             onLoadingChange={setLoadingState}
@@ -3713,7 +3595,6 @@ const LeafletMap: React.FC = () => {
             heatmapEnabled={heatmapEnabled}
           />
 
-          <MapHandleBridge onMapReady={(m) => (leafletMapRef.current = m)} />
         </MapContainer>
       </div>
 
@@ -3733,14 +3614,22 @@ const LeafletMap: React.FC = () => {
         onShowEmojisChange={setShowEmojis}
         showFires={showFires}
         onShowFiresChange={setShowFires}
-        onGeolocate={handleGeolocate}
-        onZoomIn={() => leafletMapRef.current?.zoomIn()}
-        onZoomOut={() => leafletMapRef.current?.zoomOut()}
         onCopyLink={handleCopyLink}
         onRefresh={handleRefresh}
         onCapture={captureViewEnabled ? captureMapView : () => undefined}
         isRefreshing={loadingState.isLoading}
         isCapturing={isCapturing}
+        onGeolocate={handleGeolocate}
+        onZoomIn={() => mapInstance?.zoomIn()}
+        onZoomOut={() => mapInstance?.zoomOut()}
+      />
+
+      {/* Shared search */}
+      <MapSearchControl
+        map={mapInstance}
+        onSelect={handleMapSearchSelect}
+        onClear={handleMapSearchClear}
+        className="absolute left-3 top-[60px] z-[1100] w-[min(17rem,calc(100vw-9rem))] sm:w-[17rem]"
       />
 
       {/* Status indicators */}
@@ -3763,37 +3652,6 @@ const LeafletMap: React.FC = () => {
       ) : null}
     </div>
   )
-}
-
-// ─── Internal bridge: expose the Leaflet map instance on the wrapper ref ───
-
-const MapHandleBridge: React.FC<{
-  onMapReady: (map: L.Map) => void
-}> = ({ onMapReady }) => {
-  const map = useMap()
-
-  // The default popup pane is nested inside .leaflet-map-pane, which creates a
-  // stacking context (z-index 400), so no z-index on it can rise above the React
-  // controls (z-1100). Create a dedicated pane as a direct child of the map
-  // container (sibling of .leaflet-map-pane) so it can sit above those overlays.
-  useEffect(() => {
-    const existingPane = map.getPane("highPopupPane")
-    // Passing the container makes the pane a sibling of .leaflet-map-pane rather
-    // than a child of it (default container would be .leaflet-map-pane).
-    const pane = existingPane ?? map.createPane("highPopupPane", map.getContainer())
-    pane.style.zIndex = "1300"
-    pane.style.pointerEvents = "none"
-
-    return () => {
-      if (!existingPane) pane.remove()
-    }
-  }, [map])
-
-  useEffect(() => {
-    onMapReady(map)
-  }, [map, onMapReady])
-
-  return null
 }
 
 export default LeafletMap
