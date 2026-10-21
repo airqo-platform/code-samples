@@ -2,7 +2,7 @@ import { unstable_cache } from "next/cache"
 import { createHash } from "node:crypto"
 import { fetchAirQo } from "@/lib/airqo-server-transport"
 
-export const GRID_CACHE_SECONDS = 3600
+export const GRID_CACHE_SECONDS = 300
 
 type Snapshot = { body: string; status: number; contentType: string }
 
@@ -12,8 +12,19 @@ export class UncachedGridResponse extends Error {
   }
 }
 
+const cacheableGridRoutePatterns = [
+  /^devices\/measurements\/grids\/[A-Za-z0-9_-]+$/,
+  /^predict\/daily-forecasting\/[A-Za-z0-9_-]+$/,
+  /^spatial\/heatmaps\/[A-Za-z0-9_-]+$/,
+  /^devices\/grids\/summary$/,
+  /^devices\/readings\/map$/,
+  /^predict\/daily-forecasting$/,
+  /^spatial\/heatmaps$/,
+  /^spatial\/active_fires\/africa$/,
+]
+
 export function isCacheableGridRoute(method: string, path: string) {
-  return method === "GET" && /^(devices\/measurements\/grids|predict\/daily-forecasting|spatial\/heatmaps)\/[A-Za-z0-9_-]+$/.test(path)
+  return method === "GET" && cacheableGridRoutePatterns.some((pattern) => pattern.test(path))
 }
 
 const cachedGridResponse = unstable_cache(async (url: string, _credentialFingerprint: string): Promise<Snapshot> => {

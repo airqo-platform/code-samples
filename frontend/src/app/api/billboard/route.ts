@@ -22,17 +22,17 @@ export async function GET(request: NextRequest) {
   const scope: Record<string, string> = grid ? { grid_id: id } : { cohort_id: id }
   async function measurements(): Promise<Reading[]> {
     const rows: Reading[] = []
-    for (let page = 0; page < 100; page++) {
+    for (let page = 0; page < 10; page++) {
       const data = await get(`devices/measurements/${grid ? "grids" : "cohorts"}/${id}`, { limit: "80", skip: String(page * 80) })
       const batch = data.measurements || []
       rows.push(...batch)
       if (batch.length < 80 || (data.meta?.total != null && rows.length >= data.meta.total)) return rows
     }
-    throw new Error("Measurement result too large")
+    return rows
   }
   async function forecasts(): Promise<ForecastSite[]> {
     const rows: ForecastSite[] = []
-    for (let page = 1; page <= 100; page++) {
+    for (let page = 1; page <= 10; page++) {
       const data = await get("predict/daily-forecasting", { ...scope, limit: "100", page: String(page) })
       for (const site of data.forecasts || []) {
         if (!site.site_details?.site_id) continue
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       }
       if (page >= (data.total_pages || 1)) return rows
     }
-    throw new Error("Forecast result too large")
+    return rows
   }
   const results = await Promise.allSettled([measurements(), forecasts()])
   const warnings = results.flatMap((r, i) => r.status === "rejected" ? [i === 0 ? "Current readings could not be loaded." : "Daily forecasts unavailable. Forecasts require Premium access."] : [])
@@ -53,5 +53,5 @@ export async function GET(request: NextRequest) {
   const body = JSON.stringify({ measurements: compactReadings, daily: results[1].status === "fulfilled" ? results[1].value : [], warnings })
   // Reserve room for the page shell and assets within the 2 MB display budget.
   if (new TextEncoder().encode(body).byteLength > 1000000) return Response.json({ message: "This network is too large for the lightweight billboard. Choose a smaller grid or cohort." }, { status: 413 })
-  return new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } })
+  return new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600" } })
 }

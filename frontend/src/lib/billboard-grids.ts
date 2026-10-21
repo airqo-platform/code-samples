@@ -30,7 +30,7 @@ export function gridsWithinCountry(grids: BillboardGrid[], country: BillboardGri
 export async function loadBillboardGrids(signal?: AbortSignal): Promise<BillboardGrid[]> {
   const grids = new Map<string, BillboardGrid>()
   let skip = 0
-  for (let page = 0; page < 100; page++) {
+  for (let page = 0; page < 20; page++) {
     // Build local pagination URLs; upstream nextPage links can contain credentials.
     const response = await fetch(`/api/airqo/devices/grids/summary?limit=30&skip=${skip}`, { signal })
     if (!response.ok) throw new Error("Could not load places.")
@@ -47,5 +47,5 @@ export async function loadBillboardGrids(signal?: AbortSignal): Promise<Billboar
     }
     skip = next
   }
-  throw new Error("Too many grid pages.")
+  return Array.from(grids.values()).sort((a, b) => (a.long_name || a.name).localeCompare(b.long_name || b.name))
 }

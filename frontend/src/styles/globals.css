@@ -88,6 +88,59 @@
   .surface-muted { @apply rounded-md border border-border bg-muted/60 text-foreground; }
 }
 
+/* Nexus map markers */
+@layer components {
+  .aq-map-cluster {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px 5px 6px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 9999px;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+    transition: transform 150ms ease;
+    cursor: pointer;
+    user-select: none;
+  }
+  .aq-map-cluster:hover {
+    transform: scale(1.06);
+  }
+  .aq-map-cluster:active {
+    transform: scale(0.95);
+  }
+  .aq-map-cluster__count {
+    font-weight: 700;
+    font-size: 13px;
+    color: #1e293b;
+  }
+
+  .aq-map-node {
+    width: 40px;
+    height: 40px;
+    border-radius: 9999px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 150ms ease;
+    cursor: pointer;
+    user-select: none;
+  }
+  .aq-map-node:hover {
+    transform: scale(1.12);
+  }
+  .aq-map-node.is-selected {
+    box-shadow: 0 0 0 3px rgba(20, 95, 255, 0.28), 0 2px 8px rgba(15, 23, 42, 0.18);
+  }
+
+  .aq-map-marker-wrapper {
+    background: transparent !important;
+    border: none !important;
+  }
+}
+
 /* Nexus loaders */
 @layer components {
   .SecondaryMainloader {
@@ -166,6 +219,16 @@
   transform: none !important;
   z-index: 1000 !important;
   width: 250px !important;
+}
+
+/* Map page only: drop search below the top-left filter pills (36px + 12px gap) */
+.map-page-geosearch {
+  position: absolute !important;
+  top: 60px !important;
+  left: 12px !important;
+  right: auto !important;
+  margin: 0 !important;
+  width: min(17rem, calc(100vw - 8.5rem)) !important;
 }
 
 .leaflet-control-geosearch form {
@@ -373,6 +436,20 @@
 .leaflet-container {
   z-index: 0;
   font-family: inherit;
+}
+
+/* Popups are rendered in a dedicated highPopupPane that is created on the map
+   container (a sibling of .leaflet-map-pane) by MapHandleBridge, so their
+   z-index can rise above the React overlay controls (z-[1100]). Raising the
+   default .leaflet-popup-pane is inert: it is nested inside .leaflet-map-pane,
+   whose stacking context (z-index 400) traps it. */
+.leaflet-highPopup-pane {
+  z-index: 1300 !important;
+  pointer-events: none;
+}
+
+.leaflet-highPopup-pane .leaflet-popup {
+  pointer-events: auto;
 }
 
 [data-radix-popper-content-wrapper] {

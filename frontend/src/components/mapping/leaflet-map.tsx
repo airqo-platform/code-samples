@@ -2,14 +2,28 @@
 
 import "leaflet/dist/leaflet.css"
 import type React from "react"
-import { useEffect, useRef, useState, useMemo } from "react"
+import { useEffect, useRef, useState, useMemo, useCallback } from "react"
 import ReactDOM from "react-dom/client"
 import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet"
 import Image from "next/image"
 import L from "leaflet"
+import type { PopupOptions } from "leaflet"
 import { GeoSearchControl } from "leaflet-geosearch"
-import "leaflet-geosearch/dist/geosearch.css" 
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import "leaflet-geosearch/dist/geosearch.css"
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 import {
   Activity,
   BarChart3,
@@ -27,10 +41,6 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react"
-
-const markerIconUrl = "/leaflet/marker-icon.png"
-const markerIconRetinaUrl = "/leaflet/marker-icon-2x.png"
-const markerShadowUrl = "/leaflet/marker-shadow.png"
 import {
   getSatelliteData,
   getMapNodes,
@@ -39,6 +49,7 @@ import {
   getDailyForecastCollection,
   getHourlyForecast,
   getSiteHistorical,
+  invalidateMapReadingsCache,
   type ActiveFire,
   type DailyForecastResponse,
   type HourlyForecastSite,
@@ -52,7 +63,14 @@ import {
 import { useSiteSettings } from "@/hooks/use-site-settings"
 import { Switch } from "@/components/ui/switch"
 import { Spinner } from "@/components/ui/spinner"
-import { MapLayerControl } from "./map-layer-control"
+import { useToast } from "@/hooks/use-toast"
+import { MapOverlayControls } from "./map-overlay-controls"
+import {
+  getMapTileConfig,
+  configureLeafletDefaultIcons,
+  MAPBOX_STYLES,
+  type MapStyle,
+} from "@/lib/map-config"
 
 const MAP_NODES_CACHE_KEY = "map-nodes"
 const MAP_HEATMAPS_CACHE_KEY = "map-heatmaps"
@@ -151,27 +169,310 @@ const getAqiImageByCategory = (aqiCategory?: string) => {
   }
 }
 
-import {
-  getMapTileConfig,
-  configureLeafletDefaultIcons,
-  MAP_STYLE_OPTIONS,
-  MAPBOX_STYLES,
-  type MapStyle,
-} from "@/lib/map-config"
-
-// Keep Leaflet's default marker assets local so Next.js never requests /marker-icon.png.
 configureLeafletDefaultIcons()
 
 // Set default icon for markers
 const DefaultIcon = L.icon({
-  iconUrl: markerIconUrl,
-  iconRetinaUrl: markerIconRetinaUrl,
-  shadowUrl: markerShadowUrl,
+  iconUrl: "/leaflet/marker-icon.png",
+  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+  shadowUrl: "/leaflet/marker-shadow.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
 })
 
-// Update the interface to match the actual API response
+// ─── MapNode typing ─────────────────────────────────────────────────────────
+
+interface MapNode {
+  _id?: string
+  site_id: string
+  time: string
+  aqi_category: string
+  aqi_color: string
+  pm2_5: { value: number | null }
+  pm10?: { value: number | null }
+  no2?: { value: number | null }
+  averages?: {
+    percentageDifference?: number
+    weeklyAverages?: {
+      currentWeek?: number
+      previousWeek?: number
+    }
+  }
+  siteDetails: {
+    location_name?: string
+    name?: string
+    approximate_latitude: number
+    approximate_longitude: number
+    formatted_name?: string
+    data_provider?: string
+  }
+}
+
+// Dedupe key: map readings have no `_id`, only `site_id`.
+const getNodeKey = (node: MapNode): string =>
+  node.site_id ||
+  node._id ||
+  `${node.siteDetails?.approximate_latitude},${node.siteDetails?.approximate_longitude}`
+
+// ─── Clustering constants & helpers ─────────────────────────────────────────
+
+const CLUSTER_ZOOM_THRESHOLD = 12
+const CLUSTER_DEBOUNCE_MS = 250
+
+const getClusterParams = (zoom: number) => {
+  const z = Math.floor(zoom)
+  if (z < 3) return { gridSize: 4.0, distanceKm: 30.0, minSize: 2 }
+  if (z < 5) return { gridSize: 3.0, distanceKm: 18.0, minSize: 2 }
+  if (z < 7) return { gridSize: 2.0, distanceKm: 9.0, minSize: 2 }
+  if (z < 9) return { gridSize: 1.0, distanceKm: 4.5, minSize: 2 }
+  if (z < 10) return { gridSize: 0.5, distanceKm: 2.0, minSize: 2 }
+  if (z < 11) return { gridSize: 0.2, distanceKm: 1.0, minSize: 2 }
+  return { gridSize: 0.1, distanceKm: 0.4, minSize: 2 }
+}
+
+// ─── PM10 category helper ──────────────────────────────────────────────────
+
+const getPm10Category = (value: number): string => {
+  if (value <= 54) return "good"
+  if (value <= 154) return "moderate"
+  if (value <= 254) return "unhealthy for sensitive groups"
+  if (value <= 354) return "unhealthy"
+  if (value <= 424) return "very unhealthy"
+  return "hazardous"
+}
+
+// ─── Measurement helper ─────────────────────────────────────────────────────
+
+const getMeasurementValue = (m: { value: number | null } | null | undefined): number | null => {
+  if (!m || typeof m.value !== "number" || !Number.isFinite(m.value)) return null
+  return m.value
+}
+
+// ─── Pollutant/provider helpers ─────────────────────────────────────────────
+
+const getNodeValueForPollutant = (node: MapNode, pollutant: "pm2_5" | "pm10"): number | null => {
+  return pollutant === "pm2_5"
+    ? getMeasurementValue(node.pm2_5)
+    : getMeasurementValue(node.pm10)
+}
+
+const getNodeCategoryForPollutant = (node: MapNode, pollutant: "pm2_5" | "pm10"): string => {
+  if (pollutant === "pm10") {
+    const val = getNodeValueForPollutant(node, "pm10")
+    if (val === null) return "unknown"
+    return getPm10Category(val)
+  }
+  return node.aqi_category || "unknown"
+}
+
+const deriveProviders = (nodes: MapNode[]): string[] => {
+  const set = new Set<string>()
+  for (const node of nodes) {
+    const raw = node.siteDetails?.data_provider
+    if (!raw) continue
+    for (const part of raw.split(/[/,&]/)) {
+      const trimmed = part.trim().toUpperCase()
+      if (trimmed) set.add(trimmed)
+    }
+  }
+  return Array.from(set).sort()
+}
+
+// ─── Interfaces ─────────────────────────────────────────────────────────────
+
+interface LoadingState {
+  isLoading: boolean
+  error: string | null
+}
+
+interface DailyForecastItem {
+  time: string
+  pm2_5: number | null
+  aqi_label?: string
+  pm2_5_low?: number | null
+  pm2_5_high?: number | null
+  pm2_5_max?: number | null
+  forecast_confidence?: number | null
+  air_temperature?: number | null
+  relative_humidity?: number | null
+  air_pressure_at_sea_level?: number | null
+  precipitation_amount?: number | null
+  cloud_area_fraction?: number | null
+  wind_speed?: number | null
+  wind_direction_compass?: string
+  aqi_category?: string
+  aqi_color?: string
+  aqi_color_name?: string
+  created_at?: string
+}
+
+interface ForecastState {
+  isLoading: boolean
+  error: string | null
+  collection: DailyForecastResponse | null
+}
+
+interface HourlyForecastState {
+  isLoading: boolean
+  error: string | null
+  site: HourlyForecastSite | null
+}
+
+interface HourlyForecastCollectionState {
+  isLoading: boolean
+  error: string | null
+  requestedSiteId: string | null
+  site: HourlyForecastSite | null
+}
+
+interface HourlyForecastRequest {
+  siteId: string
+}
+
+type HistoricalPoint = { date: Date; pm25: number }
+type HistoricalSeriesPoint = { x: Date; pm25: number }
+type HistoricalSeriesMode = "daily" | "hourly"
+
+interface ClusterMember {
+  node: MapNode
+  value: number
+  category: string
+}
+
+interface Cluster {
+  id: string
+  longitude: number
+  latitude: number
+  count: number
+  best: ClusterMember
+  worst: ClusterMember
+}
+
+// ─── Cluster computation ────────────────────────────────────────────────────
+
+const buildClusters = (
+  nodes: MapNode[],
+  zoom: number,
+  pollutant: "pm2_5" | "pm10",
+  provider: string,
+): { clusters: Cluster[]; solo: MapNode[] } => {
+  const effectiveZoom = Math.floor(zoom)
+
+  const filtered = nodes.filter((node) => {
+    if (provider !== "all") {
+      const raw = node.siteDetails?.data_provider
+      if (raw) {
+        const parts = raw.split(/[/,&]/).map((p) => p.trim().toUpperCase())
+        if (!parts.includes(provider)) return false
+      } else {
+        return false
+      }
+    }
+    return getNodeValueForPollutant(node, pollutant) !== null
+  })
+
+  if (effectiveZoom >= CLUSTER_ZOOM_THRESHOLD) {
+    return { clusters: [], solo: filtered }
+  }
+
+  const { gridSize, distanceKm, minSize } = getClusterParams(effectiveZoom)
+
+  const grid: Record<string, MapNode[]> = {}
+  for (const node of filtered) {
+    const lon = node.siteDetails.approximate_longitude
+    const lat = node.siteDetails.approximate_latitude
+    const key = `${Math.floor(lon / gridSize)},${Math.floor(lat / gridSize)}`
+    ;(grid[key] ??= []).push(node)
+  }
+
+  const clusters: Cluster[] = []
+  const solo: MapNode[] = []
+  const processed = new Set<string>()
+
+  for (const cell of Object.values(grid)) {
+    if (cell.length < minSize) {
+      for (const n of cell) {
+        if (processed.has(getNodeKey(n))) continue
+        solo.push(n)
+        processed.add(getNodeKey(n))
+      }
+      continue
+    }
+
+    const used = new Set<string>()
+
+    for (const seed of cell) {
+      const seedKey = getNodeKey(seed)
+      if (processed.has(seedKey) || used.has(seedKey)) continue
+
+      const members: MapNode[] = [seed]
+      used.add(seedKey)
+
+      const seedLon = seed.siteDetails.approximate_longitude
+      const seedLat = seed.siteDetails.approximate_latitude
+
+      for (const other of cell) {
+        const otherKey = getNodeKey(other)
+        if (processed.has(otherKey) || used.has(otherKey)) continue
+        const dLon = (other.siteDetails.approximate_longitude - seedLon) * 111
+        const dLat = (other.siteDetails.approximate_latitude - seedLat) * 111
+        if (Math.sqrt(dLon * dLon + dLat * dLat) <= distanceKm) {
+          members.push(other)
+          used.add(otherKey)
+        }
+      }
+
+      if (members.length < minSize) {
+        for (const m of members) {
+          if (processed.has(getNodeKey(m))) continue
+          solo.push(m)
+          processed.add(getNodeKey(m))
+        }
+        continue
+      }
+
+      for (const m of members) processed.add(getNodeKey(m))
+
+      const n = members.length
+      const avgLon = members.reduce((s, m) => s + m.siteDetails.approximate_longitude, 0) / n
+      const avgLat = members.reduce((s, m) => s + m.siteDetails.approximate_latitude, 0) / n
+
+      let best: ClusterMember | null = null
+      let worst: ClusterMember | null = null
+
+      for (const m of members) {
+        const value = getNodeValueForPollutant(m, pollutant)
+        if (value === null) continue
+        const member: ClusterMember = {
+          node: m,
+          value,
+          category: getNodeCategoryForPollutant(m, pollutant),
+        }
+        if (!best || value < best.value) best = member
+        if (!worst || value > worst.value) worst = member
+      }
+
+      if (!best || !worst) continue
+
+      clusters.push({
+        id: `cluster-${members
+          .map((m) => getNodeKey(m))
+          .sort()
+          .join("|")}`,
+        longitude: avgLon,
+        latitude: avgLat,
+        count: n,
+        best,
+        worst,
+      })
+    }
+  }
+
+  return { clusters, solo }
+}
+
+// ─── Satellite / popup helpers ───────────────────────────────────────────────
+
 interface SatelliteData {
   latitude: number
   longitude: number
@@ -198,7 +499,6 @@ interface SatelliteData {
 
 const unwrapSatelliteData = (data: any): any => {
   let current = data
-
   for (let i = 0; i < 4; i += 1) {
     if (Array.isArray(current) && current.length === 1) {
       current = current[0]
@@ -206,7 +506,6 @@ const unwrapSatelliteData = (data: any): any => {
     }
     break
   }
-
   return current
 }
 
@@ -215,70 +514,30 @@ const getTodayDate = () => {
   const year = today.getFullYear()
   const month = String(today.getMonth() + 1).padStart(2, "0")
   const day = String(today.getDate()).padStart(2, "0")
-
   return `${year}-${month}-${day}`
 }
 
-// Add type guard for API response
-const isSatelliteData = (data: any): data is SatelliteData => {
-  return (
-    data &&
-    typeof data.latitude === "number" &&
-    typeof data.longitude === "number" &&
-    typeof data.pm2_5_prediction === "number" &&
-    typeof data.timestamp === "string"
-  )
-}
+const isSatelliteData = (data: any): data is SatelliteData =>
+  data &&
+  typeof data.latitude === "number" &&
+  typeof data.longitude === "number" &&
+  typeof data.pm2_5_prediction === "number" &&
+  typeof data.timestamp === "string"
 
-// Update the air quality info function to handle invalid values
 const getAirQualityInfo = (pm25: number | null) => {
-  // Handle invalid or null PM2.5 values
   if (pm25 === null || isNaN(pm25)) {
-    return {
-      level: "Invalid Data",
-      image: Invalid,
-      color: "bg-white border-gray-200",
-    }
+    return { level: "Invalid Data", image: Invalid, color: "bg-white border-gray-200" }
   }
-
-  if (pm25 <= 9)
-    return {
-      level: "Good",
-      image: GoodAir,
-      color: "bg-white border-green-200",
-    }
-  if (pm25 <= 35.4)
-    return {
-      level: "Moderate",
-      image: Moderate,
-      color: "bg-white border-yellow-200",
-    }
+  if (pm25 <= 9) return { level: "Good", image: GoodAir, color: "bg-white border-green-200" }
+  if (pm25 <= 35.4) return { level: "Moderate", image: Moderate, color: "bg-white border-yellow-200" }
   if (pm25 <= 55.4)
-    return {
-      level: "Unhealthy for Sensitive Groups",
-      image: UnhealthySG,
-      color: "bg-white border-orange-200",
-    }
-  if (pm25 <= 125.4)
-    return {
-      level: "Unhealthy",
-      image: Unhealthy,
-      color: "bg-white border-red-200",
-    }
+    return { level: "Unhealthy for Sensitive Groups", image: UnhealthySG, color: "bg-white border-orange-200" }
+  if (pm25 <= 125.4) return { level: "Unhealthy", image: Unhealthy, color: "bg-white border-red-200" }
   if (pm25 <= 225.4)
-    return {
-      level: "Very Unhealthy",
-      image: VeryUnhealthy,
-      color: "bg-white border-purple-200",
-    }
-  return {
-    level: "Hazardous",
-    image: Hazardous,
-    color: "bg-white border-red-300",
-  }
+    return { level: "Very Unhealthy", image: VeryUnhealthy, color: "bg-white border-purple-200" }
+  return { level: "Hazardous", image: Hazardous, color: "bg-white border-red-300" }
 }
 
-// Create a component for the popup content
 const PopupContent: React.FC<{
   label: string
   data: Partial<SatelliteData>
@@ -292,7 +551,6 @@ const PopupContent: React.FC<{
   const weatherDate = data.weather_date || data.features?.weather_date
   const weatherSource = data.weather_source || data.features?.weather_source
 
-  // Safely format timestamp
   const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString() : "Unknown"
 
   return (
@@ -352,11 +610,7 @@ const PopupContent: React.FC<{
   )
 }
 
-// Create a loading popup component
-const LoadingPopupContent: React.FC<{
-  label: string
-  onClose: () => void
-}> = ({ label, onClose }) => (
+const LoadingPopupContent: React.FC<{ label: string; onClose: () => void }> = ({ label, onClose }) => (
   <div className="min-w-[220px] rounded-md border bg-card p-3" role="status" aria-live="polite">
     <div className="flex items-center justify-between mb-2">
       <div className="h-12 w-12 animate-pulse rounded-full bg-muted" />
@@ -385,7 +639,6 @@ const LoadingPopupContent: React.FC<{
   </div>
 )
 
-// Create an error popup component
 const ErrorPopupContent: React.FC<{
   label: string
   onClose: () => void
@@ -423,85 +676,85 @@ const ErrorPopupContent: React.FC<{
   </div>
 )
 
-// Add this CSS class to override default Leaflet popup styles
-const customPopupOptions = {
+const customPopupOptions: PopupOptions = {
   className: "custom-popup",
   closeButton: false,
   maxWidth: 300,
   minWidth: 200,
   offset: [0, -20],
   autoPan: true,
+  // Render in the high pane (a direct child of the map container), so popups
+  // are not trapped inside .leaflet-map-pane's stacking context (z-index 400)
+  // and can paint above the React overlay controls (z-1100).
+  pane: "highPopupPane",
 }
 
-// Component to add the search control to the map
-const SearchControl: React.FC<{
-  defaultCenter: [number, number]
-  defaultZoom: number
-}> = ({ defaultCenter, defaultZoom }) => {
+// ─── Search ─────────────────────────────────────────────────────────────────
+
+const SearchControl: React.FC<{ defaultCenter: [number, number]; defaultZoom: number }> = ({
+  defaultCenter,
+  defaultZoom,
+}) => {
   const map = useMap()
   const markersRef = useRef<L.Marker[]>([])
 
   useEffect(() => {
     const provider = new MapboxProvider({
-      params: {
-        access_token: process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "",
-      },
+      params: { access_token: process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "" },
     })
 
     const searchControl = new GeoSearchControl({
       provider,
       style: "bar",
-      position: "topright",
+      position: "topleft",
     })
 
     map.addControl(searchControl)
 
-    // Apply custom TailwindCSS styles to the search bar and add search icon
-    const searchBar = document.querySelector(".leaflet-control-geosearch form")
-    if (searchBar) {
+    // leaflet-geosearch may render two nodes: a hidden control inside the
+    // leaflet-top.leaflet-left container and the visible bar form. Style all of them.
+    const searchContainers = map.getContainer().querySelectorAll<HTMLElement>(".leaflet-control-geosearch")
+    searchContainers.forEach((searchContainer) => {
+      searchContainer.classList.add("map-page-geosearch")
+      // Explicit inline placement: below the 36px pollutant/provider pills
+      searchContainer.style.position = "absolute"
+      searchContainer.style.top = "60px"
+      searchContainer.style.left = "12px"
+      searchContainer.style.right = "auto"
+      searchContainer.style.margin = "0"
+      searchContainer.style.width = "min(17rem, calc(100vw - 8.5rem))"
+      searchContainer.style.zIndex = "1100"
+    })
+
+    const searchBars = map.getContainer().querySelectorAll(".leaflet-control-geosearch form")
+    searchBars.forEach((searchBar) => {
       searchBar.classList.add("bg-card", "text-foreground", "border", "border-border", "rounded-md", "relative")
 
-      // Adjust the width and positioning
-      const searchContainer = document.querySelector(".leaflet-control-geosearch")
-      if (searchContainer) {
-        // Position the search bar on the right side
-        searchContainer.classList.add("!right-4", "!top-4", "!left-auto", "!transform-none", "!w-72")
-      }
-
-      // Create and add the search icon
-      const searchIcon = document.createElement("div")
-      searchIcon.innerHTML = `
+      // Add the search icon exactly once per form
+      if (!searchBar.querySelector(".map-search-icon")) {
+        const searchIcon = document.createElement("div")
+        searchIcon.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
       `
-      searchIcon.className = "absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none"
-      searchBar.appendChild(searchIcon)
+        searchIcon.className = "map-search-icon absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none"
+        searchBar.appendChild(searchIcon)
+      }
 
-      // Adjust the search input padding to accommodate the icon
       const searchInput = searchBar.querySelector("input")
       if (searchInput) {
         searchInput.setAttribute("placeholder", "Search for a place")
         searchInput.style.paddingLeft = "2.5rem"
-        // Add some additional styling to the input
-        searchInput.classList.add(
-          "w-full",
-          "pl-10",
-          "pr-4",
-          "py-2",
-          "rounded-md",
-          "focus:outline-none",
-          "focus:border-transparent",
-        )
+        searchInput.classList.add("w-full", "pl-10", "pr-4", "py-2", "rounded-md", "focus:outline-none", "focus:border-transparent")
       }
-    }
+    })
 
-    const searchResults = document.querySelector(".leaflet-control-geosearch .results")
-    if (searchResults) {
-      searchResults.classList.add("bg-card", "text-foreground")
-    }
+    const searchResults = map.getContainer().querySelectorAll(".leaflet-control-geosearch .results")
+    searchResults.forEach((resultList) => {
+      resultList.classList.add("bg-card", "text-foreground")
+    })
 
-    // Event listener to clear markers and reset the map when search is cleared
     const handleMarkerClear = () => {
       markersRef.current.forEach((marker) => marker.remove())
       markersRef.current = []
@@ -509,7 +762,6 @@ const SearchControl: React.FC<{
     }
     map.on("geosearch/marker/clear", handleMarkerClear)
 
-    // Event listener for when a location is found
     const handleShowLocation = async (result: any) => {
       try {
         const { x, y, label } = result.location
@@ -518,11 +770,7 @@ const SearchControl: React.FC<{
           throw new Error("Invalid location data")
         }
 
-        // Center the map on the selected location with animation
-        map.setView([y, x], 13, {
-          animate: true,
-          duration: 1,
-        })
+        map.setView([y, x], 13, { animate: true, duration: 1 })
 
         markersRef.current.forEach((marker) => marker.remove())
         markersRef.current = []
@@ -530,10 +778,7 @@ const SearchControl: React.FC<{
         const marker = L.marker([y, x], { icon: DefaultIcon }).addTo(map)
         markersRef.current.push(marker)
 
-        // Create a container div for the popup
         const container = document.createElement("div")
-
-        // Render loading state
         const root = ReactDOM.createRoot(container)
         root.render(
           <LoadingPopupContent
@@ -607,18 +852,11 @@ const SearchControl: React.FC<{
         await loadSatellitePrediction()
       } catch (error) {
         console.error("Error handling location:", error)
-        // Handle location processing errors
-        const errorContainer = document.createElement("div")
-        const errorRoot = ReactDOM.createRoot(errorContainer)
-        errorRoot.render(
-          <ErrorPopupContent label="Location Error" onClose={() => {}} errorMessage="Invalid location data received" />,
-        )
       }
     }
     map.on("geosearch/showlocation", handleShowLocation)
 
-    // Event listener for search input cancel or clear
-    const searchInput = document.querySelector<HTMLInputElement>(".leaflet-control-geosearch input")
+    const searchInput = map.getContainer().querySelector<HTMLInputElement>(".leaflet-control-geosearch input")
     const handleSearchInput = (event: Event) => {
       const target = event.target as HTMLInputElement
       if (!target.value) {
@@ -642,84 +880,56 @@ const SearchControl: React.FC<{
   return null
 }
 
-// Add interface for map nodes
-interface MapNode {
-  _id: string
-  site_id: string
-  time: string
-  aqi_category: string
-  aqi_color: string
-  pm2_5: { value: number | null }
-  averages?: {
-    percentageDifference?: number
-    weeklyAverages?: {
-      currentWeek?: number
-      previousWeek?: number
-    }
-  }
-  siteDetails: {
-    location_name?: string
-    name?: string
-    approximate_latitude: number
-    approximate_longitude: number
-    formatted_name?: string
-  }
+// ─── Node popup (Nexus-style side-panel reading details) ────────────────────
+
+const NodePopupContent: React.FC<{
+  node: MapNode
+  pollutant: "pm2_5" | "pm10"
+  onClose: () => void
+}> = ({ node, pollutant, onClose }) => {
+  const value = getNodeValueForPollutant(node, pollutant)
+  const category = getNodeCategoryForPollutant(node, pollutant)
+  const image = getAqiImageByCategory(category)
+  const siteName =
+    node.siteDetails.name ||
+    node.siteDetails.formatted_name ||
+    node.siteDetails.location_name ||
+    "Unknown"
+  const timestamp = node.time ? new Date(node.time).toLocaleString() : "Unknown"
+
+  return (
+    <div className="min-w-[200px] p-3 rounded-md bg-card border border-border">
+      <div className="flex items-center justify-between mb-2">
+        <div className="w-12 h-12 relative">
+          <Image
+            src={image || "/placeholder.svg"}
+            alt={category}
+            width={48}
+            height={48}
+            className="w-full h-full"
+            quality={100}
+            priority
+          />
+        </div>
+        <button className="text-muted-foreground hover:text-muted-foreground" onClick={onClose}>
+          x
+        </button>
+      </div>
+      <div className="text-sm font-semibold leading-tight text-foreground">{siteName}</div>
+      <AqiStatusLine
+        pm25={value}
+        category={category}
+        color={node.aqi_color}
+        valueLabel="Current"
+        pollutant={pollutant}
+        className="mt-1"
+      />
+      <div className="text-xs text-muted-foreground mt-2">Updated {timestamp}</div>
+    </div>
+  )
 }
 
-// Add loading state interface
-interface LoadingState {
-  isLoading: boolean
-  error: string | null
-}
-
-interface DailyForecastItem {
-  time: string
-  pm2_5: number | null
-  aqi_label?: string
-  pm2_5_low?: number | null
-  pm2_5_high?: number | null
-  pm2_5_max?: number | null
-  forecast_confidence?: number | null
-  air_temperature?: number | null
-  relative_humidity?: number | null
-  air_pressure_at_sea_level?: number | null
-  precipitation_amount?: number | null
-  cloud_area_fraction?: number | null
-  wind_speed?: number | null
-  wind_direction_compass?: string
-  aqi_category?: string
-  aqi_color?: string
-  aqi_color_name?: string
-  created_at?: string
-}
-
-interface ForecastState {
-  isLoading: boolean
-  error: string | null
-  collection: DailyForecastResponse | null
-}
-
-interface HourlyForecastState {
-  isLoading: boolean
-  error: string | null
-  site: HourlyForecastSite | null
-}
-
-interface HourlyForecastCollectionState {
-  isLoading: boolean
-  error: string | null
-  requestedSiteId: string | null
-  site: HourlyForecastSite | null
-}
-
-interface HourlyForecastRequest {
-  siteId: string
-}
-
-type HistoricalPoint = { date: Date; pm25: number }
-
-type HistoricalSeriesPoint = { x: Date; pm25: number }
-type HistoricalSeriesMode = "daily" | "hourly"
+// ─── Forecast helpers ────────────────────────────────────────────────────────
 
 const extractHistoricalTime = (row: any): string | null => {
   if (!row) return null
@@ -731,9 +941,12 @@ const extractHistoricalPm25 = (row: any): number | null => {
   if (!row) return null
   const pm = row.pm2_5
   if (typeof pm === "number") return Number.isFinite(pm) ? pm : null
-  if (pm && typeof pm === "object" && typeof pm.value === "number") return Number.isFinite(pm.value) ? pm.value : null
-  if (typeof row.pm2_5_calibrated_value === "number") return Number.isFinite(row.pm2_5_calibrated_value) ? row.pm2_5_calibrated_value : null
-  if (typeof row.pm2_5_raw_value === "number") return Number.isFinite(row.pm2_5_raw_value) ? row.pm2_5_raw_value : null
+  if (pm && typeof pm === "object" && typeof pm.value === "number")
+    return Number.isFinite(pm.value) ? pm.value : null
+  if (typeof row.pm2_5_calibrated_value === "number")
+    return Number.isFinite(row.pm2_5_calibrated_value) ? row.pm2_5_calibrated_value : null
+  if (typeof row.pm2_5_raw_value === "number")
+    return Number.isFinite(row.pm2_5_raw_value) ? row.pm2_5_raw_value : null
   return null
 }
 
@@ -751,10 +964,7 @@ const buildHourlySeries = (rows: any[]): HistoricalSeriesPoint[] => {
   return points
 }
 
-const toIsoUtc = (d: Date) => {
-  const dt = new Date(d)
-  return dt.toISOString()
-}
+const toIsoUtc = (d: Date) => new Date(d).toISOString()
 
 const getLastNDaysRangeIso = (days: number) => {
   const end = new Date()
@@ -764,22 +974,18 @@ const getLastNDaysRangeIso = (days: number) => {
 
 const buildLast7DaysDailyAverage = (rows: any[]): HistoricalPoint[] => {
   const byDay = new Map<string, { date: Date; sum: number; count: number }>()
-
   rows.forEach((row) => {
     const time = extractHistoricalTime(row)
     const pm25 = extractHistoricalPm25(row)
     if (!time || typeof pm25 !== "number") return
-
     const dt = new Date(time)
     if (Number.isNaN(dt.getTime())) return
-
-    const key = dt.toISOString().slice(0, 10) // yyyy-mm-dd (UTC)
+    const key = dt.toISOString().slice(0, 10)
     const bucket = byDay.get(key) || { date: new Date(key), sum: 0, count: 0 }
     bucket.sum += pm25
     bucket.count += 1
     byDay.set(key, bucket)
   })
-
   return Array.from(byDay.values())
     .map((b) => ({ date: b.date, pm25: b.count ? b.sum / b.count : 0 }))
     .sort((a, b) => a.date.getTime() - b.date.getTime())
@@ -797,12 +1003,10 @@ const uniqueDayCount = (rows: any[]): number => {
   return set.size
 }
 
-// Create a loading indicator component
 const LoadingIndicator: React.FC<LoadingState> = ({ isLoading, error }) => {
   if (!isLoading && !error) return null
-
   return (
-    <div className="absolute top-4 right-4 z-[1000] rounded-md border border-border bg-card p-3 shadow-sm">
+    <div className="absolute bottom-4 left-1/2 z-[1000] -translate-x-1/2 rounded-md border border-border bg-card p-3 shadow-sm">
       {isLoading ? (
         <Spinner size="sm" label="Loading map data" className="text-primary" />
       ) : error ? (
@@ -832,11 +1036,7 @@ const formatForecastMetric = (value: number | null | undefined, digits = 1, suff
 
 const PM25_UNIT_TEXT = "&micro;g/m³"
 
-const formatForecastMetricWithUnit = (
-  value: number | null | undefined,
-  digits = 1,
-  unit = "",
-) => {
+const formatForecastMetricWithUnit = (value: number | null | undefined, digits = 1, unit = "") => {
   const formatted = formatForecastMetric(value, digits)
   return formatted === "N/A" || !unit ? formatted : `${formatted} ${unit}`
 }
@@ -849,7 +1049,6 @@ const getForecastNumber = (value: number | null | undefined) =>
 
 const getDynamicChartAxis = (values: number[]) => {
   if (!values.length) return { domain: [0, 1] as [number, number], ticks: [0, 1] }
-
   const min = Math.min(...values)
   const max = Math.max(...values)
   const spread = Math.max(max - min, 1)
@@ -861,11 +1060,7 @@ const getDynamicChartAxis = (values: number[]) => {
   const axisMin = Math.max(0, Math.floor(rawMin / step) * step)
   const axisMax = Math.max(axisMin + step, Math.ceil(rawMax / step) * step)
   const mid = axisMin + (axisMax - axisMin) / 2
-
-  return {
-    domain: [axisMin, axisMax] as [number, number],
-    ticks: [axisMin, mid, axisMax],
-  }
+  return { domain: [axisMin, axisMax] as [number, number], ticks: [axisMin, mid, axisMax] }
 }
 
 const getStartOfLocalDayMs = (date: Date) =>
@@ -893,12 +1088,14 @@ function AqiStatusLine({
   color,
   valueLabel = "Current",
   className = "",
+  pollutant = "pm2_5",
 }: {
   pm25?: number | null
   category?: string | null
   color?: string | null
   valueLabel?: string
   className?: string
+  pollutant?: "pm2_5" | "pm10"
 }) {
   const badgeStyle = getAqiBadgeStyle(category, normalizeHexColor(color))
   const displayCategory = category || "Unknown"
@@ -906,7 +1103,9 @@ function AqiStatusLine({
   return (
     <div className={["flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground", className].join(" ")}>
       <span className="whitespace-nowrap font-medium text-muted-foreground">
-        {valueLabel} <Pm25Label />: <span className="font-semibold text-foreground">{formatForecastMetric(pm25, 0)}</span> <Pm25Unit />
+        {valueLabel} {pollutant === "pm10" ? "PM10" : <Pm25Label />}:{" "}
+        <span className="font-semibold text-foreground">{formatForecastMetric(pm25, 0)}</span>{" "}
+        {pollutant === "pm10" ? "µg/m³" : <Pm25Unit />}
       </span>
       <span className="relative h-2.5 w-2.5 shrink-0" aria-hidden="true">
         <span className="absolute inset-0 rounded-full opacity-60 animate-ping" style={{ backgroundColor: badgeStyle.dotColor }} />
@@ -931,14 +1130,12 @@ const normalizeHexColor = (value?: string | null, fallback = "#E4B84A") => {
 
 const hexToRgba = (hex: string, alpha: number) => {
   const normalized = normalizeHexColor(hex).replace("#", "")
-  const value = normalized.length === 3 ? normalized.split("").map((char) => `${char}${char}`).join("") : normalized
-
+  const value =
+    normalized.length === 3 ? normalized.split("").map((char) => `${char}${char}`).join("") : normalized
   if (value.length !== 6) return `rgba(228, 184, 74, ${alpha})`
-
   const r = Number.parseInt(value.slice(0, 2), 16)
   const g = Number.parseInt(value.slice(2, 4), 16)
   const b = Number.parseInt(value.slice(4, 6), 16)
-
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
@@ -947,44 +1144,13 @@ const clampNumber = (value: number, min: number, max: number) => Math.min(Math.m
 const getAqiBadgeStyle = (category?: string | null, fallbackColor = "#E4B84A") => {
   const normalized = (category || "").toLowerCase()
   const styles: Record<string, { borderColor: string; backgroundColor: string; color: string; dotColor: string }> = {
-    good: {
-      borderColor: "#BBF7D0",
-      backgroundColor: "#F0FDF4",
-      color: "#166534",
-      dotColor: "#22C55E",
-    },
-    moderate: {
-      borderColor: "#FDE68A",
-      backgroundColor: "#FFFBEB",
-      color: "#92400E",
-      dotColor: "#F59E0B",
-    },
-    "unhealthy for sensitive groups": {
-      borderColor: "#FED7AA",
-      backgroundColor: "#FFF7ED",
-      color: "#9A3412",
-      dotColor: "#F97316",
-    },
-    unhealthy: {
-      borderColor: "#FECACA",
-      backgroundColor: "#FEF2F2",
-      color: "#991B1B",
-      dotColor: "#EF4444",
-    },
-    "very unhealthy": {
-      borderColor: "#E9D5FF",
-      backgroundColor: "#FAF5FF",
-      color: "#6B21A8",
-      dotColor: "#A855F7",
-    },
-    hazardous: {
-      borderColor: "#FBCFE8",
-      backgroundColor: "#FDF2F8",
-      color: "#9D174D",
-      dotColor: "#DB2777",
-    },
+    good: { borderColor: "#BBF7D0", backgroundColor: "#F0FDF4", color: "#166534", dotColor: "#22C55E" },
+    moderate: { borderColor: "#FDE68A", backgroundColor: "#FFFBEB", color: "#92400E", dotColor: "#F59E0B" },
+    "unhealthy for sensitive groups": { borderColor: "#FED7AA", backgroundColor: "#FFF7ED", color: "#9A3412", dotColor: "#F97316" },
+    unhealthy: { borderColor: "#FECACA", backgroundColor: "#FEF2F2", color: "#991B1B", dotColor: "#EF4444" },
+    "very unhealthy": { borderColor: "#E9D5FF", backgroundColor: "#FAF5FF", color: "#6B21A8", dotColor: "#A855F7" },
+    hazardous: { borderColor: "#FBCFE8", backgroundColor: "#FDF2F8", color: "#9D174D", dotColor: "#DB2777" },
   }
-
   return (
     styles[normalized] || {
       borderColor: hexToRgba(fallbackColor, 0.28),
@@ -1005,7 +1171,7 @@ const ForecastStatusBadge: React.FC<{ forecastState: ForecastState }> = ({ forec
   if (!forecastState.isLoading && !forecastState.error) return null
 
   return (
-    <div className="absolute left-16 top-4 z-[1000] max-w-[260px] rounded-md border border-border bg-card/95 px-4 py-3 shadow-md backdrop-blur">
+    <div className="absolute left-1/2 top-3 z-[1000] hidden max-w-[260px] -translate-x-1/2 rounded-md border border-border bg-card/95 px-4 py-3 shadow-md backdrop-blur sm:block">
       {forecastState.isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
@@ -1017,6 +1183,572 @@ const ForecastStatusBadge: React.FC<{ forecastState: ForecastState }> = ({ forec
     </div>
   )
 }
+
+// ─── Nexus-style clustered nodes ────────────────────────────────────────────
+
+const NexusMapNodes: React.FC<{
+  onLoadingChange: (state: LoadingState) => void
+  onProvidersLoaded: (providers: string[]) => void
+  showMarkers: boolean
+  onNodeSelect: (node: MapNode) => void
+  selectedNode: MapNode | null
+  pollutant: "pm2_5" | "pm10"
+  provider: string
+  refreshToken: number
+}> = ({
+  onLoadingChange,
+  onProvidersLoaded,
+  showMarkers,
+  onNodeSelect,
+  selectedNode,
+  pollutant,
+  provider,
+  refreshToken,
+}) => {
+  const map = useMap()
+  const [nodes, setNodes] = useState<MapNode[]>([])
+  const layerGroupRef = useRef<L.LayerGroup | null>(null)
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [clusterZoom, setClusterZoom] = useState(Math.floor(map.getZoom()))
+
+  // Capture live zoom immediately on zoomend for responsive cluster breakup
+  useEffect(() => {
+    const onZoomEnd = () => {
+      setClusterZoom(Math.floor(map.getZoom()))
+    }
+    map.on("zoomend", onZoomEnd)
+    return () => {
+      map.off("zoomend", onZoomEnd)
+    }
+  }, [map])
+
+  // Debounced cluster recompute on moveend
+  useEffect(() => {
+    const onMoveEnd = () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(() => {
+        setClusterZoom(Math.floor(map.getZoom()))
+      }, CLUSTER_DEBOUNCE_MS)
+    }
+    map.on("moveend", onMoveEnd)
+    return () => {
+      map.off("moveend", onMoveEnd)
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [map])
+
+  const isValidNode = (node: MapNode): boolean => {
+    const lat = node?.siteDetails?.approximate_latitude
+    const lng = node?.siteDetails?.approximate_longitude
+    return (
+      typeof lat === "number" && Number.isFinite(lat) &&
+      typeof lng === "number" && Number.isFinite(lng) &&
+      Boolean(node.siteDetails?.name || node.siteDetails?.formatted_name || node.siteDetails?.location_name)
+    )
+  }
+
+  const fetchNodes = useCallback(async () => {
+    let hasUsableCachedNodes = false
+    try {
+      onLoadingChange({ isLoading: true, error: null })
+
+      // Manual refreshes must bypass the browser cache and hit the network.
+      if (refreshToken === 0) {
+        const cached = await readBrowserApiCache<BrowserApiCacheEntry<MapNode[]>>(MAP_NODES_CACHE_KEY)
+        if (isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.length) {
+          const validCachedNodes = cached.data.filter(isValidNode)
+          if (validCachedNodes.length) {
+            hasUsableCachedNodes = true
+            setNodes(validCachedNodes)
+            onProvidersLoaded(deriveProviders(validCachedNodes))
+            onLoadingChange({ isLoading: false, error: null })
+          }
+        }
+      }
+
+      const data = (await getMapNodes()) as MapNode[] | null
+      if (!data) {
+        if (!hasUsableCachedNodes) {
+          onLoadingChange({ isLoading: false, error: "Failed to load map data" })
+        }
+        return
+      }
+      const validNodes = data.filter(isValidNode)
+      if (validNodes.length === 0) {
+        if (!hasUsableCachedNodes) {
+          onLoadingChange({ isLoading: false, error: "No valid data points found" })
+        }
+        return
+      }
+      setNodes(validNodes)
+      onProvidersLoaded(deriveProviders(validNodes))
+      writeBrowserApiCache(MAP_NODES_CACHE_KEY, data).catch((error) => {
+        console.warn("Unable to cache map nodes:", error)
+      })
+      onLoadingChange({ isLoading: false, error: null })
+    } catch (error) {
+      console.error("Error fetching nodes:", error)
+      if (!hasUsableCachedNodes) {
+        onLoadingChange({ isLoading: false, error: "Error loading map data" })
+      }
+    }
+  }, [onLoadingChange, onProvidersLoaded, refreshToken])
+
+  useEffect(() => {
+    fetchNodes()
+  }, [fetchNodes, refreshToken])
+
+  // Unmount-only cleanup: refreshes must not wipe the existing markers.
+  useEffect(
+    () => () => {
+      if (layerGroupRef.current) {
+        layerGroupRef.current.clearLayers()
+        layerGroupRef.current.remove()
+        layerGroupRef.current = null
+      }
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+    },
+    [],
+  )
+
+  const { clusters, solo } = useMemo(
+    () => buildClusters(nodes, clusterZoom, pollutant, provider),
+    [nodes, clusterZoom, pollutant, provider],
+  )
+
+  useEffect(() => {
+    if (!showMarkers) return
+
+    if (!layerGroupRef.current) {
+      layerGroupRef.current = L.layerGroup().addTo(map)
+    }
+    const group = layerGroupRef.current
+    group.clearLayers()
+
+    const renderMarker = (
+      lat: number,
+      lon: number,
+      html: string,
+      zIndex: number,
+      onClick?: () => void,
+      onHover?: (enter: boolean) => void,
+    ): L.Marker => {
+      const icon = L.divIcon({
+        className: "aq-map-marker-wrapper",
+        html: `<div class="aq-marker-inner" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);">${html}</div>`,
+        iconSize: [0, 0],
+      })
+      const marker = L.marker([lat, lon], { icon, zIndexOffset: zIndex })
+      if (onClick) {
+        marker.on("click", (event) => {
+          L.DomEvent.stopPropagation(event)
+          onClick()
+        })
+      }
+      if (onHover) {
+        marker.on("mouseover", () => onHover(true))
+        marker.on("mouseout", () => onHover(false))
+      }
+      marker.addTo(group)
+      return marker
+    }
+
+    // Render clusters
+    clusters.forEach((cluster) => {
+      const bestImage = getAqiImageByCategory(cluster.best.category)
+      const worstImage = getAqiImageByCategory(cluster.worst.category)
+      const displayCount = cluster.count > 2 ? `+${cluster.count - 2}` : String(cluster.count)
+
+      const html = `
+        <div class="aq-map-cluster" role="button" tabindex="0" aria-label="Cluster of ${cluster.count} stations">
+          <img src="${bestImage}" alt="best air quality" style="width:28px;height:28px;" />
+          <img src="${worstImage}" alt="worst air quality" style="width:28px;height:28px;margin-left:-8px;" />
+          <span class="aq-map-cluster__count">${displayCount}</span>
+        </div>
+      `
+
+      renderMarker(cluster.latitude, cluster.longitude, html, 0, () => {
+        // Cluster click: zoom in
+        const maxSpan = Math.max(
+          Math.abs(cluster.worst.node.siteDetails.approximate_longitude - cluster.best.node.siteDetails.approximate_longitude),
+          Math.abs(cluster.worst.node.siteDetails.approximate_latitude - cluster.best.node.siteDetails.approximate_latitude),
+        )
+        const currentZoom = map.getZoom()
+        let targetZoom: number
+        if (maxSpan < 0.001) targetZoom = 16
+        else if (maxSpan < 0.01) targetZoom = 15
+        else if (maxSpan < 0.05) targetZoom = 14
+        else targetZoom = Math.max(CLUSTER_ZOOM_THRESHOLD + 1, currentZoom + 2.5)
+        targetZoom = Math.min(18, targetZoom)
+        map.flyTo([cluster.latitude, cluster.longitude], targetZoom, {
+          animate: true,
+          duration: 1,
+        })
+      })
+    })
+
+    // Render solo nodes
+    solo.forEach((node) => {
+      const value = getNodeValueForPollutant(node, pollutant)
+      if (value === null) return
+      const category = getNodeCategoryForPollutant(node, pollutant)
+      const image = getAqiImageByCategory(category)
+      const isSelected = !!selectedNode && getNodeKey(selectedNode) === getNodeKey(node)
+      const siteName =
+        node.siteDetails.name ||
+        node.siteDetails.formatted_name ||
+        node.siteDetails.location_name ||
+        "Unknown"
+      const lat = node.siteDetails.approximate_latitude
+      const lon = node.siteDetails.approximate_longitude
+
+      const html = `
+        <div class="aq-map-node${isSelected ? " is-selected" : ""}" role="button" tabindex="0" aria-label="${siteName}">
+          <img src="${image}" alt="${category}" style="width:36px;height:36px;object-fit:contain;" />
+        </div>
+      `
+
+      const marker = renderMarker(
+        lat,
+        lon,
+        html,
+        isSelected ? 1000 : 0,
+        () => {
+          onNodeSelect(node)
+          const currentZoom = map.getZoom()
+          map.flyTo([lat, lon], Math.max(currentZoom, 12), { animate: true, duration: 0.8 })
+        },
+        (enter) => {
+          if (enter) {
+            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+            if (!isSelected) {
+              const popupContainer = document.createElement("div")
+              const root = ReactDOM.createRoot(popupContainer)
+              root.render(
+                <NodePopupContent
+                  node={node}
+                  pollutant={pollutant}
+                  onClose={() => {
+                    marker.closePopup()
+                    root.unmount()
+                  }}
+                />,
+              )
+              marker
+                .bindPopup(popupContainer, {
+                  ...customPopupOptions,
+                  offset: L.point(0, -20),
+                })
+                .openPopup()
+              marker.once("remove", () => root.unmount())
+            }
+          } else {
+            hoverTimeoutRef.current = setTimeout(() => marker.closePopup(), 120)
+          }
+        },
+      )
+    })
+  }, [clusters, solo, map, onNodeSelect, showMarkers, selectedNode, pollutant])
+
+  return null
+}
+
+// Clear selection when clicking on the map background
+const ClearSelectionOnMapClick: React.FC<{ onClear: () => void }> = ({ onClear }) => {
+  useMapEvents({ click: () => onClear() })
+  return null
+}
+
+// ─── Active fires ────────────────────────────────────────────────────────────
+
+const createFireIcon = () =>
+  L.divIcon({
+    className: "active-fire-marker",
+    html: `
+      <div style="
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #dc2626;
+        background: rgba(255,255,255,0.94);
+        border: 2px solid #fdba74;
+        border-radius: 9999px;
+        box-shadow: 0 2px 8px rgba(127,29,29,0.35);
+      ">
+        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="#f97316" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22c4.97 0 8-3.58 8-8 0-3.5-2-6.5-5-9 .5 3-1 5-3 6-1-3-3-5-5-7 .5 4-3 6.5-3 10 0 4.42 3.03 8 8 8Z" />
+        </svg>
+      </div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -13],
+  })
+
+const getFireGridSize = (zoom: number) => {
+  if (zoom <= 4) return 140
+  if (zoom === 5) return 105
+  if (zoom === 6) return 75
+  if (zoom === 7) return 50
+  if (zoom === 8) return 32
+  if (zoom === 9) return 20
+  return 0
+}
+
+const ActiveFireMarkers: React.FC<{ showFires: boolean }> = ({ showFires }) => {
+  const map = useMap()
+  const [fires, setFires] = useState<ActiveFire[]>([])
+  const markersRef = useRef<L.Marker[]>([])
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadFires = async () => {
+      const cached = await readBrowserApiCache<BrowserApiCacheEntry<ActiveFire[]>>(MAP_ACTIVE_FIRES_CACHE_KEY)
+      const cachedFires = Array.isArray(cached?.data) ? cached.data : []
+      if (isActive && isBrowserApiCacheFresh(cached, MAP_ACTIVE_FIRES_CACHE_MAX_AGE_MS) && cachedFires.length) {
+        setFires(cachedFires)
+      }
+
+      const data = await getActiveFires()
+      if (!isActive || !data) return
+
+      setFires(data)
+      writeBrowserApiCache(MAP_ACTIVE_FIRES_CACHE_KEY, data).catch((error) => {
+        console.warn("Unable to cache active-fire data:", error)
+      })
+    }
+
+    loadFires()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    const clearMarkers = () => {
+      markersRef.current.forEach((marker) => marker.remove())
+      markersRef.current = []
+    }
+
+    const renderMarkers = () => {
+      clearMarkers()
+      if (!showFires || !fires.length) return
+
+      const bounds = map.getBounds()
+      const zoom = map.getZoom()
+      const gridSize = getFireGridSize(zoom)
+      const visibleFires = fires
+        .filter((fire) => bounds.contains([fire.latitude, fire.longitude]))
+        .sort((a, b) => (b.frp ?? 0) - (a.frp ?? 0))
+
+      const selectedFires =
+        gridSize === 0
+          ? visibleFires
+          : Array.from(
+              visibleFires
+                .reduce((cells, fire) => {
+                  const point = map.latLngToContainerPoint([fire.latitude, fire.longitude])
+                  const cellKey = `${Math.floor(point.x / gridSize)}:${Math.floor(point.y / gridSize)}`
+                  if (!cells.has(cellKey)) cells.set(cellKey, fire)
+                  return cells
+                }, new Map<string, ActiveFire>())
+                .values(),
+            )
+
+      const fireIcon = createFireIcon()
+
+      selectedFires.forEach((fire) => {
+        const marker = L.marker([fire.latitude, fire.longitude], {
+          icon: fireIcon,
+          keyboard: true,
+          title: `Active fire detected ${fire.acquisition_datetime || fire.acquisition_date}`,
+        }).addTo(map)
+
+        const popup = document.createElement("div")
+        popup.style.minWidth = "190px"
+
+        const title = document.createElement("div")
+        title.textContent = "Active fire detection"
+        title.style.fontWeight = "700"
+        title.style.color = "#b91c1c"
+        title.style.marginBottom = "6px"
+        popup.appendChild(title)
+
+        const details = [
+          ["Detected", fire.acquisition_datetime || fire.acquisition_date],
+          ["Satellite", fire.satellite],
+          ["Instrument", fire.instrument],
+          ["FRP", fire.frp == null ? null : `${fire.frp} MW`],
+          ["Confidence", fire.confidence],
+          ["Day/Night", fire.daynight],
+        ]
+
+        details.forEach(([label, value]) => {
+          if (value == null || value === "") return
+          const row = document.createElement("div")
+          row.style.fontSize = "12px"
+          row.style.marginTop = "3px"
+
+          const labelElement = document.createElement("strong")
+          labelElement.textContent = `${label}: `
+          row.appendChild(labelElement)
+          row.appendChild(document.createTextNode(String(value)))
+          popup.appendChild(row)
+        })
+
+        marker.bindPopup(popup, { ...customPopupOptions, maxWidth: 260 })
+        markersRef.current.push(marker)
+      })
+    }
+
+    renderMarkers()
+    map.on("zoomend moveend", renderMarkers)
+
+    return () => {
+      map.off("zoomend moveend", renderMarkers)
+      clearMarkers()
+    }
+  }, [fires, map, showFires])
+
+  return null
+}
+
+// ─── Heatmap overlays ────────────────────────────────────────────────────────
+
+interface HeatmapData {
+  bounds: [[number, number], [number, number]]
+  city: string
+  id: string
+  image: string
+  message: string
+}
+
+const HeatmapOverlays: React.FC<{
+  onLoadingChange: (state: LoadingState) => void
+  showHeatmaps: boolean
+  heatmapEnabled: boolean
+}> = ({ onLoadingChange, showHeatmaps, heatmapEnabled }) => {
+  const map = useMap()
+  const [heatmaps, setHeatmaps] = useState<HeatmapData[]>([])
+  const overlaysRef = useRef<L.ImageOverlay[]>([])
+
+  useEffect(() => {
+    if (!showHeatmaps) {
+      onLoadingChange({ isLoading: false, error: null })
+      return
+    }
+
+    let isActive = true
+
+    const fetchHeatmaps = async () => {
+      let hasUsableCachedHeatmaps = false
+
+      try {
+        onLoadingChange({ isLoading: true, error: null })
+
+        const cached = await readBrowserApiCache<BrowserApiCacheEntry<HeatmapData[]>>(MAP_HEATMAPS_CACHE_KEY)
+        if (isActive && isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.length) {
+          hasUsableCachedHeatmaps = true
+          setHeatmaps(cached.data)
+          onLoadingChange({ isLoading: false, error: null })
+        }
+
+        const data = await getHeatmapData()
+        if (!isActive) return
+
+        if (data && Array.isArray(data)) {
+          setHeatmaps(data)
+          writeBrowserApiCache(MAP_HEATMAPS_CACHE_KEY, data).catch((error) => {
+            console.warn("Unable to cache heatmap data:", error)
+          })
+          onLoadingChange({ isLoading: false, error: null })
+        } else {
+          onLoadingChange(
+            hasUsableCachedHeatmaps
+              ? { isLoading: false, error: null }
+              : { isLoading: false, error: "No heatmap data available" },
+          )
+        }
+      } catch (error) {
+        console.error("Error fetching heatmap data:", error)
+        onLoadingChange(
+          hasUsableCachedHeatmaps
+            ? { isLoading: false, error: null }
+            : { isLoading: false, error: "Error loading heatmap data" },
+        )
+      }
+    }
+
+    fetchHeatmaps()
+
+    return () => {
+      isActive = false
+    }
+  }, [onLoadingChange, showHeatmaps])
+
+  useEffect(() => {
+    if (!heatmaps.length) return
+
+    overlaysRef.current.forEach((overlay) => overlay.remove())
+    overlaysRef.current = []
+
+    if (showHeatmaps) {
+      heatmaps.forEach((heatmap) => {
+        try {
+          if (!heatmap.bounds || !Array.isArray(heatmap.bounds) || heatmap.bounds.length !== 2) {
+            console.warn(`Invalid bounds for heatmap ${heatmap.city}:`, heatmap.bounds)
+            return
+          }
+
+          const [[south, west], [north, east]] = heatmap.bounds
+
+          if (
+            typeof south !== "number" ||
+            typeof west !== "number" ||
+            typeof north !== "number" ||
+            typeof east !== "number"
+          ) {
+            console.warn(`Invalid coordinate values for heatmap ${heatmap.city}`)
+            return
+          }
+
+          if (!heatmapEnabled) return
+
+          const imageOverlay = L.imageOverlay(
+            heatmap.image,
+            [
+              [south, west],
+              [north, east],
+            ],
+            {
+              opacity: 0.7,
+              interactive: true,
+              alt: `Heatmap for ${heatmap.city}`,
+            },
+          ).addTo(map)
+
+          overlaysRef.current.push(imageOverlay)
+        } catch (error) {
+          console.error(`Error creating overlay for ${heatmap.city}:`, error)
+        }
+      })
+    }
+
+    return () => {
+      overlaysRef.current.forEach((overlay) => overlay.remove())
+    }
+  }, [heatmaps, showHeatmaps, map, heatmapEnabled])
+
+  return null
+}
+
+// ─── Forecast UI components ──────────────────────────────────────────────────
+// (unchanged from original — preserved in full)
 
 const ForecastDayPill: React.FC<{
   item: DailyForecastItem
@@ -1087,7 +1819,6 @@ const ForecastPanel: React.FC<{
   const selectedSiteForecast = useMemo(() => {
     const siteId = selectedNode?.site_id
     if (!siteId || !forecastState.collection?.forecasts?.length) return null
-
     return forecastState.collection.forecasts.find((site) => site.site_details?.site_id === siteId) || null
   }, [forecastState.collection, selectedNode?.site_id])
 
@@ -1160,8 +1891,8 @@ const ForecastPanel: React.FC<{
   const currentAqiColor = selectedNode?.aqi_color || selectedForecasts?.[0]?.aqi_color
 
   return (
-    <aside className="flex h-full w-[448px] flex-col border-l bg-card/92 backdrop-blur-xl">
-      <div className="border-b bg-card/70 backdrop-blur-xl">
+    <aside className="flex h-full w-full flex-col bg-card">
+      <div className="border-b border-border bg-card">
         <div className="flex items-start gap-3 px-5 py-4">
           <div className="min-w-0 order-last flex-1">
             <div className="truncate text-lg font-semibold text-foreground">{title}</div>
@@ -1186,7 +1917,7 @@ const ForecastPanel: React.FC<{
         </div>
       </div>
 
-      <div className="flex-1 px-5 py-4">
+      <div className="flex-1 overflow-y-auto px-5 py-4">
         {!selectedNode ? (
           <div className="rounded-md border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">
             Click a site on the map to load the next days&apos; forecast.
@@ -1203,10 +1934,7 @@ const ForecastPanel: React.FC<{
         ) : !selectedForecasts?.length ? (
           <div className="space-y-3">
             <div className="rounded-md border border-border bg-card p-4 text-sm text-muted-foreground">No daily forecast data.</div>
-            <HourlyForecastToggle
-              enabled={hourlyForecastEnabled}
-              onEnabledChange={onHourlyForecastEnabledChange}
-            />
+            <HourlyForecastToggle enabled={hourlyForecastEnabled} onEnabledChange={onHourlyForecastEnabledChange} />
           </div>
         ) : (
           <div className="space-y-3">
@@ -1373,9 +2101,7 @@ function HourlyForecastPanel({
   const isSelectedDayToday = !!todayDateKey && selectedDay?.dateKey === todayDateKey
   const lineRows =
     selectedDay?.dateKey === todayDateKey && dayRows.length
-      ? chartData
-          .filter((row) => row.time >= dayRows[0].time)
-          .slice(0, Math.max(dayRows.length, 12))
+      ? chartData.filter((row) => row.time >= dayRows[0].time).slice(0, Math.max(dayRows.length, 12))
       : dayRows
   const selectedDailyForecast =
     selectedDay && "dailyForecast" in selectedDay
@@ -1420,40 +2146,25 @@ function HourlyForecastPanel({
       : null
   const activePm25Point =
     hoveredPm25Point &&
-    (
-      visualization === "calendar"
-        ? chartData
-        : visualization === "line" || visualization === "bars"
-          ? lineRows
-          : dayRows
+    (visualization === "calendar"
+      ? chartData
+      : visualization === "line" || visualization === "bars"
+        ? lineRows
+        : dayRows
     ).some((row) => row.time === hoveredPm25Point.time)
       ? hoveredPm25Point
       : null
   const displayedPm25Point =
     activePm25Point ||
-    (visualization === "sundial"
-      ? isSelectedDayToday
-        ? currentPm25Point
-        : null
-      : peakPm25Point)
+    (visualization === "sundial" ? (isSelectedDayToday ? currentPm25Point : null) : peakPm25Point)
   const sundialAqiImage = getAqiImageByCategory(displayedPm25Point?.aqiCategory)
-  const sundialAqiColor = getAqiColorByPm25(
-    displayedPm25Point?.pm25,
-    displayedPm25Point?.aqiCategory,
-    displayedPm25Point?.aqiColor,
-  )
+  const sundialAqiColor = getAqiColorByPm25(displayedPm25Point?.pm25, displayedPm25Point?.aqiCategory, displayedPm25Point?.aqiColor)
   const metRows = lineRows
   const tempValues = metRows.map((d) => d.air_temperature).filter((v): v is number => typeof v === "number")
   const humidityValues = metRows.map((d) => d.relative_humidity).filter((v): v is number => typeof v === "number")
-  const precipitationValues = metRows
-    .map((d) => d.precipitation_amount)
-    .filter((v): v is number => typeof v === "number")
-  const precipitationRows = metRows
-    .slice(0, 24)
-    .filter((d) => typeof d.precipitation_amount === "number")
-  const windRows = metRows
-    .slice(0, 24)
-    .filter((d) => typeof d.wind_speed === "number" || !!d.windDirection)
+  const precipitationValues = metRows.map((d) => d.precipitation_amount).filter((v): v is number => typeof v === "number")
+  const precipitationRows = metRows.slice(0, 24).filter((d) => typeof d.precipitation_amount === "number")
+  const windRows = metRows.slice(0, 24).filter((d) => typeof d.wind_speed === "number" || !!d.windDirection)
   const maxRain = Math.max(...metRows.map((d) => d.precipitationBar), 0)
   const hasCompleteMetWindow = metRows.length > 0 && metRows.every((d) => d.metAvailable)
   const hasTemperatureOrHumidity = hasCompleteMetWindow && (tempValues.length > 0 || humidityValues.length > 0)
@@ -1515,7 +2226,7 @@ function HourlyForecastPanel({
               <Clock3 className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-foreground">Hourly Forecast</div> 
+              <div className="text-sm font-semibold text-foreground">Hourly Forecast</div>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -1567,7 +2278,9 @@ function HourlyForecastPanel({
                     onClick={() => setSelectedDayIndex(index)}
                     className={[
                       "flex h-12 min-w-[62px] shrink-0 items-center justify-center gap-1 rounded-full border px-2 text-xs font-semibold transition-colors",
-                      isSelected ? "border-primary bg-primary text-white" : "border-border bg-card text-foreground hover:bg-accent",
+                      isSelected
+                        ? "border-primary bg-primary text-white"
+                        : "border-border bg-card text-foreground hover:bg-accent",
                     ].join(" ")}
                     title={
                       dailyPreviewDate
@@ -1615,7 +2328,6 @@ function HourlyForecastPanel({
                     <Pm25Label /> hourly concentration
                   </div>
                 </div>
-                
               </div>
 
               {visualization === "calendar" ? (
@@ -1623,7 +2335,9 @@ function HourlyForecastPanel({
                   <div className="mb-1 grid grid-cols-[34px_repeat(24,minmax(7px,1fr))] gap-[2px] text-[7px] text-muted-foreground">
                     <span />
                     {Array.from({ length: 24 }, (_, hour) => (
-                      <span key={`calendar-hour-${hour}`} className="text-center">{hour % 6 === 0 ? hour : ""}</span>
+                      <span key={`calendar-hour-${hour}`} className="text-center">
+                        {hour % 6 === 0 ? hour : ""}
+                      </span>
                     ))}
                   </div>
                   <div className="space-y-[3px]">
@@ -1637,25 +2351,32 @@ function HourlyForecastPanel({
                           className="grid w-full grid-cols-[34px_repeat(24,minmax(7px,1fr))] gap-[2px]"
                           aria-label={`Select ${group.rows[0]?.fullDateLabel || group.dateKey}`}
                         >
-                          <span className={`truncate pr-1 text-left text-[8px] font-semibold ${index === selectedDayIndex ? "text-primary" : "text-muted-foreground"}`}>
+                          <span
+                            className={`truncate pr-1 text-left text-[8px] font-semibold ${index === selectedDayIndex ? "text-primary" : "text-muted-foreground"}`}
+                          >
                             {group.rows[0]?.dayName || group.dateKey.slice(5)}
                           </span>
                           {Array.from({ length: 24 }, (_, hour) => {
                             const row = rowsByHour.get(hour)
-                            const isCurrent =
-                              !!row && !!currentCalendarPoint && row.time === currentCalendarPoint.time
+                            const isCurrent = !!row && !!currentCalendarPoint && row.time === currentCalendarPoint.time
                             return (
                               <span
                                 key={`${group.dateKey}-${hour}`}
                                 className={[
                                   "relative h-3 rounded-[2px]",
                                   index === selectedDayIndex ? "ring-1 ring-primary/40" : "",
-                                  isCurrent
-                                    ? "z-10 scale-125 ring-2 ring-slate-950 ring-offset-1 ring-offset-slate-50 shadow-md"
-                                    : "",
+                                  isCurrent ? "z-10 scale-125 ring-2 ring-slate-950 ring-offset-1 ring-offset-slate-50 shadow-md" : "",
                                 ].join(" ")}
-                                style={{ backgroundColor: row ? getAqiColorByPm25(row.pm25, row.aqiCategory, row.aqiColor) : "#E2E8F0" }}
-                                title={row ? `${row.label}: ${formatForecastMetricWithUnit(row.pm25, 1, PM25_UNIT_TEXT)}` : `${hour}:00: no data`}
+                                style={{
+                                  backgroundColor: row
+                                    ? getAqiColorByPm25(row.pm25, row.aqiCategory, row.aqiColor)
+                                    : "#E2E8F0",
+                                }}
+                                title={
+                                  row
+                                    ? `${row.label}: ${formatForecastMetricWithUnit(row.pm25, 1, PM25_UNIT_TEXT)}`
+                                    : `${hour}:00: no data`
+                                }
                                 onMouseEnter={() => setHoveredPm25Point(row && typeof row.pm25 === "number" ? row : null)}
                                 onMouseLeave={() => setHoveredPm25Point(null)}
                               />
@@ -1666,20 +2387,15 @@ function HourlyForecastPanel({
                     })}
                   </div>
                   <div className="mt-2 flex items-center justify-between text-[8px] text-muted-foreground">
-                    <span>Midnight</span><span>Hour of day</span><span>23:00</span>
+                    <span>Midnight</span>
+                    <span>Hour of day</span>
+                    <span>23:00</span>
                   </div>
                 </div>
               ) : visualization === "sundial" ? (
                 <div className="relative mx-auto h-[190px] max-w-[260px]">
                   <svg viewBox="0 0 220 190" className="h-full w-full" role="img" aria-label={`${selectedDayLabel} PM2.5 sundial`}>
-                    <circle
-                      cx="110"
-                      cy="96"
-                      r="70"
-                      fill={hexToRgba(sundialAqiColor, 0.16)}
-                      stroke={sundialAqiColor}
-                      strokeOpacity="0.48"
-                    />
+                    <circle cx="110" cy="96" r="70" fill={hexToRgba(sundialAqiColor, 0.16)} stroke={sundialAqiColor} strokeOpacity="0.48" />
                     <defs>
                       <clipPath id="sundialClockFace">
                         <circle cx="110" cy="96" r="68" />
@@ -1698,7 +2414,17 @@ function HourlyForecastPanel({
                     <circle cx="110" cy="96" r="47" fill="none" stroke="#E2E8F0" strokeDasharray="3 3" />
                     {Array.from({ length: 24 }, (_, hour) => {
                       const angle = (hour / 24) * Math.PI * 2 - Math.PI / 2
-                      return <line key={`dial-tick-${hour}`} x1={110 + Math.cos(angle) * 64} y1={96 + Math.sin(angle) * 64} x2={110 + Math.cos(angle) * (hour % 6 === 0 ? 75 : 70)} y2={96 + Math.sin(angle) * (hour % 6 === 0 ? 75 : 70)} stroke="#94A3B8" strokeWidth={hour % 6 === 0 ? 1.5 : 0.7} />
+                      return (
+                        <line
+                          key={`dial-tick-${hour}`}
+                          x1={110 + Math.cos(angle) * 64}
+                          y1={96 + Math.sin(angle) * 64}
+                          x2={110 + Math.cos(angle) * (hour % 6 === 0 ? 75 : 70)}
+                          y2={96 + Math.sin(angle) * (hour % 6 === 0 ? 75 : 70)}
+                          stroke="#94A3B8"
+                          strokeWidth={hour % 6 === 0 ? 1.5 : 0.7}
+                        />
+                      )
                     })}
                     {isSelectedDayToday && currentHourAngle !== null && currentMinuteAngle !== null ? (
                       <g>
@@ -1720,9 +2446,7 @@ function HourlyForecastPanel({
                           strokeWidth="1.8"
                           strokeLinecap="round"
                         />
-                        <title>
-                          {`Current time: ${currentTime?.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`}
-                        </title>
+                        <title>{`Current time: ${currentTime?.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`}</title>
                       </g>
                     ) : null}
                     {dayRows.map((row) => {
@@ -1779,7 +2503,12 @@ function HourlyForecastPanel({
                 <div className="h-[178px]">
                   <ResponsiveContainer width="100%" height="100%">
                     {visualization === "bars" ? (
-                      <BarChart data={lineRows} margin={{ top: 8, right: 4, left: -24, bottom: 0 }} onMouseMove={updateHoveredPm25Point} onMouseLeave={() => setHoveredPm25Point(null)}>
+                      <BarChart
+                      data={lineRows}
+                      margin={{ top: 8, right: 4, left: -24, bottom: 0 }}
+                      onMouseMove={updateHoveredPm25Point}
+                      onMouseLeave={() => setHoveredPm25Point(null)}
+                    >
                         <CartesianGrid stroke="#D7DEE8" strokeDasharray="3 3" vertical={false} />
                         <XAxis
                           dataKey="time"
@@ -1798,20 +2527,33 @@ function HourlyForecastPanel({
                           }}
                         />
                         <YAxis domain={linePm25Axis.domain} ticks={linePm25Axis.ticks} tickLine={false} axisLine={false} tick={{ fontSize: 8, fill: "#334155" }} />
-                        <Tooltip cursor={{ fill: "rgba(148, 163, 184, 0.12)" }} formatter={(value: any) => [`${Number(value).toFixed(1)} ${PM25_UNIT_TEXT}`, <Pm25Label key="pm25" />]} labelFormatter={(value: any) => new Date(value).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })} />
+                        <Tooltip
+                          cursor={{ fill: "rgba(148, 163, 184, 0.12)" }}
+                          formatter={(value: any) => [`${Number(value).toFixed(1)} ${PM25_UNIT_TEXT}`, <Pm25Label key="pm25" />]}
+                          labelFormatter={(value: any) => new Date(value).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+                        />
                         <Bar dataKey="pm25" radius={[3, 3, 0, 0]}>
-                          {lineRows.map((row) => <Cell key={`bar-${row.time}`} fill={getAqiColorByPm25(row.pm25, row.aqiCategory, row.aqiColor)} />)}
+                          {lineRows.map((row) => (
+                            <Cell key={`bar-${row.time}`} fill={getAqiColorByPm25(row.pm25, row.aqiCategory, row.aqiColor)} />
+                          ))}
                         </Bar>
                       </BarChart>
                     ) : (
-                      <AreaChart data={lineRows} margin={{ top: 8, right: 4, left: -24, bottom: 0 }} onMouseMove={updateHoveredPm25Point} onMouseLeave={() => setHoveredPm25Point(null)}>
+                      <AreaChart
+                      data={lineRows}
+                      margin={{ top: 8, right: 4, left: -24, bottom: 0 }}
+                      onMouseMove={updateHoveredPm25Point}
+                      onMouseLeave={() => setHoveredPm25Point(null)}
+                    >
                         <defs>
                           <linearGradient id="hourlyPm25Fill" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#64748B" stopOpacity={0.35} />
                             <stop offset="100%" stopColor="#CBD5E1" stopOpacity={0.08} />
                           </linearGradient>
                           <linearGradient id="hourlyPm25Stroke" x1="0" y1="0" x2="1" y2="0">
-                            {hourlyAqiGradientStops.map((stop, index) => <stop key={`aqi-stop-${index}`} offset={stop.offset} stopColor={stop.color} />)}
+                            {hourlyAqiGradientStops.map((stop, index) => (
+                              <stop key={`aqi-stop-${index}`} offset={stop.offset} stopColor={stop.color} />
+                            ))}
                           </linearGradient>
                         </defs>
                         <CartesianGrid stroke="#D7DEE8" strokeDasharray="3 3" vertical />
@@ -1832,7 +2574,18 @@ function HourlyForecastPanel({
                           }}
                         />
                         <YAxis domain={linePm25Axis.domain} ticks={linePm25Axis.ticks} tickLine={false} axisLine={false} tick={{ fontSize: 8, fill: "#334155" }} />
-                        <Tooltip contentStyle={{ backgroundColor: "transparent", border: "none", boxShadow: "none" }} cursor={{ stroke: "rgba(15, 23, 42, 0.18)", strokeWidth: 1 }} labelFormatter={(value: any) => new Date(value).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })} formatter={(value: any) => typeof value === "number" ? [`${value.toFixed(1)} ${PM25_UNIT_TEXT}`, <Pm25Label key="pm25" />] : [value, <Pm25Label key="pm25" />]} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "transparent", border: "none", boxShadow: "none" }}
+                          cursor={{ stroke: "rgba(15, 23, 42, 0.18)", strokeWidth: 1 }}
+                          labelFormatter={(value: any) =>
+                            new Date(value).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })
+                          }
+                          formatter={(value: any) =>
+                            typeof value === "number"
+                              ? [`${value.toFixed(1)} ${PM25_UNIT_TEXT}`, <Pm25Label key="pm25" />]
+                              : [value, <Pm25Label key="pm25" />]
+                          }
+                        />
                         <Area
                           type="monotone"
                           dataKey="pm25"
@@ -1841,9 +2594,11 @@ function HourlyForecastPanel({
                           strokeWidth={2.5}
                           dot={(props: any) => {
                             const row = props.payload
-                            return row && typeof row.pm25 === "number"
-                              ? <circle cx={props.cx} cy={props.cy} r={2.5} fill={getAqiColorByPm25(row.pm25, row.aqiCategory, row.aqiColor)} stroke="#FFFFFF" strokeWidth={1} />
-                              : <g />
+                            return row && typeof row.pm25 === "number" ? (
+                              <circle cx={props.cx} cy={props.cy} r={2.5} fill={getAqiColorByPm25(row.pm25, row.aqiCategory, row.aqiColor)} stroke="#FFFFFF" strokeWidth={1} />
+                            ) : (
+                              <g />
+                            )
                           }}
                         />
                         <Line type="monotone" dataKey="q10" stroke="#94A3B8" strokeDasharray="3 3" dot={false} strokeWidth={1} />
@@ -1858,22 +2613,8 @@ function HourlyForecastPanel({
                 <div
                   className="mt-3 rounded-[8px] border px-3 py-2 text-xs leading-relaxed text-muted-foreground"
                   style={{
-                    borderColor: hexToRgba(
-                      getAqiColorByPm25(
-                        displayedPm25Point.pm25,
-                        displayedPm25Point.aqiCategory,
-                        displayedPm25Point.aqiColor,
-                      ),
-                      0.3,
-                    ),
-                    backgroundColor: hexToRgba(
-                      getAqiColorByPm25(
-                        displayedPm25Point.pm25,
-                        displayedPm25Point.aqiCategory,
-                        displayedPm25Point.aqiColor,
-                      ),
-                      0.08,
-                    ),
+                    borderColor: hexToRgba(getAqiColorByPm25(displayedPm25Point.pm25, displayedPm25Point.aqiCategory, displayedPm25Point.aqiColor), 0.3),
+                    backgroundColor: hexToRgba(getAqiColorByPm25(displayedPm25Point.pm25, displayedPm25Point.aqiCategory, displayedPm25Point.aqiColor), 0.08),
                   }}
                 >
                   <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
@@ -1900,7 +2641,9 @@ function HourlyForecastPanel({
                         }
                         formatter={(value: any, name: any) => {
                           if (typeof value !== "number") return [value, name]
-                          return name === "air_temperature" ? [`${value.toFixed(1)} C`, "Temperature"] : [`${value.toFixed(0)}%`, "Humidity"]
+                          return name === "air_temperature"
+                            ? [`${value.toFixed(1)} C`, "Temperature"]
+                            : [`${value.toFixed(0)}%`, "Humidity"]
                         }}
                       />
                       {humidityValues.length ? (
@@ -1917,12 +2660,20 @@ function HourlyForecastPanel({
               {hasWindData ? (
                 <div className="mt-3 border-t border-border pt-2">
                   <div className="mb-1 text-[10px] font-semibold text-muted-foreground">Wind</div>
-                  <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(windRows.length, 1)}, minmax(10px, 1fr))` }}>
+                  <div
+                    className="grid gap-1"
+                    style={{ gridTemplateColumns: `repeat(${Math.max(windRows.length, 1)}, minmax(10px, 1fr))` }}
+                  >
                     {windRows.map((item) => {
                       const degrees = compassDegrees[(item.windDirection || "").toUpperCase()] ?? 0
                       return (
                         <div key={`wind-${item.time}`} className="flex min-w-0 flex-col items-center gap-0.5 text-[9px] text-muted-foreground">
-                          <span className="inline-block leading-none text-foreground" style={{ transform: `rotate(${degrees}deg)` }}>^</span>
+                          <span
+                            className="inline-block leading-none text-foreground"
+                            style={{ transform: `rotate(${degrees}deg)` }}
+                          >
+                            ^
+                          </span>
                           {typeof item.wind_speed === "number" ? <span>{item.wind_speed.toFixed(0)}</span> : null}
                         </div>
                       )
@@ -1934,12 +2685,18 @@ function HourlyForecastPanel({
               {hasPrecipitationData ? (
                 <div className="mt-3 border-t border-border pt-2">
                   <div className="mb-1 text-[10px] font-semibold text-muted-foreground">Precipitation</div>
-                  <div className="grid h-8 items-end gap-1 border-b border-border" style={{ gridTemplateColumns: `repeat(${Math.max(precipitationRows.length, 1)}, minmax(10px, 1fr))` }}>
+                  <div
+                    className="grid h-8 items-end gap-1 border-b border-border"
+                    style={{ gridTemplateColumns: `repeat(${Math.max(precipitationRows.length, 1)}, minmax(10px, 1fr))` }}
+                  >
                     {precipitationRows.map((item) => (
                       <div
                         key={`rain-${item.time}`}
                         className="min-h-[2px] rounded-t bg-blue-500"
-                        style={{ height: `${maxRain > 0 ? Math.max(2, (item.precipitationBar / maxRain) * 28) : 2}px`, opacity: item.precipitationBar > 0 ? 0.8 : 0.25 }}
+                        style={{
+                          height: `${maxRain > 0 ? Math.max(2, (item.precipitationBar / maxRain) * 28) : 2}px`,
+                          opacity: item.precipitationBar > 0 ? 0.8 : 0.25,
+                        }}
                         title={`${item.label}: ${formatForecastMetricWithUnit(item.precipitation_amount, 1, "mm")}`}
                       />
                     ))}
@@ -2147,9 +2904,7 @@ function ForecastContent({
       return highest
     }, null)
   }, [dt, hourlyState.site])
-  const hourlySpikeTimeText = hourlySpikePoint
-    ? hourlySpikePoint.time.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-    : null
+  void hourlySpikePoint
   const activeAccentColor = normalizeHexColor(active?.aqi_color)
   const activeBadgeStyle = getAqiBadgeStyle(active?.aqi_category, activeAccentColor)
   const activeAqiCategory = active?.aqi_category || "Unknown"
@@ -2172,6 +2927,9 @@ function ForecastContent({
     typeof active?.pm2_5 === "number" && Number.isFinite(active.pm2_5)
       ? clampNumber((active.pm2_5 / rangeMaxValue) * 100, 0, 100)
       : null
+  void rangeStart
+  void rangeWidth
+  void meanPosition
   const confidenceRaw =
     typeof active?.forecast_confidence === "number" && Number.isFinite(active.forecast_confidence)
       ? active.forecast_confidence
@@ -2182,10 +2940,7 @@ function ForecastContent({
   const pm25MeanText = formatForecastMetric(active?.pm2_5, 1)
   const confidenceRangeText =
     rangeLow !== null && rangeHigh !== null
-      ? `${formatForecastMetric(Math.min(rangeLow, rangeHigh), 1)} - ${formatForecastMetric(
-          Math.max(rangeLow, rangeHigh),
-          1,
-        )} ${PM25_UNIT_TEXT}`
+      ? `${formatForecastMetric(Math.min(rangeLow, rangeHigh), 1)} - ${formatForecastMetric(Math.max(rangeLow, rangeHigh), 1)} ${PM25_UNIT_TEXT}`
       : null
   const metricCards: Array<{ label: string; value: string; Icon: LucideIcon; span?: string }> = []
 
@@ -2250,9 +3005,7 @@ function ForecastContent({
     metricCards.push({
       label: "Wind",
       Icon: Wind,
-      value: `${formatForecastMetric(active?.wind_speed, 1)} m/s${
-        active?.wind_direction_compass ? ` ${active.wind_direction_compass}` : ""
-      }`,
+      value: `${formatForecastMetric(active?.wind_speed, 1)} m/s${active?.wind_direction_compass ? ` ${active.wind_direction_compass}` : ""}`,
     })
   }
 
@@ -2263,19 +3016,11 @@ function ForecastContent({
           <div className="text-sm font-semibold text-foreground">7 days forecast outlook</div>
         </div>
         <div className="mb-3">
-          <HourlyForecastToggle
-            enabled={hourlyForecastEnabled}
-            onEnabledChange={onHourlyForecastEnabledChange}
-          />
+          <HourlyForecastToggle enabled={hourlyForecastEnabled} onEnabledChange={onHourlyForecastEnabledChange} />
         </div>
         <div className="forecast-strip flex gap-3 overflow-x-auto rounded-[8px] bg-[#F6F7FB] px-2 py-3 pb-4">
           {forecasts.slice(0, 14).map((f, idx) => (
-            <ForecastDayPill
-              key={`${f.time}-${idx}`}
-              item={f}
-              isActive={idx === activeIndex}
-              onClick={() => openHourlyForecast(f, idx)}
-            />
+            <ForecastDayPill key={`${f.time}-${idx}`} item={f} isActive={idx === activeIndex} onClick={() => openHourlyForecast(f, idx)} />
           ))}
         </div>
       </div>
@@ -2334,26 +3079,42 @@ function ForecastContent({
             <div className="grid grid-cols-[minmax(4.8rem,1.15fr)_minmax(5.45rem,1.2fr)_minmax(4.7rem,0.9fr)_minmax(4.45rem,0.85fr)] gap-x-2 gap-y-2">
               <div className="min-w-0">
                 <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-muted-foreground sm:text-[11px]">
-                  Average <br></br> <Pm25Label />
+                  Average <br /> <Pm25Label />
                 </div>
                 <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-foreground">{pm25MeanText}</div>
-                <div className="text-xs font-medium text-muted-foreground"><Pm25Unit /></div>
+                <div className="text-xs font-medium text-muted-foreground">
+                  <Pm25Unit />
+                </div>
               </div>
               <div className="min-w-0">
-                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-muted-foreground sm:text-[11px]">Expected <br></br> Range</div>
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-muted-foreground sm:text-[11px]">
+                  Expected <br /> Range
+                </div>
                 <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-foreground">
                   {formatForecastMetric(active.pm2_5_low, 1)} - {formatForecastMetric(active.pm2_5_high, 1)}
                 </div>
-                <div className="text-xs font-medium text-muted-foreground"><Pm25Unit /></div>
+                <div className="text-xs font-medium text-muted-foreground">
+                  <Pm25Unit />
+                </div>
               </div>
               <div className="min-w-0">
-                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-muted-foreground sm:text-[11px]">Expected <br></br> Peak </div>
-                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-foreground">{formatForecastMetric(active.pm2_5_max, 1)}</div>
-                <div className="text-xs font-medium text-muted-foreground"><Pm25Unit /></div>
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-muted-foreground sm:text-[11px]">
+                  Expected <br /> Peak
+                </div>
+                <div className="mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold text-foreground">
+                  {formatForecastMetric(active.pm2_5_max, 1)}
+                </div>
+                <div className="text-xs font-medium text-muted-foreground">
+                  <Pm25Unit />
+                </div>
               </div>
               <div className="min-w-0">
-                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-muted-foreground sm:text-[11px]">WEEKLY <br></br> Change</div>
-                <div className={["mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold", percentClass].join(" ")}>{percentText}</div>
+                <div className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.04em] text-muted-foreground sm:text-[11px]">
+                  WEEKLY <br /> Change
+                </div>
+                <div className={["mt-1 whitespace-nowrap text-[clamp(0.75rem,2.7vw,0.875rem)] font-semibold", percentClass].join(" ")}>
+                  {percentText}
+                </div>
               </div>
             </div>
             <div className="rounded-[8px] border border-border bg-muted px-3 py-2">
@@ -2429,7 +3190,11 @@ function ForecastContent({
               <Pm25Label /> Trend
             </span>
           </div>
-          {insightsOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          {insightsOpen ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
         </button>
 
         {insightsOpen ? (
@@ -2438,7 +3203,9 @@ function ForecastContent({
               <div className="mb-4 grid grid-cols-2 gap-3">
                 <div className="rounded-[8px] bg-muted px-3 py-2">
                   <div className="text-xs font-medium text-muted-foreground">7-day avg</div>
-                  <div className="mt-1 text-sm font-semibold text-foreground">{historicalState.stats.avg.toFixed(1)} <Pm25Unit /></div>
+                  <div className="mt-1 text-sm font-semibold text-foreground">
+                    {historicalState.stats.avg.toFixed(1)} <Pm25Unit />
+                  </div>
                 </div>
                 <div className="rounded-[8px] bg-muted px-3 py-2">
                   <div className="text-xs font-medium text-muted-foreground">Observed range</div>
@@ -2463,59 +3230,59 @@ function ForecastContent({
                   {(() => {
                     const yValues = historicalState.points
                       ?.map((p) => p.pm25)
-                      .filter((v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 500) // clamp to realistic PM2.5 range
+                      .filter((v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 500)
                     const max = yValues?.length ? Math.max(...yValues) : 0
                     const yMax = Math.max(10, Math.ceil(max / 5) * 5)
 
                     return (
                       <AreaChart data={historicalState.points} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="pm25Fill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="x"
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 12, fill: "#6b7280" }}
-                      tickFormatter={(d: any) => {
-                        const dt = d instanceof Date ? d : new Date(d)
-                        return historicalState.mode === "hourly"
-                          ? dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
-                          : dt.toLocaleDateString(undefined, { month: "short", day: "2-digit" })
-                      }}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 12, fill: "#6b7280" }}
-                      tickMargin={8}
-                      width={44}
-                      domain={[0, yMax]}
-                      tickCount={5}
-                      tickFormatter={(v: any) => (typeof v === "number" ? v.toFixed(0) : v)}
-                    />
-                    <Tooltip
-                      formatter={(v: any) => [`${typeof v === "number" ? v.toFixed(1) : v}`, <Pm25Label key="pm25" />]}
-                      labelFormatter={(d: any) => {
-                        const dt = d instanceof Date ? d : new Date(d)
-                        return historicalState.mode === "hourly"
-                          ? dt.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                          : dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="pm25"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      fill="url(#pm25Fill)"
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                    />
+                        <defs>
+                          <linearGradient id="pm25Fill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis
+                          dataKey="x"
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 12, fill: "#6b7280" }}
+                          tickFormatter={(d: any) => {
+                            const dt = d instanceof Date ? d : new Date(d)
+                            return historicalState.mode === "hourly"
+                              ? dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+                              : dt.toLocaleDateString(undefined, { month: "short", day: "2-digit" })
+                          }}
+                        />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fontSize: 12, fill: "#6b7280" }}
+                          tickMargin={8}
+                          width={44}
+                          domain={[0, yMax]}
+                          tickCount={5}
+                          tickFormatter={(v: any) => (typeof v === "number" ? v.toFixed(0) : v)}
+                        />
+                        <Tooltip
+                          formatter={(v: any) => [`${typeof v === "number" ? v.toFixed(1) : v}`, <Pm25Label key="pm25" />]}
+                          labelFormatter={(d: any) => {
+                            const dt = d instanceof Date ? d : new Date(d)
+                            return historicalState.mode === "hourly"
+                              ? dt.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                              : dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="pm25"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          fill="url(#pm25Fill)"
+                          dot={false}
+                          activeDot={{ r: 4 }}
+                        />
                       </AreaChart>
                     )
                   })()}
@@ -2529,939 +3296,54 @@ function ForecastContent({
   )
 }
 
-// Create a component for the map nodes
-const MapNodes: React.FC<{
-  onLoadingChange: (state: LoadingState) => void
-  showEmojis: boolean
-  onNodeSelect: (node: MapNode) => void
-}> = ({ onLoadingChange, showEmojis, onNodeSelect }) => {
-  const map = useMap()
-  const [nodes, setNodes] = useState<MapNode[]>([])
-  const markersRef = useRef<L.Marker[]>([])
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+// ─── Main LeafletMap ─────────────────────────────────────────────────────────
 
-  // Validate node data
-  const isValidNode = (node: MapNode): boolean => {
-    return !!(
-      node &&
-      node.siteDetails?.approximate_latitude &&
-      node.siteDetails?.approximate_longitude &&
-      node.siteDetails?.name &&
-      node.pm2_5?.value !== undefined
-    )
+const copyTextToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {}
+  try {
+    const ta = document.createElement("textarea")
+    ta.value = text
+    ta.setAttribute("readonly", "")
+    ta.style.position = "fixed"
+    ta.style.top = "0"
+    ta.style.left = "0"
+    ta.style.width = "1px"
+    ta.style.height = "1px"
+    ta.style.padding = "0"
+    ta.style.border = "none"
+    ta.style.opacity = "0.01"
+    ta.style.fontSize = "12pt"
+    document.body.appendChild(ta)
+    ta.select()
+    ta.setSelectionRange(0, ta.value.length)
+    const ok = document.execCommand("copy")
+    ta.remove()
+    return ok
+  } catch {
+    return false
   }
-
-  useEffect(() => {
-    let isActive = true
-
-    const fetchNodes = async () => {
-      let hasUsableCachedNodes = false
-
-      try {
-        onLoadingChange({ isLoading: true, error: null })
-
-        const cached = await readBrowserApiCache<BrowserApiCacheEntry<MapNode[]>>(MAP_NODES_CACHE_KEY)
-        if (isActive && isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.length) {
-          const validCachedNodes = cached.data.filter(isValidNode)
-          if (validCachedNodes.length) {
-            hasUsableCachedNodes = true
-            setNodes(validCachedNodes)
-            onLoadingChange({ isLoading: false, error: null })
-          }
-        }
-
-        const data = (await getMapNodes()) as MapNode[] | null
-        if (!isActive) return
-
-        if (data) {
-          const validNodes = data.filter(isValidNode)
-          if (validNodes.length === 0) {
-            if (!hasUsableCachedNodes) {
-              onLoadingChange({
-                isLoading: false,
-                error: "No valid data points found",
-              })
-            }
-            return
-          }
-          setNodes(validNodes)
-          writeBrowserApiCache(MAP_NODES_CACHE_KEY, data).catch((error) => {
-            console.warn("Unable to cache map nodes:", error)
-          })
-          onLoadingChange({ isLoading: false, error: null })
-        } else {
-          onLoadingChange(
-            hasUsableCachedNodes
-              ? { isLoading: false, error: null }
-              : {
-                  isLoading: false,
-                  error: "Failed to load map data",
-                },
-          )
-        }
-      } catch (error) {
-        if (!isActive) return
-        console.error("Error fetching nodes:", error)
-        onLoadingChange(
-          hasUsableCachedNodes
-            ? { isLoading: false, error: null }
-            : {
-                isLoading: false,
-                error: "Error loading map data",
-              },
-        )
-      }
-    }
-
-    fetchNodes()
-
-    return () => {
-      isActive = false
-      markersRef.current.forEach((marker) => marker.remove())
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current)
-      }
-    }
-  }, [map, onLoadingChange])
-
-  useEffect(() => {
-    if (!nodes.length) return
-
-    try {
-      // Clear existing markers
-      markersRef.current.forEach((marker) => marker.remove())
-      markersRef.current = []
-
-      if (showEmojis) {
-        nodes.forEach((node) => {
-          try {
-            const latitude = node?.siteDetails?.approximate_latitude
-            const longitude = node?.siteDetails?.approximate_longitude
-            const siteName =
-              node?.siteDetails?.name ||
-              node?.siteDetails?.formatted_name ||
-              node?.siteDetails?.location_name ||
-              "Unknown Location"
-            const pm25Value = node?.pm2_5?.value
-            const timestamp = node?.time
-            const aqiCategory = node?.aqi_category ?? "Unknown"
-
-            if (
-              typeof latitude !== "number" ||
-              !Number.isFinite(latitude) ||
-              typeof longitude !== "number" ||
-              !Number.isFinite(longitude) ||
-              pm25Value === undefined
-            ) {
-              console.warn("Skipping node due to missing data:", node._id)
-              return
-            }
-
-            // Create custom icon for the marker
-            const customIcon = getCustomIcon(aqiCategory)
-            const marker = L.marker([latitude, longitude], {
-              icon: customIcon,
-              opacity: 1, // Ensure emoji is always visible
-            }).addTo(map)
-
-            // Create a container for the popup
-            const container = document.createElement("div")
-            const root = ReactDOM.createRoot(container)
-            let isRootUnmountScheduled = false
-
-            const scheduleRootUnmount = () => {
-              if (isRootUnmountScheduled) return
-              isRootUnmountScheduled = true
-
-              window.setTimeout(() => {
-                root.unmount()
-              }, 0)
-            }
-
-            // Bind popup but don't open it automatically
-            root.render(
-              <PopupContent
-                label={siteName}
-                data={{
-                  pm2_5_prediction: pm25Value ?? undefined,
-                  timestamp: timestamp ?? undefined,
-                  aqi_category: aqiCategory,
-                  aqi_color: node?.aqi_color,
-                }}
-                onClose={() => {
-                  marker.closePopup()
-                }}
-              />,
-            )
-
-            marker.bindPopup(container, {
-              ...customPopupOptions,
-              offset: L.point(0, -20),
-            })
-
-            // Leaflet emits "remove" synchronously, so wait until React finishes
-            // the current render before releasing this independently-created root.
-            marker.once("remove", scheduleRootUnmount)
-
-            // Handle click to open popup
-            marker.on("click", (e: any) => {
-              try {
-                L.DomEvent.stopPropagation(e)
-              } catch {}
-              onNodeSelect(node)
-
-              // Zoom in and center on the selected site
-              try {
-                const currentZoom = map.getZoom()
-                const targetZoom = Math.max(currentZoom, 11)
-                map.flyTo([latitude, longitude], targetZoom, { animate: true, duration: 0.8 })
-              } catch (error) {
-                console.error("Error centering map on selected site:", error)
-              }
-
-              // Close other popups
-              markersRef.current.forEach((m) => {
-                if (m !== marker) {
-                  m.closePopup()
-                }
-              })
-              marker.openPopup()
-            })
-
-            // Handle hover to open popup and ensure emoji visibility
-            marker.on("mouseover", () => {
-              if (hoverTimeoutRef.current) {
-                clearTimeout(hoverTimeoutRef.current)
-                hoverTimeoutRef.current = null
-              }
-              marker.setOpacity(1) // Ensure emoji stays visible
-              // Close other popups
-              markersRef.current.forEach((m) => {
-                if (m !== marker) {
-                  m.closePopup()
-                }
-              })
-              marker.openPopup()
-            })
-
-            // Handle mouseout to close popup with a delay
-            marker.on("mouseout", () => {
-              hoverTimeoutRef.current = setTimeout(() => {
-                marker.closePopup()
-              }, 100) // Small delay to prevent flickering
-            })
-
-            // Handle popup events to manage hover behavior
-            marker.on("popupopen", () => {
-              const popup = marker.getPopup()
-              if (popup) {
-                const popupElement = popup.getElement()
-                if (popupElement) {
-                  popupElement.addEventListener("mouseenter", () => {
-                    if (hoverTimeoutRef.current) {
-                      clearTimeout(hoverTimeoutRef.current)
-                      hoverTimeoutRef.current = null
-                    }
-                    marker.setOpacity(1) // Keep emoji visible
-                  })
-                  popupElement.addEventListener("mouseleave", () => {
-                    hoverTimeoutRef.current = setTimeout(() => {
-                      marker.closePopup()
-                    }, 100)
-                  })
-                }
-              }
-            })
-
-            markersRef.current.push(marker)
-          } catch (error) {
-            console.error("Error creating marker for node:", node._id, error)
-          }
-        })
-      }
-    } catch (error) {
-      console.error("Error updating markers:", error)
-      onLoadingChange({
-        isLoading: false,
-        error: "Error displaying map markers",
-      })
-    }
-  }, [nodes, map, onLoadingChange, showEmojis])
-
-  return null
 }
 
-const ClearSelectionOnMapClick: React.FC<{ onClear: () => void }> = ({ onClear }) => {
-  useMapEvents({
-    click: () => {
-      onClear()
-    },
-  })
-  return null
-}
-
-const createFireIcon = () =>
-  L.divIcon({
-    className: "active-fire-marker",
-    html: `
-      <div style="
-        width: 24px;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #dc2626;
-        background: rgba(255,255,255,0.94);
-        border: 2px solid #fdba74;
-        border-radius: 9999px;
-        box-shadow: 0 2px 8px rgba(127,29,29,0.35);
-      ">
-        <svg
-          aria-hidden="true"
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="#f97316"
-          stroke="currentColor"
-          stroke-width="1.7"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M12 22c4.97 0 8-3.58 8-8 0-3.5-2-6.5-5-9 .5 3-1 5-3 6-1-3-3-5-5-7 .5 4-3 6.5-3 10 0 4.42 3.03 8 8 8Z" />
-        </svg>
-      </div>
-    `,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -13],
-  })
-
-const getFireGridSize = (zoom: number) => {
-  if (zoom <= 4) return 140
-  if (zoom === 5) return 105
-  if (zoom === 6) return 75
-  if (zoom === 7) return 50
-  if (zoom === 8) return 32
-  if (zoom === 9) return 20
-  return 0
-}
-
-const ActiveFireMarkers: React.FC<{ showFires: boolean }> = ({ showFires }) => {
-  const map = useMap()
-  const [fires, setFires] = useState<ActiveFire[]>([])
-  const markersRef = useRef<L.Marker[]>([])
-
-  useEffect(() => {
-    let isActive = true
-
-    const loadFires = async () => {
-      const cached = await readBrowserApiCache<BrowserApiCacheEntry<ActiveFire[]>>(MAP_ACTIVE_FIRES_CACHE_KEY)
-      const cachedFires = Array.isArray(cached?.data) ? cached.data : []
-      if (
-        isActive &&
-        isBrowserApiCacheFresh(cached, MAP_ACTIVE_FIRES_CACHE_MAX_AGE_MS) &&
-        cachedFires.length
-      ) {
-        setFires(cachedFires)
-      }
-
-      const data = await getActiveFires()
-      if (!isActive || !data) return
-
-      setFires(data)
-      writeBrowserApiCache(MAP_ACTIVE_FIRES_CACHE_KEY, data).catch((error) => {
-        console.warn("Unable to cache active-fire data:", error)
-      })
-    }
-
-    loadFires()
-
-    return () => {
-      isActive = false
-    }
-  }, [])
-
-  useEffect(() => {
-    const clearMarkers = () => {
-      markersRef.current.forEach((marker) => marker.remove())
-      markersRef.current = []
-    }
-
-    const renderMarkers = () => {
-      clearMarkers()
-      if (!showFires || !fires.length) return
-
-      const bounds = map.getBounds()
-      const zoom = map.getZoom()
-      const gridSize = getFireGridSize(zoom)
-      const visibleFires = fires
-        .filter((fire) => bounds.contains([fire.latitude, fire.longitude]))
-        .sort((a, b) => (b.frp ?? 0) - (a.frp ?? 0))
-
-      const selectedFires =
-        gridSize === 0
-          ? visibleFires
-          : Array.from(
-              visibleFires
-                .reduce((cells, fire) => {
-                  const point = map.latLngToContainerPoint([fire.latitude, fire.longitude])
-                  const cellKey = `${Math.floor(point.x / gridSize)}:${Math.floor(point.y / gridSize)}`
-                  if (!cells.has(cellKey)) cells.set(cellKey, fire)
-                  return cells
-                }, new Map<string, ActiveFire>())
-                .values(),
-            )
-
-      const fireIcon = createFireIcon()
-
-      selectedFires.forEach((fire) => {
-        const marker = L.marker([fire.latitude, fire.longitude], {
-          icon: fireIcon,
-          keyboard: true,
-          title: `Active fire detected ${fire.acquisition_datetime || fire.acquisition_date}`,
-        }).addTo(map)
-
-        const popup = document.createElement("div")
-        popup.style.minWidth = "190px"
-
-        const title = document.createElement("div")
-        title.textContent = "Active fire detection"
-        title.style.fontWeight = "700"
-        title.style.color = "#b91c1c"
-        title.style.marginBottom = "6px"
-        popup.appendChild(title)
-
-        const details = [
-          ["Detected", fire.acquisition_datetime || fire.acquisition_date],
-          ["Satellite", fire.satellite],
-          ["Instrument", fire.instrument],
-          ["FRP", fire.frp == null ? null : `${fire.frp} MW`],
-          ["Confidence", fire.confidence],
-          ["Day/Night", fire.daynight],
-        ]
-
-        details.forEach(([label, value]) => {
-          if (value == null || value === "") return
-          const row = document.createElement("div")
-          row.style.fontSize = "12px"
-          row.style.marginTop = "3px"
-
-          const labelElement = document.createElement("strong")
-          labelElement.textContent = `${label}: `
-          row.appendChild(labelElement)
-          row.appendChild(document.createTextNode(String(value)))
-          popup.appendChild(row)
-        })
-
-        marker.bindPopup(popup, { maxWidth: 260 })
-        markersRef.current.push(marker)
-      })
-    }
-
-    renderMarkers()
-    map.on("zoomend moveend", renderMarkers)
-
-    return () => {
-      map.off("zoomend moveend", renderMarkers)
-      clearMarkers()
-    }
-  }, [fires, map, showFires])
-
-  return null
-}
-
-interface HeatmapData {
-  bounds: [[number, number], [number, number]]
-  city: string
-  id: string
-  image: string
-  message: string
-}
-
-// Combined Map Controls Component
-const MapControls: React.FC<{
-  showHeatmaps: boolean
-  setShowHeatmaps: (value: boolean) => void
-  showEmojis: boolean
-  setShowEmojis: (value: boolean) => void
-  showFires: boolean
-  setShowFires: (value: boolean) => void
-  heatmapEnabled: boolean
-  captureViewEnabled: boolean
-}> = ({
-  showHeatmaps,
-  setShowHeatmaps,
-  showEmojis,
-  setShowEmojis,
-  showFires,
-  setShowFires,
-  heatmapEnabled,
-  captureViewEnabled,
-}) => {
-  const map = useMap()
-
-  const captureMapView = async () => {
-    try {
-      const mapContainer = map.getContainer()
-      const { default: html2canvas } = await import("html2canvas")
-      const canvas = await html2canvas(mapContainer, {
-        useCORS: true,
-        allowTaint: true,
-        scale: 2,
-        width: mapContainer.offsetWidth,
-        height: mapContainer.offsetHeight,
-      })
-
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement("a")
-          a.href = url
-          a.download = `map-view-${new Date().toISOString().split("T")[0]}.png`
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-          URL.revokeObjectURL(url)
-        }
-      }, "image/png")
-    } catch (error) {
-      console.error("Error capturing map view:", error)
-      alert("Failed to capture map view. Please try again.")
-    }
-  }
-
-  useEffect(() => {
-    const MapControls = L.Control.extend({
-      onAdd: () => {
-        const container = L.DomUtil.create("div", "leaflet-control leaflet-bar")
-        container.style.backgroundColor = "white"
-        container.style.padding = "7px"
-        container.style.borderRadius = "7px"
-        container.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"
-        container.style.cursor = "pointer"
-        container.style.userSelect = "none"
-        container.style.display = "flex"
-        container.style.flexDirection = "column"
-        container.style.gap = "5px"
-        container.style.alignItems = "center"
-        container.style.marginTop = "128px"
-
-        const iconSvg = (paths: string) => `
-          <svg
-            aria-hidden="true"
-            width="17"
-            height="17"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            ${paths}
-          </svg>
-        `
-
-        const styleIconButton = (button: HTMLButtonElement) => {
-          button.type = "button"
-          button.style.width = "32px"
-          button.style.height = "32px"
-          button.style.border = "none"
-          button.style.display = "flex"
-          button.style.alignItems = "center"
-          button.style.justifyContent = "center"
-          button.style.padding = "0"
-          button.style.borderRadius = "6px"
-          button.style.cursor = "pointer"
-          button.style.transition = "all 0.2s"
-        }
-
-        if (heatmapEnabled) {
-          const heatmapButton = L.DomUtil.create("button", "", container)
-          heatmapButton.innerHTML = iconSvg(`
-            <circle cx="6" cy="6" r="1.8" fill="currentColor" stroke="none" opacity="0.35" />
-            <circle cx="12" cy="5" r="2.2" fill="currentColor" stroke="none" opacity="0.55" />
-            <circle cx="18" cy="7" r="1.6" fill="currentColor" stroke="none" opacity="0.3" />
-            <circle cx="7" cy="13" r="2.4" fill="currentColor" stroke="none" opacity="0.65" />
-            <circle cx="13" cy="12" r="3.4" fill="currentColor" stroke="none" opacity="0.95" />
-            <circle cx="18" cy="14" r="2" fill="currentColor" stroke="none" opacity="0.5" />
-            <circle cx="5" cy="19" r="1.4" fill="currentColor" stroke="none" opacity="0.25" />
-            <circle cx="12" cy="19" r="2" fill="currentColor" stroke="none" opacity="0.45" />
-            <circle cx="19" cy="19" r="1.5" fill="currentColor" stroke="none" opacity="0.28" />
-          `)
-          styleIconButton(heatmapButton)
-          heatmapButton.style.background = showHeatmaps ? "#dbeafe" : "transparent"
-          heatmapButton.style.color = showHeatmaps ? "#1d4ed8" : "#374151"
-          heatmapButton.title = showHeatmaps ? "Hide Heatmap" : "Show Heatmap"
-          heatmapButton.setAttribute("aria-label", showHeatmaps ? "Hide heatmap" : "Show heatmap")
-          heatmapButton.setAttribute("aria-pressed", String(showHeatmaps))
-
-          L.DomEvent.on(heatmapButton, "click", (e) => {
-            L.DomEvent.stopPropagation(e)
-            setShowHeatmaps(!showHeatmaps)
-          })
-        }
-
-        // Emoji toggle button
-        const emojiButton = L.DomUtil.create("button", "", container)
-        emojiButton.innerHTML = iconSvg(`
-          <circle cx="12" cy="12" r="10" />
-          <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-          <path d="M9 9h.01" />
-          <path d="M15 9h.01" />
-        `)
-        styleIconButton(emojiButton)
-        emojiButton.style.background = showEmojis ? "#dcfce7" : "transparent"
-        emojiButton.style.color = showEmojis ? "#166534" : "#374151"
-        emojiButton.title = showEmojis ? "Hide Emojis" : "Show Emojis"
-        emojiButton.setAttribute("aria-label", showEmojis ? "Hide emoji markers" : "Show emoji markers")
-        emojiButton.setAttribute("aria-pressed", String(showEmojis))
-
-        L.DomEvent.on(emojiButton, "click", (e) => {
-          L.DomEvent.stopPropagation(e)
-          setShowEmojis(!showEmojis)
-        })
-
-        const fireButton = L.DomUtil.create("button", "", container)
-        fireButton.innerHTML = iconSvg(`
-          <path d="M12 22c4.97 0 8-3.58 8-8 0-3.5-2-6.5-5-9 .5 3-1 5-3 6-1-3-3-5-5-7 .5 4-3 6.5-3 10 0 4.42 3.03 8 8 8Z" />
-        `)
-        styleIconButton(fireButton)
-        fireButton.style.background = showFires ? "#ffedd5" : "transparent"
-        fireButton.style.color = showFires ? "#c2410c" : "#374151"
-        fireButton.title = showFires ? "Hide active fires" : "Show active fires"
-        fireButton.setAttribute("aria-label", showFires ? "Hide active fires" : "Show active fires")
-        fireButton.setAttribute("aria-pressed", String(showFires))
-
-        L.DomEvent.on(fireButton, "click", (e) => {
-          L.DomEvent.stopPropagation(e)
-          setShowFires(!showFires)
-        })
-
-        if (captureViewEnabled) {
-          const downloadMapButton = L.DomUtil.create("button", "", container)
-          downloadMapButton.innerHTML = iconSvg(`
-            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
-            <circle cx="12" cy="13" r="3" />
-          `)
-          styleIconButton(downloadMapButton)
-          downloadMapButton.style.background = "#f3e8ff"
-          downloadMapButton.style.color = "#7c3aed"
-          downloadMapButton.title = "Capture current map view as image"
-          downloadMapButton.setAttribute("aria-label", "Capture current map view as image")
-
-          L.DomEvent.on(downloadMapButton, "click", (e) => {
-            L.DomEvent.stopPropagation(e)
-            captureMapView()
-          })
-        }
-
-        return container
-      },
-    })
-
-    const mapControls = new MapControls({ position: "topright" })
-    map.addControl(mapControls)
-
-    return () => {
-      map.removeControl(mapControls)
-    }
-  }, [
-    map,
-    showHeatmaps,
-    setShowHeatmaps,
-    showEmojis,
-    setShowEmojis,
-    showFires,
-    setShowFires,
-    heatmapEnabled,
-    captureViewEnabled,
-  ])
-
-  return null
-}
-
-const HeatmapOverlays: React.FC<{
-  onLoadingChange: (state: LoadingState) => void
-  showHeatmaps: boolean
-  setShowHeatmaps: (value: boolean) => void
-  showEmojis: boolean
-  setShowEmojis: (value: boolean) => void
-  showFires: boolean
-  setShowFires: (value: boolean) => void
-  heatmapEnabled: boolean
-  captureViewEnabled: boolean
-}> = ({
-  onLoadingChange,
-  showHeatmaps,
-  setShowHeatmaps,
-  showEmojis,
-  setShowEmojis,
-  showFires,
-  setShowFires,
-  heatmapEnabled,
-  captureViewEnabled,
-}) => {
-  const map = useMap()
-  const [heatmaps, setHeatmaps] = useState<HeatmapData[]>([])
-  const overlaysRef = useRef<L.ImageOverlay[]>([])
-
-  useEffect(() => {
-    if (!showHeatmaps) {
-      onLoadingChange({ isLoading: false, error: null })
-      return
-    }
-
-    let isActive = true
-
-    const fetchHeatmaps = async () => {
-      let hasUsableCachedHeatmaps = false
-
-      try {
-        onLoadingChange({ isLoading: true, error: null })
-
-        const cached = await readBrowserApiCache<BrowserApiCacheEntry<HeatmapData[]>>(MAP_HEATMAPS_CACHE_KEY)
-        if (isActive && isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.length) {
-          hasUsableCachedHeatmaps = true
-          setHeatmaps(cached.data)
-          onLoadingChange({ isLoading: false, error: null })
-        }
-
-        const data = await getHeatmapData()
-        if (!isActive) return
-
-        if (data && Array.isArray(data)) {
-          setHeatmaps(data)
-          writeBrowserApiCache(MAP_HEATMAPS_CACHE_KEY, data).catch((error) => {
-            console.warn("Unable to cache heatmap data:", error)
-          })
-          onLoadingChange({ isLoading: false, error: null })
-        } else {
-          onLoadingChange(
-            hasUsableCachedHeatmaps
-              ? { isLoading: false, error: null }
-              : {
-                  isLoading: false,
-                  error: "No heatmap data available",
-                },
-          )
-        }
-      } catch (error) {
-        if (!isActive) return
-        console.error("Error fetching heatmap data:", error)
-        onLoadingChange(
-          hasUsableCachedHeatmaps
-            ? { isLoading: false, error: null }
-            : {
-                isLoading: false,
-                error: "Error loading heatmap data",
-              },
-        )
-      }
-    }
-
-    fetchHeatmaps()
-
-    return () => {
-      isActive = false
-    }
-  }, [onLoadingChange, showHeatmaps])
-
-  useEffect(() => {
-    if (!heatmaps.length) return
-
-    overlaysRef.current.forEach((overlay) => overlay.remove())
-    overlaysRef.current = []
-
-    if (showHeatmaps) {
-      heatmaps.forEach((heatmap) => {
-        try {
-          if (!heatmap.bounds || !Array.isArray(heatmap.bounds) || heatmap.bounds.length !== 2) {
-            console.warn(`Invalid bounds for heatmap ${heatmap.city}:`, heatmap.bounds)
-            return
-          }
-
-          const [[south, west], [north, east]] = heatmap.bounds
-
-          if (
-            typeof south !== "number" ||
-            typeof west !== "number" ||
-            typeof north !== "number" ||
-            typeof east !== "number"
-          ) {
-            console.warn(`Invalid coordinate values for heatmap ${heatmap.city}`)
-            return
-          }
-
-          const imageOverlay = L.imageOverlay(
-            heatmap.image,
-            [
-              [south, west],
-              [north, east],
-            ],
-            {
-              opacity: 0.7,
-              interactive: true,
-              alt: `Heatmap for ${heatmap.city}`,
-            },
-          ).addTo(map)
-
-          overlaysRef.current.push(imageOverlay)
-        } catch (error) {
-          console.error(`Error creating overlay for ${heatmap.city}:`, error)
-        }
-      })
-    }
-
-    return () => {
-      overlaysRef.current.forEach((overlay) => overlay.remove())
-    }
-  }, [heatmaps, showHeatmaps, map])
-
-  return (
-    <MapControls
-      showHeatmaps={showHeatmaps}
-      setShowHeatmaps={setShowHeatmaps}
-      showEmojis={showEmojis}
-      setShowEmojis={setShowEmojis}
-      showFires={showFires}
-      setShowFires={setShowFires}
-      heatmapEnabled={heatmapEnabled}
-      captureViewEnabled={captureViewEnabled}
-    />
-  )
-}
-
-// Update the Legend component with better tooltip styling
-const Legend: React.FC = () => {
-  const pollutantLevels = useMemo(
-    () => [
-      {
-        range: `0.0 ${PM25_UNIT_TEXT} - 9.0 ${PM25_UNIT_TEXT}`,
-        label: "Air Quality is Good",
-        image: GoodAir,
-      },
-      {
-        range: `9.1 ${PM25_UNIT_TEXT} - 35.4 ${PM25_UNIT_TEXT}`,
-        label: "Air Quality is Moderate",
-        image: Moderate,
-      },
-      {
-        range: `35.5 ${PM25_UNIT_TEXT} - 55.4 ${PM25_UNIT_TEXT}`,
-        label: "Air Quality is Unhealthy for Sensitive Groups",
-        image: UnhealthySG,
-      },
-      {
-        range: `55.5 ${PM25_UNIT_TEXT} - 125.4 ${PM25_UNIT_TEXT}`,
-        label: "Air Quality is Unhealthy",
-        image: Unhealthy,
-      },
-      {
-        range: `125.5 ${PM25_UNIT_TEXT} - 225.4 ${PM25_UNIT_TEXT}`,
-        label: "Air Quality is Very Unhealthy",
-        image: VeryUnhealthy,
-      },
-      {
-        range: `225.5+ ${PM25_UNIT_TEXT}`,
-        label: "Air Quality is Hazardous",
-        image: Hazardous,
-      },
-    ],
-    [],
-  )
-
-  return (
-    <div className="leaflet-bottom leaflet-left z-[1000] m-4">
-      <div className="leaflet-control bg-card p-2 rounded-full shadow-md">
-        <div className="flex flex-col gap-2">
-          {pollutantLevels.map((level, index) => (
-            <div key={index} className="flex items-center gap-2 group relative">
-              <div className="w-8 h-8 relative cursor-pointer">
-                <Image src={level.image || "/placeholder.svg"} alt={level.label} fill className="object-contain" />
-                <div className="opacity-0 group-hover:opacity-100 absolute left-full ml-2 bg-card text-foreground text-xs rounded-md px-3 py-2 whitespace-nowrap transition-opacity duration-200 shadow-md border border-border min-w-[200px]">
-                  <div className="font-semibold mb-1">{level.label}</div>
-                  <div className="text-muted-foreground">{level.range}</div>
-                  <div className="absolute w-2 h-2 left-0 top-1/2 -ml-1 -mt-1 bg-card border-l border-t border-border transform -rotate-45"></div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Map Layer Control Component
-const MapLayerButton: React.FC = () => {
-  const map = useMap()
-  const readPersistedStyle = (): MapStyle => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("mapStyle")
-      if (stored && stored in MAPBOX_STYLES) {
-        return stored as MapStyle
-      }
-    }
-    return "streets"
-  }
-
-  const [currentStyle, setCurrentStyle] = useState<MapStyle>(() => readPersistedStyle())
-
-  const handleStyleChange = (style: string) => {
-    const next = (style in MAPBOX_STYLES ? style : "streets") as MapStyle
-    console.log("Changing map style to:", next)
-    setCurrentStyle(next)
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("mapStyle", next)
-    }
-
-    map.eachLayer((layer) => {
-      if (layer instanceof L.TileLayer) {
-        map.removeLayer(layer)
-      }
-    })
-
-    const config = getMapTileConfig(next)
-    L.tileLayer(config.url, {
-      attribution: config.attribution,
-      tileSize: config.tileSize,
-      zoomOffset: config.zoomOffset,
-    }).addTo(map)
-  }
-
-  return (
-    <div className="leaflet-top leaflet-right z-[1000] mt-16 mr-4">
-      <div className="leaflet-control">
-        <MapLayerControl onStyleChange={handleStyleChange} currentStyle={currentStyle} />
-      </div>
-    </div>
-  )
-}
-
-// Update the LeafletMap component
 const LeafletMap: React.FC = () => {
   const siteSettings = useSiteSettings()
   const heatmapEnabled = siteSettings.features.find((feature) => feature.id === "heatmap")?.enabled ?? true
-  const captureViewEnabled =
-    siteSettings.features.find((feature) => feature.id === "capture-view")?.enabled ?? true
+  const captureViewEnabled = siteSettings.features.find((feature) => feature.id === "capture-view")?.enabled ?? true
+  const { toast } = useToast()
   const defaultCenter = DEFAULT_MAP_CENTER
   const defaultZoom = DEFAULT_MAP_ZOOM
-  const [loadingState, setLoadingState] = useState<LoadingState>({
-    isLoading: false,
-    error: null,
-  })
+  const [loadingState, setLoadingState] = useState<LoadingState>({ isLoading: false, error: null })
   const [showEmojis, setShowEmojis] = useState(true)
   const [showHeatmaps, setShowHeatmaps] = useState(false)
   const [showFires, setShowFires] = useState(true)
   const [selectedNode, setSelectedNode] = useState<MapNode | null>(null)
   const [hourlyForecastEnabled, setHourlyForecastEnabled] = useState(false)
   const [hourlyForecastPreferenceLoaded, setHourlyForecastPreferenceLoaded] = useState(false)
-  const [forecastState, setForecastState] = useState<ForecastState>({
-    isLoading: false,
-    error: null,
-    collection: null,
-  })
+  const [forecastState, setForecastState] = useState<ForecastState>({ isLoading: false, error: null, collection: null })
   const [hourlyForecastState, setHourlyForecastState] = useState<HourlyForecastCollectionState>({
     isLoading: false,
     error: null,
@@ -3470,23 +3352,205 @@ const LeafletMap: React.FC = () => {
   })
   const [hourlyForecastRequest, setHourlyForecastRequest] = useState<HourlyForecastRequest | null>(null)
 
+  const [pollutant, setPollutant] = useState<"pm2_5" | "pm10">("pm2_5")
+  const [provider, setProvider] = useState("all")
+  const [providers, setProviders] = useState<string[]>([])
+
+  const [currentStyle, setCurrentStyle] = useState<MapStyle>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("mapStyle")
+      if (stored && stored in MAPBOX_STYLES) return stored as MapStyle
+    }
+    return "streets"
+  })
+
+  const [refreshToken, setRefreshToken] = useState(0)
+  const [isCapturing, setIsCapturing] = useState(false)
+
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const leafletMapRef = useRef<L.Map | null>(null)
+
   useEffect(() => {
     if (!heatmapEnabled) setShowHeatmaps(false)
   }, [heatmapEnabled])
 
-  const persistedMapStyle =
-    typeof window !== "undefined" ? localStorage.getItem("mapStyle") : null
-  const initialMapStyle: MapStyle =
-    persistedMapStyle && persistedMapStyle in MAPBOX_STYLES ? (persistedMapStyle as MapStyle) : "streets"
+  // Keep the provider filter valid when a refresh drops the selected provider.
+  useEffect(() => {
+    if (provider !== "all" && providers.length > 0 && !providers.includes(provider)) {
+      setProvider("all")
+    }
+  }, [provider, providers])
+
+  const handleStyleChange = useCallback((style: string) => {
+    const next = (style in MAPBOX_STYLES ? style : "streets") as MapStyle
+    setCurrentStyle(next)
+    if (typeof window !== "undefined") localStorage.setItem("mapStyle", next)
+  }, [])
+
+  const handleGeolocate = useCallback(() => {
+    if (!navigator.geolocation) {
+      toast({ title: "Geolocation unavailable", description: "Your browser does not support geolocation.", variant: "destructive" })
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const map = leafletMapRef.current
+        if (map) {
+          map.flyTo([pos.coords.latitude, pos.coords.longitude], 12, { animate: true, duration: 0.8 })
+        } else {
+          toast({ title: "Map not ready", description: "Please wait for the map to finish loading." })
+        }
+      },
+      (err) => {
+        console.error("Geolocation error:", err)
+        toast({ title: "Location error", description: "Unable to access your location.", variant: "destructive" })
+      },
+    )
+  }, [toast])
+
+  // ─── Capture ─────────────────────────────────────────────────────────────────
+
+  const captureMapView = useCallback(async () => {
+    const target = leafletMapRef.current?.getContainer() ?? wrapperRef.current
+    if (!target) {
+      toast({ title: "Capture failed", description: "Map is not ready yet. Try again.", variant: "destructive" })
+      return
+    }
+    setIsCapturing(true)
+    let captureTimeoutId: number | undefined
+    try {
+      await new Promise<void>((resolve) => {
+        let tileFallbackId: number | undefined
+        // Settle once, clearing the 8s fallback timer so it never dangles.
+        const settle = () => {
+          if (tileFallbackId !== undefined) {
+            window.clearTimeout(tileFallbackId)
+            tileFallbackId = undefined
+          }
+          resolve()
+        }
+        let tilesComplete = true
+        const tiles = target.querySelectorAll<HTMLImageElement>(".leaflet-tile")
+        let pending = 0
+        tiles.forEach((tile) => {
+          if (!tile.complete) {
+            pending++
+            tilesComplete = false
+            const onTileSettled = () => {
+              pending--
+              if (pending === 0) settle()
+            }
+            tile.addEventListener("load", onTileSettled)
+            tile.addEventListener("error", onTileSettled)
+          }
+        })
+        if (tilesComplete) settle()
+        else tileFallbackId = window.setTimeout(() => settle(), 8000)
+      })
+
+      // Bounded two-frame wait: rAF is paused in background tabs, so cap it at
+      // 500ms to keep the capture flowing instead of hanging indefinitely.
+      await new Promise<void>((resolve) => {
+        let settled = false
+        const done = () => {
+          if (settled) return
+          settled = true
+          resolve()
+        }
+        requestAnimationFrame(() => requestAnimationFrame(done))
+        window.setTimeout(done, 500)
+      })
+
+      const { default: html2canvas } = await import("html2canvas")
+
+      const width = target.offsetWidth
+      const height = target.offsetHeight
+      if (width === 0 || height === 0) {
+        toast({ title: "Capture failed", description: "Map area is empty. Try again." })
+        return
+      }
+
+      // Leaflet controls (geosearch, attribution, zoom) are hidden only in the
+      // cloned document so the live map DOM is never mutated by capture.
+      const canvas = await Promise.race([
+        html2canvas(target, {
+          useCORS: true,
+          allowTaint: false,
+          scale: 2,
+          backgroundColor: "#f6f6f7",
+          logging: false,
+          imageTimeout: 15000,
+          width,
+          height,
+          onclone: (clonedDoc) => {
+            clonedDoc.querySelectorAll<HTMLElement>(".leaflet-control-container").forEach((el) => {
+              el.style.visibility = "hidden"
+            })
+          },
+        }),
+        new Promise<never>((_, reject) => {
+          captureTimeoutId = window.setTimeout(
+            () => reject(new Error("Screenshot timed out. Please try again.")),
+            20000,
+          )
+        }),
+      ])
+
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((b) => resolve(b), "image/png")
+      })
+
+      if (!blob || blob.size === 0) {
+        toast({ title: "Capture failed", description: "Screenshot was empty. Tiles may be blocked by CORS." })
+        return
+      }
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `map-view-${new Date().toISOString().split("T")[0]}.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast({ title: "Screenshot saved", description: "Map view downloaded as PNG." })
+    } catch (error) {
+      console.error("Error capturing map view:", error)
+      const message = error instanceof Error ? error.message : "Failed to capture map view."
+      toast({ title: "Capture error", description: message, variant: "destructive" })
+    } finally {
+      if (captureTimeoutId) window.clearTimeout(captureTimeoutId)
+      setIsCapturing(false)
+    }
+  }, [toast])
+
+  // ─── Data loaders & effects ──────────────────────────────────────────────────
+
+  const handleCopyLink = useCallback(async () => {
+    const url = window.location.href
+    const copied = await copyTextToClipboard(url)
+    if (!copied) {
+      // Non-secure HTTP origins have no Clipboard API and execCommand can fail;
+      // prompt() is the last resort so the link is never unrecoverable.
+      window.prompt("Copy this map link:", url)
+      toast({ title: "Copy the link from the prompt" })
+      return
+    }
+    toast({ title: "Link copied" })
+  }, [toast])
+
+  const handleRefresh = useCallback(() => {
+    invalidateMapReadingsCache()
+    setRefreshToken((n) => n + 1)
+    toast({ title: "Refreshing map data" })
+  }, [toast])
 
   useEffect(() => {
     let isActive = true
     let hasUsableCachedForecast = false
 
     const loadForecast = async () => {
-      setForecastState((current) =>
-        current.collection ? current : { isLoading: true, error: null, collection: null },
-      )
+      setForecastState((current) => (current.collection ? current : { isLoading: true, error: null, collection: null }))
 
       const cached = await readBrowserApiCache<BrowserApiCacheEntry<DailyForecastResponse>>(MAP_FORECAST_CACHE_KEY)
       if (isActive && isDailyForecastCacheCurrent(cached) && cached.data.forecasts?.length) {
@@ -3509,7 +3573,6 @@ const LeafletMap: React.FC = () => {
           console.warn("Unable to cache forecast coverage:", error)
         })
       } catch (error) {
-        if (!isActive) return
         console.error(error)
         if (!hasUsableCachedForecast) {
           setForecastState({ isLoading: false, error: "Failed to load forecast coverage.", collection: null })
@@ -3525,7 +3588,6 @@ const LeafletMap: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    // Default hourly forecast to off, regardless of any previously stored preference.
     setHourlyForecastEnabled(false)
     setHourlyForecastPreferenceLoaded(true)
   }, [])
@@ -3574,17 +3636,9 @@ const LeafletMap: React.FC = () => {
       const cached = await readBrowserApiCache<BrowserApiCacheEntry<HourlyForecastSite>>(cacheKey)
       const cachedAt = cached?.cachedAt ? new Date(cached.cachedAt) : null
       const cachedForecasts = Array.isArray(cached?.data?.forecasts) ? cached.data.forecasts : []
-      const cachedToday =
-        cachedAt &&
-        !Number.isNaN(cachedAt.getTime()) &&
-        formatLocalDateKey(cachedAt) === formatLocalDateKey(new Date())
+      const cachedToday = cachedAt && !Number.isNaN(cachedAt.getTime()) && formatLocalDateKey(cachedAt) === formatLocalDateKey(new Date())
 
-      if (
-        isActive &&
-        cachedToday &&
-        isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) &&
-        cachedForecasts.length
-      ) {
+      if (isActive && cachedToday && isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cachedForecasts.length) {
         hasUsableCachedForecast = true
         setHourlyForecastState({ isLoading: false, error: null, requestedSiteId: siteId, site: cached.data })
       }
@@ -3594,7 +3648,12 @@ const LeafletMap: React.FC = () => {
         if (!isActive) return
         if (!site?.forecasts?.length) {
           if (!hasUsableCachedForecast) {
-            setHourlyForecastState({ isLoading: false, error: "No hourly forecast returned for this site.", requestedSiteId: siteId, site: null })
+            setHourlyForecastState({
+              isLoading: false,
+              error: "No hourly forecast returned for this site.",
+              requestedSiteId: siteId,
+              site: null,
+            })
           }
           return
         }
@@ -3604,10 +3663,14 @@ const LeafletMap: React.FC = () => {
           console.warn("Unable to cache hourly forecast:", error)
         })
       } catch (error) {
-        if (!isActive) return
         console.error(error)
         if (!hasUsableCachedForecast) {
-          setHourlyForecastState({ isLoading: false, error: "Failed to load hourly forecast.", requestedSiteId: siteId, site: null })
+          setHourlyForecastState({
+            isLoading: false,
+            error: "Failed to load hourly forecast.",
+            requestedSiteId: siteId,
+            site: null,
+          })
         }
       }
     }
@@ -3622,68 +3685,115 @@ const LeafletMap: React.FC = () => {
   const isPanelOpen = !!selectedNode
 
   return (
-    <div className="h-full w-full">
-      <div className="flex h-full w-full">
-        <div className="relative flex-1">
-          <LoadingIndicator isLoading={loadingState.isLoading} error={loadingState.error} />
-          <ForecastStatusBadge forecastState={forecastState} />
-          <MapContainer center={defaultCenter} zoom={defaultZoom} style={{ height: "100%", width: "100%" }}>
-            <TileLayer {...getMapTileConfig(initialMapStyle)} />
-            <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
-            <ClearSelectionOnMapClick onClear={() => setSelectedNode(null)} />
-            <MapNodes onLoadingChange={setLoadingState} showEmojis={showEmojis} onNodeSelect={setSelectedNode} />
-            <ActiveFireMarkers showFires={showFires} />
-            <HeatmapOverlays
-              onLoadingChange={setLoadingState}
-              showHeatmaps={heatmapEnabled && showHeatmaps}
-              setShowHeatmaps={setShowHeatmaps}
-              showEmojis={showEmojis}
-              setShowEmojis={setShowEmojis}
-              showFires={showFires}
-              setShowFires={setShowFires}
-              heatmapEnabled={heatmapEnabled}
-              captureViewEnabled={captureViewEnabled}
-            />
-            <Legend />
-            <MapLayerButton />
-          </MapContainer>
-        </div>
-
-        <div
-          className={[
-            "h-full overflow-hidden transition-[width] duration-300 ease-out",
-            isPanelOpen ? "w-[448px]" : "w-0",
-          ].join(" ")}
-          aria-hidden={!isPanelOpen}
+    <div className="relative h-full w-full" ref={wrapperRef}>
+      <div className="absolute inset-0">
+        <MapContainer
+          center={defaultCenter}
+          zoom={defaultZoom}
+          style={{ height: "100%", width: "100%" }}
+          zoomControl={false}
         >
-          {isPanelOpen ? (
-            <ForecastPanel
-              selectedNode={selectedNode}
-              forecastState={forecastState}
-              hourlyForecastState={hourlyForecastState}
-              hourlyForecastEnabled={hourlyForecastEnabled}
-              onHourlyForecastEnabledChange={handleHourlyForecastEnabledChange}
-              onHourlyForecastRequest={handleHourlyForecastRequest}
-              onClose={() => setSelectedNode(null)}
-            />
-          ) : null}
-        </div>
+          <TileLayer key={currentStyle} {...getMapTileConfig(currentStyle)} crossOrigin="anonymous" />
+          <SearchControl defaultCenter={defaultCenter} defaultZoom={defaultZoom} />
+          <ClearSelectionOnMapClick onClear={() => setSelectedNode(null)} />
+          <NexusMapNodes
+            onLoadingChange={setLoadingState}
+            onProvidersLoaded={setProviders}
+            showMarkers={showEmojis}
+            onNodeSelect={setSelectedNode}
+            selectedNode={selectedNode}
+            pollutant={pollutant}
+            provider={provider}
+            refreshToken={refreshToken}
+          />
+          <ActiveFireMarkers showFires={showFires} />
+          <HeatmapOverlays
+            onLoadingChange={setLoadingState}
+            showHeatmaps={heatmapEnabled && showHeatmaps}
+            heatmapEnabled={heatmapEnabled}
+          />
+
+          <MapHandleBridge onMapReady={(m) => (leafletMapRef.current = m)} />
+        </MapContainer>
       </div>
+
+      {/* Overlay controls (above panes) */}
+      <MapOverlayControls
+        currentStyle={currentStyle}
+        onStyleChange={handleStyleChange}
+        pollutant={pollutant}
+        onPollutantChange={setPollutant}
+        providers={providers}
+        selectedProvider={provider}
+        onProviderChange={setProvider}
+        heatmapEnabled={heatmapEnabled}
+        showHeatmaps={showHeatmaps && heatmapEnabled}
+        onShowHeatmapsChange={setShowHeatmaps}
+        showEmojis={showEmojis}
+        onShowEmojisChange={setShowEmojis}
+        showFires={showFires}
+        onShowFiresChange={setShowFires}
+        onGeolocate={handleGeolocate}
+        onZoomIn={() => leafletMapRef.current?.zoomIn()}
+        onZoomOut={() => leafletMapRef.current?.zoomOut()}
+        onCopyLink={handleCopyLink}
+        onRefresh={handleRefresh}
+        onCapture={captureViewEnabled ? captureMapView : () => undefined}
+        isRefreshing={loadingState.isLoading}
+        isCapturing={isCapturing}
+      />
+
+      {/* Status indicators */}
+      <LoadingIndicator isLoading={loadingState.isLoading} error={loadingState.error} />
+      <ForecastStatusBadge forecastState={forecastState} />
+
+      {/* Side panel overlay */}
+      {isPanelOpen ? (
+        <div className="absolute inset-y-0 right-0 z-[1200] w-full max-w-none border-l border-border bg-card shadow-xl sm:w-[447px] sm:max-w-[85vw]">
+          <ForecastPanel
+            selectedNode={selectedNode}
+            forecastState={forecastState}
+            hourlyForecastState={hourlyForecastState}
+            hourlyForecastEnabled={hourlyForecastEnabled}
+            onHourlyForecastEnabledChange={handleHourlyForecastEnabledChange}
+            onHourlyForecastRequest={handleHourlyForecastRequest}
+            onClose={() => setSelectedNode(null)}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }
 
-// Create a custom icon based on AQI category
-const getCustomIcon = (aqiCategory: string) => {
-  const imageSrc = getAqiImageByCategory(aqiCategory)
+// ─── Internal bridge: expose the Leaflet map instance on the wrapper ref ───
 
-  return L.icon({
-    iconUrl: imageSrc,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    popupAnchor: [0, -20],
-  })
+const MapHandleBridge: React.FC<{
+  onMapReady: (map: L.Map) => void
+}> = ({ onMapReady }) => {
+  const map = useMap()
+
+  // The default popup pane is nested inside .leaflet-map-pane, which creates a
+  // stacking context (z-index 400), so no z-index on it can rise above the React
+  // controls (z-1100). Create a dedicated pane as a direct child of the map
+  // container (sibling of .leaflet-map-pane) so it can sit above those overlays.
+  useEffect(() => {
+    const existingPane = map.getPane("highPopupPane")
+    // Passing the container makes the pane a sibling of .leaflet-map-pane rather
+    // than a child of it (default container would be .leaflet-map-pane).
+    const pane = existingPane ?? map.createPane("highPopupPane", map.getContainer())
+    pane.style.zIndex = "1300"
+    pane.style.pointerEvents = "none"
+
+    return () => {
+      if (!existingPane) pane.remove()
+    }
+  }, [map])
+
+  useEffect(() => {
+    onMapReady(map)
+  }, [map, onMapReady])
+
+  return null
 }
 
 export default LeafletMap
-

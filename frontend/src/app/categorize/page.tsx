@@ -705,11 +705,11 @@ function SiteCategoryContent() {
   )
 
   return (
-    <div className="min-h-screen bg-muted/40">
+    <div className="flex h-[100svh] flex-col bg-background">
       <Suspense fallback={null}><Navigation /></Suspense>
-      <main id="main-content" tabIndex={-1}>
-        <div className="flex min-h-[calc(100svh-4rem)] flex-col lg:h-[calc(100svh-4rem)] lg:flex-row lg:overflow-hidden">
-          <div className="relative h-[52vh] min-h-[360px] w-full shrink-0 sm:h-[58vh] lg:h-full lg:min-h-0 lg:flex-1">
+      <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 px-2 pb-2">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:flex-row">
+          <div className="relative h-[50vh] min-h-[320px] w-full shrink-0 overflow-hidden bg-muted sm:h-[54vh] lg:h-full lg:min-h-0 lg:flex-1">
             <MapContainer className="h-full w-full" center={[1.3733, 32.2903]} zoom={7}>
               <TileLayer {...getMapTileConfig("streets")} />
               <SearchControl />
@@ -738,7 +738,7 @@ function SiteCategoryContent() {
               <Info className="h-5 w-5" />
             </Button>
           </div>
-          <div ref={sidebarRef} className="w-full space-y-4 border-t border-border bg-card p-3 sm:p-4 lg:h-full lg:w-[28rem] lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
+          <div ref={sidebarRef} className="min-h-0 w-full flex-1 space-y-4 overflow-y-auto border-t border-border bg-card p-3 sm:p-4 lg:h-full lg:w-[28rem] lg:flex-none lg:border-l lg:border-t-0">
             <div className="px-1 pt-1">
               <h1 className="text-xl font-medium tracking-tight text-foreground">Site categorization</h1>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">Classify monitoring sites by their surrounding environment.</p>

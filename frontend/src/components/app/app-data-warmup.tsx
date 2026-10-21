@@ -3,11 +3,12 @@
 import { useEffect } from "react"
 import { usePathname } from "next/navigation"
 
+const WARMUP_ROUTES = new Set(["/map", "/map/", "/reports", "/reports/"])
+
 export default function AppDataWarmup() {
   const pathname = usePathname()
   useEffect(() => {
-    if (pathname === "/website-map-integration" || pathname === "/website-map-integration/") return
-    if (pathname === "/billboard" || pathname === "/billboard/") return
+    if (!WARMUP_ROUTES.has(pathname ?? "")) return
     let cancelled = false
     void import("@/lib/api-service").then(({ prefetchMapAndReportData }) => {
       if (!cancelled) void prefetchMapAndReportData()

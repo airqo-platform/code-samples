@@ -4,9 +4,9 @@ import { RETRYABLE_API_STATUSES, delay } from "@/lib/api-shared"
 import type { DataDownloadRecord, DataDownloadRequest, DataDownloadResponse, ReportDataOptions, SiteData } from "@/lib/types"
 
 const BASE_URL = "/api/airqo"
-const MAP_RETRYABLE_API_STATUSES = new Set([401, ...RETRYABLE_API_STATUSES])
+const MAP_RETRYABLE_API_STATUSES = RETRYABLE_API_STATUSES
 const MAX_API_ATTEMPTS = 3
-const MAX_SATELLITE_API_ATTEMPTS = 5
+const MAX_SATELLITE_API_ATTEMPTS = 3
 const ACTIVE_FIRES_FAILURE_COOLDOWN_MS = 30 * 1000
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & {
@@ -251,15 +251,19 @@ export const getSatelliteData = async (body: SatellitePredictionRequest) => {
     }
   }
 
-  throw new Error("Satellite prediction failed after five attempts.")
+  throw new Error("Satellite prediction failed after three attempts.")
 }
 
 // Map and Reports use the same readings endpoint. Keep one shared request/cache so
 // the app-level warm-up can be reused when either page is opened later.
 const MAP_READINGS_CACHE_MAX_AGE_MS = 5 * 60 * 1000
-const MAP_LOAD_MAX_ATTEMPTS = 5
+const MAP_LOAD_MAX_ATTEMPTS = 3
 let mapReadingsRequest: Promise<MapNode[]> | null = null
 let mapReadingsCache: { data: MapNode[]; cachedAt: number } | null = null
+
+export const invalidateMapReadingsCache = (): void => {
+  mapReadingsCache = null
+}
 
 const withoutInterceptorRetries = { _airqoMaxAttempts: 1 } as AxiosRequestConfig
 
@@ -340,7 +344,7 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
   heatmapDataRequest = (async () => {
     try {
       const response = await apiService.get("/spatial/heatmaps", {
-        _airqoMaxAttempts: MAP_LOAD_MAX_ATTEMPTS,
+        _airqoMaxAttempts: 2,
         _airqoRetryableStatuses: MAP_RETRYABLE_API_STATUSES,
       } as AxiosRequestConfig)
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
@@ -351,7 +355,7 @@ export const getHeatmapData = async (): Promise<HeatmapData[] | null> => {
       return null
     } catch (error) {
       heatmapRetryBlockedUntil = Date.now() + 5 * 60 * 1000
-      console.error("Heatmap fetch failed after 5 attempts. Skipping retries for 5 minutes:", error)
+      console.error("Heatmap fetch failed after 2 attempts. Skipping retries for 5 minutes:", error)
       return null
     }
   })()

@@ -30,8 +30,8 @@ export default function Navigation() {
       : pathname === href || pathname.startsWith(`${href}/`)
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-background/80 px-2 pb-2 pt-2 backdrop-blur-sm sm:px-3">
-      <div className="mx-auto flex h-12 w-full max-w-[1400px] items-center justify-between gap-3 rounded-md border border-border bg-card px-3 shadow-sm">
+    <header className="sticky top-0 z-50 w-full bg-background/80 px-2 pb-2 pt-2 backdrop-blur-sm">
+      <div className="mx-auto flex h-12 w-full items-center justify-between gap-3 rounded-md border border-border bg-card px-3 shadow-sm">
         <div className="flex min-w-0 items-center gap-3">
           <Link href="/" aria-label="AirQo home" className="flex items-center">
             <Image

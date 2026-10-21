@@ -15,3 +15,12 @@ secret
 .stage-env.yaml
 .prod-env.yaml
 .idea/*
+
+# --- Generated test/browser artifacts (Playwright + MCP QA runs) ---
+.playwright-mcp/
+qa-screens*/
+playwright-report/
+test-results/
+blob-report/
+*.har
+*.webm
