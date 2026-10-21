@@ -3307,8 +3307,17 @@ const LeafletMap: React.FC = () => {
     if (!copied) {
       // Non-secure HTTP origins have no Clipboard API and execCommand can fail;
       // prompt() is the last resort so the link is never unrecoverable.
-      window.prompt("Copy this map link:", url)
-      toast({ title: "Copy the link from the prompt" })
+      // Some headless/embedded webviews throw "prompt() is not supported".
+      try {
+        window.prompt("Copy this map link:", url)
+        toast({ title: "Copy the link from the prompt" })
+      } catch {
+        toast({
+          title: "Could not copy automatically",
+          description: "Copy the address from your browser.",
+          variant: "destructive",
+        })
+      }
       return
     }
     toast({ title: "Link copied" })

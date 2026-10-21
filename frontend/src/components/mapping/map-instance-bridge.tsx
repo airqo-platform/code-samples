@@ -26,7 +26,20 @@ export function MapInstanceBridge({ onReady }: MapInstanceBridgeProps) {
     pane.style.zIndex = "1300"
     pane.style.pointerEvents = "none"
 
+    // The container-level pane sits outside .leaflet-map-pane, so Leaflet does
+    // not transform it during pan/zoom — popups would drift from their anchors.
+    // Mirror the map pane's transform on every movement event instead.
+    const mapPane = map.getPane("mapPane")
+    const syncPaneTransform = () => {
+      if (!mapPane) return
+      pane.style.transform = mapPane.style.transform || "translate3d(0px, 0px, 0px)"
+      pane.style.transformOrigin = "0 0"
+    }
+    syncPaneTransform()
+    map.on("move zoom viewreset zoomend moveend", syncPaneTransform)
+
     return () => {
+      map.off("move zoom viewreset zoomend moveend", syncPaneTransform)
       if (!existingPane) pane.remove()
     }
   }, [map])
