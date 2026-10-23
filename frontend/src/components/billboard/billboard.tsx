@@ -7,10 +7,12 @@ import { AppLoader } from "@/components/layout/app-loader"
 import QuickPlaces, { useFavourites } from "./quick-places"
 import { gridsWithinCountry, loadBillboardGrids, type BillboardGrid } from "@/lib/billboard-grids"
 import Link from "next/link"
+import { isBrowserApiCacheFresh, readBrowserApiCache, writeBrowserApiCache, type BrowserApiCacheEntry } from "@/lib/browser-api-cache"
 import { useSearchParams } from "next/navigation"
 import { ArrowLeft, Copy, Maximize, Monitor, Pause, Play } from "lucide-react"
 import { BILLBOARD_REFRESH_MS, billboardScanUrl, category, categoryImage, hasPm25, latestReadings, type BillboardData, type Period } from "@/lib/billboard"
 
+const BillboardMap = dynamic(() => import("./billboard-map"), { ssr: false })
 const RealisticScene = dynamic(() => import("./realistic-scene"), { loading: () => <div className="h-60" /> })
 const ActivityScene = dynamic(() => import("./activity-scene"), { loading: () => <div className="h-60" /> })
 const CountryPicker = dynamic(() => import("./country-picker"))
@@ -27,6 +29,14 @@ function Face({ pm, large = false }: { pm: number | null | undefined; large?: bo
 }
 function WeatherGlyph({ met }: { met: Period["met"] }) {
   const rain = met?.precipitation_amount
+  if (rain != null && rain <= 0) return <span role="img" aria-label="No rainfall forecast" className="inline-block h-8 w-8 shrink-0">
+    <img src="/images/billboard/weather/sun.gif" alt="" width={32} height={32} className="h-8 w-8 motion-reduce:hidden" />
+    <img src="/images/billboard/weather/sun.png" alt="" width={32} height={32} className="hidden h-8 w-8 motion-reduce:block" />
+  </span>
+  if (rain != null && rain > 0) return <span role="img" aria-label="Rain forecast" className="inline-block h-8 w-8 shrink-0">
+    <img src="/images/billboard/weather/rain.gif" alt="" width={32} height={32} className="h-8 w-8 motion-reduce:hidden" />
+    <img src="/images/billboard/weather/rain.png" alt="" width={32} height={32} className="hidden h-8 w-8 motion-reduce:block" />
+  </span>
   return <span role="img" aria-label={rain == null ? "Weather unavailable" : rain > 0 ? "Rain forecast" : "No rainfall forecast"} className="text-2xl">{rain == null ? "—" : rain > 0 ? "🌧️" : "🌤️"}</span>
 }
 
@@ -34,6 +44,8 @@ export default function Billboard() {
   const params = useSearchParams()
   const gridId = params.get("grid_id"), cohortId = params.get("cohort_id")
   const display = Boolean(gridId || cohortId)
+  const [mapIntroDone, setMapIntroDone] = useState(false)
+  useEffect(() => { setMapIntroDone(false) }, [gridId, cohortId])
   const [scope, setScope] = useState("grid")
   const [id, setId] = useState("")
   const [countryId, setCountryId] = useState("")
@@ -75,7 +87,7 @@ export default function Billboard() {
   const contentRef = useRef<HTMLDivElement>(null)
   const [contentScale, setContentScale] = useState(1)
   useEffect(() => {
-    if (!isFullscreen) { setContentScale(1); return }
+    if (!isFullscreen || !mapIntroDone) { setContentScale(1); return }
     const viewport = contentViewportRef.current
     const content = contentRef.current
     if (!viewport || !content) return
@@ -98,7 +110,7 @@ export default function Billboard() {
     observer.observe(content)
     fit()
     return () => { observer.disconnect(); content.style.width = "" }
-  }, [isFullscreen])
+  }, [isFullscreen, mapIntroDone])
   useEffect(() => {
     const requested = params.get("theme")
     let saved: string | null = null
@@ -149,9 +161,16 @@ export default function Billboard() {
         const search = new URLSearchParams()
         if (gridId) search.set("grid_id", gridId)
         if (cohortId) search.set("cohort_id", cohortId)
+        const cacheKey = `billboard:${search}`
+        const cached = await readBrowserApiCache<BrowserApiCacheEntry<BillboardData>>(cacheKey)
+        if (isBrowserApiCacheFresh(cached, BILLBOARD_REFRESH_MS)) {
+          if (!controller.signal.aborted) { setData(cached.data); setError(""); setNow(Date.now()) }
+          return
+        }
         const response = await fetch(`/api/billboard?${search}`, { signal: controller.signal })
         const body = await response.json()
         if (!response.ok) throw Error(body.message || "Unable to load billboard.")
+        await writeBrowserApiCache(cacheKey, body)
         if (!controller.signal.aborted) { setData(body); setError(""); setNow(Date.now()) }
       } catch (e) { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Unable to refresh data.") }
       finally { busy = false; if (!controller.signal.aborted) setLoading(false) }
@@ -160,6 +179,11 @@ export default function Billboard() {
     const timer = setInterval(() => { setNow(Date.now()); void load() }, BILLBOARD_REFRESH_MS)
     return () => { controller.abort(); clearInterval(timer) }
   }, [display, gridId, cohortId])
+  useEffect(() => {
+    if (!display || loading || !data || mapIntroDone || !rotate) return
+    const timer = setTimeout(() => { setIndex(0); setDay(0); setMapIntroDone(true) }, 15000)
+    return () => clearTimeout(timer)
+  }, [display, loading, data, mapIntroDone, rotate])
   const readings = useMemo(() => new Map(Array.from(latestReadings(data?.measurements || [])).filter(([, reading]) => hasPm25(reading.pm2_5?.value))), [data])
   const sites = useMemo(() => {
     const map = new Map<string, string>()
@@ -168,10 +192,16 @@ export default function Billboard() {
     return Array.from(map, ([siteId, name]) => ({ siteId, name }))
   }, [data, readings])
   useEffect(() => {
-    if (!rotate || sites.length < 2) return
-    const timer = setInterval(() => { setIndex(i => (i + 1) % sites.length); setDay(0) }, 15000)
-    return () => clearInterval(timer)
-  }, [rotate, sites.length])
+    if (!mapIntroDone || !rotate || !sites.length) return
+    const timer = setTimeout(() => {
+      setDay(0)
+      if (index >= sites.length - 1) {
+        setIndex(0)
+        setMapIntroDone(false)
+      } else setIndex(index + 1)
+    }, 15000)
+    return () => clearTimeout(timer)
+  }, [mapIntroDone, rotate, sites.length, index])
   const site = sites[index % Math.max(sites.length, 1)]
   const reading = site ? readings.get(site.siteId) : undefined
   const stale = !reading?.time || now - Date.parse(reading.time) > 3 * 3600000
@@ -234,7 +264,7 @@ export default function Billboard() {
           <div data-theme={theme} className="billboard-surface flex flex-col justify-center rounded-md bg-[var(--billboard-bg)] p-7 text-[var(--billboard-text)]"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--billboard-accent)]">Made for shared screens</span><div className="relative my-6 flex justify-center"><img src="/images/billboard/realistic/moderate-5.webp" alt="Woman checking air quality updates on her phone" width={360} height={360} className="h-60 w-full object-contain" /></div><h2 className="text-2xl font-bold">Make the air visible.</h2><p className="mt-3 leading-relaxed text-[var(--billboard-muted)]">Named monitoring locations. Clear health guidance. Seven-day forecasts with weather. A link that stays up to date.</p><p className="mt-6 text-sm text-[var(--billboard-soft)]">Data refreshes every 60 minutes. Forecasts need Premium API access.</p></div>
         </div>
       </div> : <>
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div className="min-w-0"><p className="text-sm font-semibold uppercase tracking-widest text-primary">{cohortId ? "Network air quality" : "Local air quality"}</p><h1 tabIndex={0} title="Double-click to edit the title, or press Enter" onDoubleClick={editTitle} onKeyDown={event => { if (event.key === "Enter" || event.key === "F2") { event.preventDefault(); editTitle() } }} className="mt-2 cursor-text break-words rounded-lg text-3xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:text-5xl">{params.get("title")?.slice(0,100) || (gridId ? "Air quality in your area" : "Air quality network")}</h1></div><p className="text-sm text-muted-foreground">Refreshes every 60 minutes · Times in your browser’s timezone</p></div>
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div className="min-w-0"><p className="text-sm font-semibold uppercase tracking-widest text-primary">{cohortId ? "Network air quality" : "Local air quality"}</p><h1 tabIndex={0} aria-describedby="billboard-title-hint" title="Double-click to edit the title, or press Enter" onDoubleClick={editTitle} onKeyDown={event => { if (event.key === "Enter" || event.key === "F2") { event.preventDefault(); editTitle() } }} className="mt-2 cursor-text break-words rounded-lg text-3xl font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:text-5xl">{params.get("title")?.slice(0,100) || (gridId ? "Air quality in your area" : "Air quality network")}</h1><p id="billboard-title-hint" className="mt-2 text-xs text-muted-foreground">Double-click the title or focus it and press Enter to edit.</p></div><p className="text-sm text-muted-foreground">Refreshes every 60 minutes · Times in your browser’s timezone</p></div>
         {editingTitle && <form className="mb-6 flex flex-wrap items-end gap-3" onSubmit={event => {
           event.preventDefault()
           const address = new URL(window.location.href)
@@ -253,7 +283,15 @@ export default function Billboard() {
                 <h2 className={isFullscreen ? "min-w-0 flex-1 break-words text-center text-3xl font-bold leading-tight text-[var(--billboard-accent)] md:text-5xl" : "text-xs font-semibold uppercase tracking-[0.2em] text-[var(--billboard-accent)]"}>{isFullscreen ? params.get("title")?.trim().slice(0, 100) || site?.name : "Air quality in motion"}</h2>
                 <div className="flex items-center gap-4"><span className="text-xs text-[var(--billboard-muted)]">{params.get("title")?.slice(0,100)}{params.get("title") ? " | " : ""}Location {(index % sites.length) + 1} / {sites.length}</span>{isFullscreen && <button onClick={fullscreen} className="rounded-lg border border-[var(--billboard-line)] px-3 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)]">Exit fullscreen</button>}</div>
               </div>
-              <div ref={contentViewportRef} className="billboard-content">
+              <section aria-label="Monitoring locations map" className={`flex min-h-0 flex-1 flex-col ${mapIntroDone ? "!hidden" : ""}`}>
+                <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+                  <h2 className="font-semibold">{params.get("title") || "Your monitoring locations"}</h2>
+                  <button className={button} onClick={() => { setIndex(0); setDay(0); setMapIntroDone(true) }}>Skip to air quality</button>
+                  <p className="w-full text-sm text-[var(--billboard-muted)]">{rotate ? "Map, then each location for 15 seconds. Repeats automatically." : "Rotation paused."}</p>
+                </div>
+                <BillboardMap measurements={data.measurements} daily={data.daily} visible={!mapIntroDone} />
+              </section>
+              <div ref={contentViewportRef} className={`billboard-content ${!mapIntroDone ? "!hidden" : ""}`}>
               <div ref={contentRef} className="flow-root origin-top-left" style={isFullscreen ? { width: `${100 / contentScale}%`, transform: `scale(${contentScale})` } : undefined}>
               <div className="grid items-center gap-6 px-6 py-6 md:grid-cols-[1.5fr_1fr] md:px-8">
                 <section>

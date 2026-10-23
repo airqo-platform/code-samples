@@ -960,6 +960,7 @@ const ForecastStatusBadge: React.FC<{ forecastState: ForecastState }> = ({ forec
 // ─── Nexus-style clustered nodes ────────────────────────────────────────────
 
 const NexusMapNodes: React.FC<{
+  siteIds?: string[]
   onLoadingChange: (state: LoadingState) => void
   onProvidersLoaded: (providers: string[]) => void
   showMarkers: boolean
@@ -969,6 +970,7 @@ const NexusMapNodes: React.FC<{
   provider: string
   refreshToken: number
 }> = ({
+  siteIds,
   onLoadingChange,
   onProvidersLoaded,
   showMarkers,
@@ -1029,13 +1031,14 @@ const NexusMapNodes: React.FC<{
       // Manual refreshes must bypass the browser cache and hit the network.
       if (refreshToken === 0) {
         const cached = await readBrowserApiCache<BrowserApiCacheEntry<MapNode[]>>(MAP_NODES_CACHE_KEY)
-        if (isBrowserApiCacheFresh(cached, MAP_API_CACHE_MAX_AGE_MS) && cached.data.length) {
+        if (isBrowserApiCacheFresh(cached, siteIds ? 60 * 60 * 1000 : MAP_API_CACHE_MAX_AGE_MS) && cached.data.length) {
           const validCachedNodes = cached.data.filter(isValidNode)
           if (validCachedNodes.length) {
             hasUsableCachedNodes = true
             setNodes(validCachedNodes)
             onProvidersLoaded(deriveProviders(validCachedNodes))
             onLoadingChange({ isLoading: false, error: null })
+            if (siteIds) return
           }
         }
       }
@@ -1066,7 +1069,7 @@ const NexusMapNodes: React.FC<{
         onLoadingChange({ isLoading: false, error: "Error loading map data" })
       }
     }
-  }, [onLoadingChange, onProvidersLoaded, refreshToken])
+  }, [onLoadingChange, onProvidersLoaded, refreshToken, siteIds])
 
   useEffect(() => {
     fetchNodes()
@@ -1085,9 +1088,20 @@ const NexusMapNodes: React.FC<{
     [],
   )
 
+  const scopedNodes = useMemo(() => {
+    if (!siteIds) return nodes
+    const allowed = new Set(siteIds)
+    return nodes.filter(node => allowed.has(node.site_id))
+  }, [nodes, siteIds])
+
+  useEffect(() => {
+    if (!siteIds || !scopedNodes.length) return
+    map.fitBounds(scopedNodes.map(node => [node.siteDetails.approximate_latitude, node.siteDetails.approximate_longitude] as [number, number]), { padding: [40, 40], maxZoom: 13 })
+  }, [map, siteIds, scopedNodes])
+
   const { clusters, solo } = useMemo(
-    () => buildClusters(nodes, clusterZoom, pollutant, provider),
-    [nodes, clusterZoom, pollutant, provider],
+    () => buildClusters(scopedNodes, clusterZoom, pollutant, provider),
+    [scopedNodes, clusterZoom, pollutant, provider],
   )
 
   useEffect(() => {
@@ -3102,7 +3116,7 @@ const copyTextToClipboard = async (text: string): Promise<boolean> => {
   }
 }
 
-const LeafletMap: React.FC = () => {
+const LeafletMap: React.FC<{ siteIds?: string[]; visible?: boolean }> = ({ siteIds, visible = true }) => {
   const siteSettings = useSiteSettings()
   const heatmapEnabled = siteSettings.features.find((feature) => feature.id === "heatmap")?.enabled ?? true
   const captureViewEnabled = siteSettings.features.find((feature) => feature.id === "capture-view")?.enabled ?? true
@@ -3138,11 +3152,21 @@ const LeafletMap: React.FC = () => {
   })
 
   const [refreshToken, setRefreshToken] = useState(0)
+  useEffect(() => {
+    if (!siteIds) return
+    const timer = setInterval(() => setRefreshToken(value => value + 1), 60 * 60 * 1000)
+    return () => clearInterval(timer)
+  }, [siteIds])
   const [isCapturing, setIsCapturing] = useState(false)
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   const leafletMapRef = useRef<L.Map | null>(null)
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null)
+  useEffect(() => {
+    if (!visible || !mapInstance) return
+    const frame = requestAnimationFrame(() => mapInstance.invalidateSize())
+    return () => cancelAnimationFrame(frame)
+  }, [visible, mapInstance])
   const searchMarkerRef = useRef<L.Marker | null>(null)
 
   useEffect(() => {
@@ -3588,6 +3612,7 @@ const LeafletMap: React.FC = () => {
           />
           <ClearSelectionOnMapClick onClear={() => setSelectedNode(null)} />
           <NexusMapNodes
+            siteIds={siteIds}
             onLoadingChange={setLoadingState}
             onProvidersLoaded={setProviders}
             showMarkers={showEmojis}

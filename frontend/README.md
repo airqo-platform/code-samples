@@ -8,6 +8,8 @@ AirQo AI Platform [https://ai.airqo.net/](https://ai.airqo.net/).
  
 ## Features
 
+Billboards reuse browser-cached real readings and forecasts for 60 minutes per grid or cohort. The billboard map stays mounted between display cycles, reuses map readings cached for up to 60 minutes, and refreshes hourly. Manual map refresh still requests fresh data. This hourly policy applies to billboard views; other routes retain their existing cache policies.
+
 ### Embed a grid map on any website
 
 After deploying this frontend, website owners can paste this HTML and replace

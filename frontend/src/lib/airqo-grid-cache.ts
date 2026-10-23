@@ -3,6 +3,8 @@ import { createHash } from "node:crypto"
 import { fetchAirQo } from "@/lib/airqo-server-transport"
 
 export const GRID_CACHE_SECONDS = 300
+// Leave room for Next.js cache metadata below its 2 MB entry limit.
+const MAX_CACHE_SNAPSHOT_BYTES = 1900000
 
 type Snapshot = { body: string; status: number; contentType: string }
 
@@ -11,6 +13,8 @@ export class UncachedGridResponse extends Error {
     super("Grid response is not cacheable")
   }
 }
+
+class OversizedGridResponse extends UncachedGridResponse {}
 
 const cacheableGridRoutePatterns = [
   /^devices\/measurements\/grids\/[A-Za-z0-9_-]+$/,
@@ -37,6 +41,9 @@ const cachedGridResponse = unstable_cache(async (url: string, _credentialFingerp
   let payload
   try { payload = JSON.parse(snapshot.body) } catch { throw new UncachedGridResponse(snapshot) }
   if (!response.ok || !payload || payload.success === false || payload.error) throw new UncachedGridResponse(snapshot)
+  if (new TextEncoder().encode(JSON.stringify(snapshot)).byteLength > MAX_CACHE_SNAPSHOT_BYTES) {
+    throw new OversizedGridResponse(snapshot)
+  }
   return snapshot
 }, ["airqo-server-response-v2"], { revalidate: GRID_CACHE_SECONDS })
 
@@ -49,7 +56,10 @@ export async function getCachedGridResponse(url: string): Promise<Snapshot> {
   const key = `${url}:${fingerprint}`
   const existing = pending.get(key)
   if (existing) return existing
-  const promise = cachedGridResponse(url, fingerprint)
+  const promise = cachedGridResponse(url, fingerprint).catch(error => {
+    if (error instanceof OversizedGridResponse) return error.response
+    throw error
+  })
   pending.set(key, promise)
   try { return await promise } finally { pending.delete(key) }
 }
