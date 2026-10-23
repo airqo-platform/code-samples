@@ -2,29 +2,187 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    color-scheme: dark;
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: light;
+    --background: 240 6% 97%;
+    --foreground: 225 7% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 217 33% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 217 33% 11%;
+    --primary: 221 100% 54%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 217 33% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 19% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 217 33% 11%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 160 84% 30%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 26 83% 14%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 100% 54%;
+    --text: 215 28% 17%;
+    --heading: 217 43% 11%;
+    --radius: 0.5rem;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * { @apply border-border; }
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  }
+  body {
+    font-family: var(--font-inter), Inter, Arial, Helvetica, sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    line-height: 1.6;
+  }
+  p { line-height: 1.6; }
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 500;
+    line-height: 1.25;
+    letter-spacing: -0.025em;
+    color: hsl(var(--heading));
+  }
+  h1 { font-size: 2.25rem; line-height: 1.1; letter-spacing: -0.04em; }
+  h2 { font-size: 1.875rem; line-height: 1.2; letter-spacing: -0.03em; }
+  h3 { font-size: 1.5rem; line-height: 1.25; letter-spacing: -0.02em; }
+  h4 { font-size: 1.25rem; line-height: 1.3; }
+  h5 { font-size: 1.125rem; line-height: 1.4; }
+  h6 { font-size: 1rem; line-height: 1.5; }
+  @media (max-width: 640px) {
+    h1 { font-size: 1.875rem; }
+    h2 { font-size: 1.5rem; }
+    h3 { font-size: 1.25rem; }
+  }
+  ::selection { @apply bg-primary/20 text-foreground; }
+  :where(a, button, [role="button"], summary, [tabindex]:not([tabindex="-1"])):focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.4); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.6); }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .surface { @apply rounded-md border border-border bg-card text-card-foreground shadow-sm; }
+  .surface-muted { @apply rounded-md border border-border bg-muted/60 text-foreground; }
+}
+
+/* Nexus map markers */
+@layer components {
+  .aq-map-cluster {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px 5px 6px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 9999px;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+    transition: transform 150ms ease;
+    cursor: pointer;
+    user-select: none;
+  }
+  .aq-map-cluster:hover {
+    transform: scale(1.06);
+  }
+  .aq-map-cluster:active {
+    transform: scale(0.95);
+  }
+  .aq-map-cluster__count {
+    font-weight: 700;
+    font-size: 13px;
+    color: #1e293b;
+  }
+
+  .aq-map-node {
+    width: 40px;
+    height: 40px;
+    border-radius: 9999px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 150ms ease;
+    cursor: pointer;
+    user-select: none;
+  }
+  .aq-map-node:hover {
+    transform: scale(1.12);
+  }
+  .aq-map-node.is-selected {
+    box-shadow: 0 0 0 3px rgba(20, 95, 255, 0.28), 0 2px 8px rgba(15, 23, 42, 0.18);
+  }
+
+  .aq-map-marker-wrapper {
+    background: transparent !important;
+    border: none !important;
+  }
+}
+
+/* Nexus loaders */
+@layer components {
+  .SecondaryMainloader {
+    width: var(--loader-size, 50px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background:
+      radial-gradient(farthest-side, currentColor 94%, #0000) top / var(--loader-stroke, 8px) var(--loader-stroke, 8px) no-repeat,
+      conic-gradient(#0000 30%, currentColor);
+    -webkit-mask: radial-gradient(farthest-side, #0000 calc(100% - var(--loader-stroke, 8px)), #000 0);
+    animation: aq-loader-spin 1s infinite linear;
+  }
+
+  .route-loader {
+    opacity: 0;
+    animation: aq-route-fade-in 0.25s ease 0.15s both, aq-loader-spin 1s infinite linear;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .route-loader {
+      opacity: 1;
+      animation: aq-loader-spin 1s infinite linear;
+    }
+  }
+}
+
+@keyframes aq-loader-spin {
+  to { transform: rotate(1turn); }
+}
+
+@keyframes aq-route-fade-in {
+  to { opacity: 1; }
 }
 
 @keyframes embed-option-enter {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-progress-shrink {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
 }
 
 .embed-option-panel[data-state="active"] {
@@ -37,7 +195,6 @@ body {
 
 /* Map styles */
 
-/* Add these styles for the custom popup */
 .custom-popup .leaflet-popup-content-wrapper {
   padding: 0;
   border-radius: 8px;
@@ -58,135 +215,6 @@ body {
   display: none;
 }
 
-/* Add these styles for the loading indicator */
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-/* Update the search box styles to position it on the right side */
-.leaflet-control-geosearch {
-  position: absolute !important;
-  top: 20px !important;
-  right: 20px !important; /* Position on the right side */
-  left: auto !important; /* Override any left positioning */
-  transform: none !important;
-  z-index: 1000 !important;
-  width: 250px !important; /* Slightly smaller width */
-}
-
-.leaflet-control-geosearch form {
-  position: relative !important;
-  background: white !important;
-  border-radius: 8px !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-  border: 1px solid #e5e7eb !important;
-  width: 100% !important;
-  transition: all 0.2s ease !important;
-}
-
-.leaflet-control-geosearch form:hover,
-.leaflet-control-geosearch form:focus-within {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
-  border-color: #93c5fd !important;
-}
-
-.leaflet-control-geosearch form input {
-  width: 100% !important;
-  height: 36px !important; /* Slightly smaller height */
-  padding: 2px 12px !important;
-  font-size: 14px !important;
-  color: #1f2937 !important;
-  background: transparent !important;
-  border-radius: 8px !important;
-  outline: none !important;
-}
-
-.leaflet-control-geosearch form input::placeholder {
-  color: #9ca3af !important;
-}
-
-/* Style the results dropdown */
-.leaflet-control-geosearch .results {
-  position: absolute !important;
-  top: 100% !important;
-  left: 0 !important;
-  right: 0 !important;
-  margin-top: 8px !important;
-  margin-bottom: 8px !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-  background: white !important;
-  max-height: 300px !important;
-  overflow-y: auto !important;
-  z-index: 1000 !important;
-}
-
-.leaflet-control-geosearch .results > * {
-  padding: 10px 12px !important;
-  font-size: 13px !important;
-  color: #4b5563 !important;
-  transition: all 0.2s ease !important;
-}
-
-.leaflet-control-geosearch .results > *:hover {
-  background-color: #f0f9ff !important;
-  color: #1d4ed8 !important;
-}
-
-.leaflet-control-geosearch .results > *:last-child {
-  border-bottom: none !important;
-}
-
-/* Custom scrollbar for results */
-.leaflet-control-geosearch .results::-webkit-scrollbar {
-  width: 6px;
-}
-
-.leaflet-control-geosearch .results::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.leaflet-control-geosearch .results::-webkit-scrollbar-thumb {
-  background: #93c5fd;
-  border-radius: 3px;
-}
-
-.leaflet-control-geosearch .results::-webkit-scrollbar-thumb:hover {
-  background: #60a5fa;
-}
-
-/* Style the clear button */
-.leaflet-control-geosearch form .reset {
-  margin-top: 4px !important;
-  background: none !important;
-  border: none !important;
-  padding: 8px !important;
-  cursor: pointer !important;
-  color: #9ca3af !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  transition: color 0.2s ease !important;
-}
-
-.leaflet-control-geosearch form .reset:hover {
-  color: #4b5563 !important;
-}
-
-/* Hide the default close icon and use a custom one */
-.leaflet-control-geosearch form .reset::after {
-  content: "" !important;
-  font-size: 20px !important;
-  line-height: 1 !important;
-}
-
 .leaflet-control {
   background-clip: padding-box;
 }
@@ -202,11 +230,10 @@ body {
   pointer-events: none;
 }
 
-/* Add these styles for the legend tooltips */
 .legend-tooltip {
   position: absolute;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
   border-radius: 8px;
   padding: 8px 12px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -222,154 +249,36 @@ body {
   transform: translateY(-50%) rotate(45deg);
   width: 8px;
   height: 8px;
-  background: white;
-  border-left: 1px solid #e5e7eb;
-  border-bottom: 1px solid #e5e7eb;
+  background: hsl(var(--popover));
+  border-left: 1px solid hsl(var(--border));
+  border-bottom: 1px solid hsl(var(--border));
 }
 
-/* Custom air quality marker styles */
 .custom-air-quality-marker {
   border-radius: 50%;
-  box-shadow: 0 0 0 2px white, 0 0 5px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 5px rgba(0, 0, 0, 0.3);
 }
 
-/* Add styles for the map style selector */
-.map-style-selector {
-  position: absolute;
-  top: 80px;
-  right: 10px;
-  z-index: 1000;
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
-  padding: 8px;
-}
-
-.map-style-button {
-  display: block;
-  margin: 4px 0;
-  padding: 6px 10px;
-  border-radius: 4px;
-  border: none;
-  background: #f8f8f8;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  font-size: 12px;
-  transition: all 0.2s ease;
-}
-
-.map-style-button:hover {
-  background: #e9e9e9;
-}
-
-.map-style-button.active {
-  background: #3b82f6;
-  color: white;
-}
-
-/* Add tooltip styles for the map style buttons */
-.map-style-tooltip {
-  position: absolute;
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 1001;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.map-style-button:hover + .map-style-tooltip {
-  opacity: 1;
-}
-
-/* Add these styles at the end of the file to ensure the dialog appears above the map */
 .leaflet-container {
   z-index: 0;
+  font-family: inherit;
 }
 
-/* Ensure dialogs and popovers appear above the map */
+/* Popups are rendered in a dedicated highPopupPane that is created on the map
+   container (a sibling of .leaflet-map-pane) by MapInstanceBridge, so their
+   z-index can rise above the React overlay controls (z-[1100]). Raising the
+   default .leaflet-popup-pane is inert: it is nested inside .leaflet-map-pane,
+   whose stacking context (z-index 400) traps it. */
+.leaflet-highPopup-pane {
+  z-index: 1300 !important;
+  pointer-events: none;
+}
+
+.leaflet-highPopup-pane .leaflet-popup {
+  pointer-events: auto;
+}
+
 [data-radix-popper-content-wrapper] {
   z-index: 1500 !important;
 }
 
-@media (prefers-color-scheme: dark) {
-  .reports-theme {
-    background-color: #020617;
-    color: #f8fafc;
-  }
-
-  .reports-theme [class~="bg-white"],
-  .reports-theme [class~="bg-card"] {
-    background-color: #0f172a !important;
-  }
-
-  .reports-theme [class~="bg-gray-50"],
-  .reports-theme [class~="bg-gray-100"],
-  .reports-theme [class~="bg-slate-50"],
-  .reports-theme [class~="bg-slate-100"] {
-    background-color: #1e293b !important;
-  }
-
-  .reports-theme [class~="from-white"] {
-    --tw-gradient-from: #0f172a var(--tw-gradient-from-position) !important;
-    --tw-gradient-to: rgb(15 23 42 / 0) var(--tw-gradient-to-position) !important;
-  }
-
-  .reports-theme [class~="via-white"] {
-    --tw-gradient-to: rgb(15 23 42 / 0) var(--tw-gradient-to-position) !important;
-    --tw-gradient-stops: var(--tw-gradient-from), #0f172a var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
-  }
-
-  .reports-theme [class~="to-slate-50"] {
-    --tw-gradient-to: #1e293b var(--tw-gradient-to-position) !important;
-  }
-
-  .reports-theme [class~="text-gray-950"],
-  .reports-theme [class~="text-gray-900"],
-  .reports-theme [class~="text-gray-800"],
-  .reports-theme [class~="text-gray-700"],
-  .reports-theme [class~="text-slate-950"],
-  .reports-theme [class~="text-slate-900"],
-  .reports-theme [class~="text-slate-800"],
-  .reports-theme [class~="text-slate-700"] {
-    color: #f1f5f9 !important;
-  }
-
-  .reports-theme [class~="text-gray-600"],
-  .reports-theme [class~="text-gray-500"],
-  .reports-theme [class~="text-slate-600"],
-  .reports-theme [class~="text-slate-500"],
-  .reports-theme [class~="text-slate-400"] {
-    color: #cbd5e1 !important;
-  }
-
-  .reports-theme [class~="border-gray-100"],
-  .reports-theme [class~="border-gray-200"],
-  .reports-theme [class~="border-gray-300"],
-  .reports-theme [class~="border-slate-100"],
-  .reports-theme [class~="border-slate-200"],
-  .reports-theme [class~="border-slate-300"] {
-    border-color: #334155 !important;
-  }
-
-  .reports-theme input,
-  .reports-theme textarea,
-  .reports-theme select {
-    border-color: #475569;
-    background-color: #0f172a;
-    color: #f8fafc;
-  }
-
-  .reports-theme .recharts-text {
-    fill: #cbd5e1;
-  }
-
-  .reports-theme .recharts-cartesian-grid line {
-    stroke: #334155;
-  }
-}

@@ -65,7 +65,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
       }
       return new Response(snapshot.body, {
         status: snapshot.status,
-        headers: { "Content-Type": snapshot.contentType, "Cache-Control": "no-store, max-age=0" },
+        headers: { "Content-Type": snapshot.contentType, "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600" },
       })
     }
     let requestBody: ArrayBuffer | undefined

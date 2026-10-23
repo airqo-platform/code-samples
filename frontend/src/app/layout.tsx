@@ -1,20 +1,16 @@
 import type React from "react"
 import { Suspense } from "react"
 import type { Metadata } from "next"
-import localFont from "next/font/local"
+import { Inter } from "next/font/google"
 import "@/styles/globals.css"
-import GoogleAnalytics from "@/components/GoogleAnalytics"
-import AppDataWarmup from "@/components/AppDataWarmup"
+import GoogleAnalytics from "@/components/analytics/google-analytics"
+import AppDataWarmup from "@/components/app/app-data-warmup"
+import { Toaster } from "@/components/ui/toaster"
 
-const geistSans = localFont({
-  src: "../../public/fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-})
-const geistMono = localFont({
-  src: "../../public/fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
 })
 
 export const metadata: Metadata = {
@@ -28,13 +24,20 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="en" className={inter.variable}>
+      <body className={`${inter.className} font-sans antialiased`}>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[100000] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          Skip to main content
+        </a>
         <AppDataWarmup />
         <Suspense fallback={null}>
           <GoogleAnalytics />
         </Suspense>
         {children}
+        <Toaster />
       </body>
     </html>
   )

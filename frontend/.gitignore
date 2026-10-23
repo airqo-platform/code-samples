@@ -28,6 +28,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
 
 # env files (can opt-in for commiting if needed)
 .env*
@@ -42,3 +43,10 @@ next-env.d.ts
 
 # Local admin account and site visibility store
 /data/admin-store.json
+
+# Dev server output log
+dev-server.log
+
+# --- Generated test/build artifacts ---
+# (*.log and dev-server.log rules already present above)
+build-output.txt

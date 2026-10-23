@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
-import "leaflet-geosearch/dist/geosearch.css"
 import Papa from "papaparse"
 import { useMap, useMapEvents } from "react-leaflet"
 import {
@@ -15,19 +14,19 @@ import {
   Download,
   Gauge,
   Info,
-  Loader2,
   MapPin,
   Network,
   PieChart,
   Satellite,
-  Sparkles,
   X,
 } from "lucide-react"
 
-import { FileUpload } from "@/components/Controls/FileUpload"
-import { InitialCountryView } from "@/components/map/InitialCountryView"
+import { FileUpload } from "@/components/controls/file-upload"
+import { InitialCountryView } from "@/components/mapping/initial-country-view"
 import Navigation from "@/components/navigation/navigation"
 import { getSiteCategory } from "@/lib/api"
+import { Badge } from "@/components/ui/badge"
+import { Accordion, AccordionItem } from "@/components/ui/accordion"
 import type {
   Location,
   SourceCandidate,
@@ -38,12 +37,17 @@ import type {
   SourceMetadataSiteCategory,
 } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { Button } from "@/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card"
-import { Label } from "@/ui/label"
-import { Switch } from "@/ui/switch"
-import { Textarea } from "@/ui/textarea"
-import { useToast } from "@/ui/use-toast"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/hooks/use-toast"
+import { getMapTileConfig } from "@/lib/map-config"
+import { LoadingOverlay } from "@/components/ui/loading-overlay"
+import { MapInstanceBridge } from "@/components/mapping/map-instance-bridge"
+import { MapSearchControl } from "@/components/mapping/map-search-control"
+import { MapZoomControls } from "@/components/mapping/map-control-button"
 import "leaflet/dist/leaflet.css"
 
 const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false })
@@ -92,9 +96,6 @@ const confidenceLabel = (value: number | null | undefined) =>
 
 const metricLabel = (value: number | null | undefined, digits = 2) =>
   value == null || !Number.isFinite(value) ? "N/A" : value.toFixed(digits)
-
-const sourceBarColor = (index: number) =>
-  ["bg-blue-600", "bg-violet-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"][index % 5]
 
 const sourceHexColors = ["#2563EB", "#8B5CF6", "#F59E0B", "#F43F5E", "#06B6D4"]
 
@@ -204,27 +205,27 @@ const siteKey = (site: Pick<SiteCategoryInfo, "lat" | "lng" | "satellite_enabled
 const getModeTheme = (satelliteEnabled: boolean) =>
   satelliteEnabled
     ? {
-        accentText: "text-emerald-700",
-        badge: "border border-emerald-200 bg-emerald-100 text-emerald-800",
-        detailCard: "border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-lime-50",
-        detailPanel: "border-emerald-200 bg-emerald-50/70",
-        dot: "bg-emerald-500",
-        muted: "text-emerald-700/80",
-        resultCard: "border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-lime-50 hover:border-emerald-300 hover:bg-emerald-50",
-        resultSelected: "border-emerald-400 bg-emerald-50 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]",
-        switch: "data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-slate-300",
+        accentText: "",
+        badge: "",
+        detailCard: "border-border bg-muted/40",
+        detailPanel: "border-border bg-card",
+        dot: "bg-primary",
+        muted: "text-muted-foreground",
+        resultCard: "border-border bg-card hover:border-primary/40",
+        resultSelected: "border-primary bg-primary/5",
+        switch: "",
         tone: "Satellite Enriched",
       }
     : {
-        accentText: "text-slate-700",
-        badge: "border border-slate-200 bg-slate-200/80 text-slate-700",
-        detailCard: "border-slate-300 bg-gradient-to-br from-slate-100 via-white to-slate-50",
-        detailPanel: "border-slate-300 bg-slate-100/80",
-        dot: "bg-slate-500",
-        muted: "text-slate-600",
-        resultCard: "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100/70",
-        resultSelected: "border-slate-400 bg-slate-100",
-        switch: "data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-slate-400",
+        accentText: "",
+        badge: "",
+        detailCard: "border-border bg-muted/40",
+        detailPanel: "border-border bg-card",
+        dot: "bg-muted-foreground",
+        muted: "text-muted-foreground",
+        resultCard: "border-border bg-card hover:border-primary/40",
+        resultSelected: "border-primary bg-primary/5",
+        switch: "",
         tone: "Context Only",
       }
 
@@ -291,11 +292,20 @@ function ProfiledLocationMapController({ center }: { center: [number, number] | 
         duration,
         easeLinearity: 0.2,
       })
-      return
     }
-
-    map.fitWorld({ animate: false })
+    // No center selected: keep the initial center/zoom (Uganda at zoom 7) instead of fitting the world.
   }, [center, map])
+
+  return null
+}
+
+function MapResizeFix() {
+  const map = useMap()
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => map.invalidateSize(), 0)
+    return () => window.clearTimeout(timer)
+  }, [map])
 
   return null
 }
@@ -308,10 +318,10 @@ function SiteCategoryContent() {
   const [sourceVisualization, setSourceVisualization] = useState<"donut" | "bars">("donut")
   const [selectedSourceIndex, setSelectedSourceIndex] = useState(0)
   const [hoveredSourceIndex, setHoveredSourceIndex] = useState<number | null>(null)
-  const [isManualSectionOpen, setIsManualSectionOpen] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [loading, setLoading] = useState(false)
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null)
+  const [mapInstance, setMapInstance] = useState<import("leaflet").Map | null>(null)
   const [defaultMarkerIcon, setDefaultMarkerIcon] = useState<import("leaflet").Icon | null>(null)
   const { toast } = useToast()
   const sitesRef = useRef<SiteCategoryInfo[]>([])
@@ -550,91 +560,6 @@ function SiteCategoryContent() {
     return null
   }
 
-  const SearchControl = () => {
-    const map = useMap()
-
-    useEffect(() => {
-      let disposed = false
-      let searchControl: any = null
-      let handleSearchLocation: ((result: any) => Promise<void>) | null = null
-
-      const setupSearch = async () => {
-        const geosearch = await import("leaflet-geosearch")
-        if (disposed) return
-
-        const provider = new geosearch.OpenStreetMapProvider()
-        searchControl = new geosearch.GeoSearchControl({
-          provider,
-          style: "bar",
-          autoComplete: true,
-          autoCompleteDelay: 250,
-          position: "topright",
-          showMarker: false,
-          updateMap: false,
-        } as any)
-
-        map.addControl(searchControl)
-
-        const searchBar = document.querySelector(".leaflet-control-geosearch form")
-        if (searchBar) {
-          searchBar.classList.add("bg-white", "text-black", "border", "border-gray-300", "rounded-xl", "relative")
-
-          const searchContainer = document.querySelector(".leaflet-control-geosearch")
-          if (searchContainer) {
-            searchContainer.classList.add(
-              "!right-3",
-              "!top-3",
-              "!left-auto",
-              "!transform-none",
-              "!w-[calc(100%_-_5rem)]",
-              "sm:!right-4",
-              "sm:!top-4",
-              "sm:!w-72",
-            )
-          }
-
-          const existingIcon = searchBar.querySelector(".categorize-search-icon")
-          if (!existingIcon) {
-            const searchIcon = document.createElement("div")
-            searchIcon.className = "categorize-search-icon absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-            searchIcon.innerHTML =
-              '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>'
-            searchBar.appendChild(searchIcon)
-          }
-
-          const searchInput = searchBar.querySelector("input")
-          if (searchInput) {
-            searchInput.setAttribute("placeholder", "Search place name on the map")
-            ;(searchInput as HTMLInputElement).style.paddingLeft = "2.5rem"
-          }
-        }
-
-        handleSearchLocation = async (result: any) => {
-          const location = result?.location
-          if (!location || typeof location.x !== "number" || typeof location.y !== "number") return
-          await selectOrFetchLocation(location.y, location.x)
-        }
-
-        map.on("geosearch/showlocation", handleSearchLocation)
-      }
-
-      void setupSearch()
-
-      return () => {
-        disposed = true
-        if (handleSearchLocation) {
-          map.off("geosearch/showlocation", handleSearchLocation)
-        }
-        if (searchControl) {
-          map.removeControl(searchControl)
-        }
-      }
-    }, [map])
-
-    return null
-  }
-
-
   const selectedKey = selectedSite ? siteKey(selectedSite) : null
   const pollutantEntries = selectedSite
     ? Object.entries(selectedSite.satellite_pollutants_mean).filter(
@@ -672,7 +597,7 @@ function SiteCategoryContent() {
       type="button"
       onClick={() => { setSelectedSite(site); setMapCenter([site.lat, site.lng]) }}
       className={cn(
-        "w-full rounded-xl border p-3 text-left transition",
+        "w-full rounded-md border p-3 text-left transition",
         getModeTheme(site.satellite_enabled).resultCard,
         pinned || selectedKey === siteKey(site) ? getModeTheme(site.satellite_enabled).resultSelected : "",
       )}
@@ -681,32 +606,33 @@ function SiteCategoryContent() {
         <div>
           <div className="flex items-center gap-2">
             <span className={cn("h-2.5 w-2.5 rounded-full", getModeTheme(site.satellite_enabled).dot)} />
-            <p className="font-semibold text-slate-900">{resultTitle(site)}</p>
+            <p className="font-semibold text-foreground">{resultTitle(site)}</p>
           </div>
-          <p className="mt-1 text-sm text-slate-600">Category: {displayValue(site.category)}</p>
+          <p className="mt-1 text-sm text-muted-foreground">Category: {displayValue(site.category)}</p>
           {site.satellite_enabled && site.primary_source ? (
-            <p className="text-xs text-emerald-700">
+            <p className="text-xs text-muted-foreground">
               Primary source: {sourceLabel(site.primary_source)} ({confidenceLabel(site.primary_confidence)})
             </p>
           ) : (
-            <p className="text-xs text-slate-500">OSM context classification</p>
+            <p className="text-xs text-muted-foreground">OSM context classification</p>
           )}
         </div>
       </div>
-      <p className="mt-2 text-xs text-slate-500">{site.lat.toFixed(5)}, {site.lng.toFixed(5)}</p>
+      <p className="mt-2 text-xs text-muted-foreground">{site.lat.toFixed(5)}, {site.lng.toFixed(5)}</p>
     </button>
   )
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Suspense fallback={<div>Loading navigation...</div>}><Navigation /></Suspense>
-      <div>
-        <div className="flex min-h-[calc(100vh-4rem)] flex-col lg:h-[calc(100vh-4rem)] lg:flex-row lg:overflow-hidden">
-          <div className="relative h-[52vh] min-h-[360px] w-full shrink-0 sm:h-[58vh] lg:h-full lg:min-h-0 lg:flex-1">
-            <MapContainer className="h-full w-full">
-              <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <SearchControl />
+    <div className="flex h-[100svh] flex-col bg-background">
+      <Suspense fallback={null}><Navigation /></Suspense>
+      <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 px-2 pb-2">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:flex-row">
+          <div className="relative h-[50vh] min-h-[320px] w-full shrink-0 overflow-hidden bg-muted sm:h-[54vh] lg:h-full lg:min-h-0 lg:flex-1">
+            <MapContainer className="h-full w-full" center={[1.3733, 32.2903]} zoom={7} zoomControl={false}>
+              <TileLayer {...getMapTileConfig("streets")} />
+              <MapInstanceBridge onReady={setMapInstance} />
               <MapEvents />
+              <MapResizeFix />
               <ProfiledLocationMapController center={mapCenter} />
               <InitialCountryView disabled={loading || mapCenter !== null || sites.length > 0} />
               {defaultMarkerIcon && sites.map((site) => (
@@ -726,15 +652,33 @@ function SiteCategoryContent() {
                 </Marker>
               ))}
             </MapContainer>
-            <Button onClick={() => setShowInfo(true)} className="absolute left-3 top-3 z-[1000] h-11 w-11 rounded-full bg-blue-500 p-0 text-white shadow-lg hover:bg-blue-600 sm:left-4 sm:top-4">
+            <MapSearchControl
+              map={mapInstance}
+              onSelect={(r) => selectOrFetchLocation(r.center[0], r.center[1])}
+              className="absolute left-3 top-3 z-[1100]"
+            />
+            <MapZoomControls
+              onGeolocate={() => {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                  mapInstance?.flyTo([pos.coords.latitude, pos.coords.longitude], 13, { animate: true, duration: 0.8 })
+                })
+              }}
+              onZoomIn={() => mapInstance?.zoomIn()}
+              onZoomOut={() => mapInstance?.zoomOut()}
+            />
+            <Button onClick={() => setShowInfo(true)} aria-label="How Categorize Works" title="How Categorize Works" className="absolute bottom-4 left-4 z-[1000] h-11 w-11 rounded-full bg-primary p-0 text-primary-foreground shadow-sm hover:bg-primary/90">
               <Info className="h-5 w-5" />
             </Button>
           </div>
-          <div ref={sidebarRef} className="w-full space-y-4 border-t border-slate-200 bg-white p-3 sm:p-4 lg:h-full lg:w-[28rem] lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
-            <Card className={cn("rounded-2xl border", requestTheme.detailPanel)}>
-              <CardHeader className="pb-1"><CardTitle className="text-lg">Request Settings</CardTitle></CardHeader>
+          <div ref={sidebarRef} className="min-h-0 w-full flex-1 space-y-4 overflow-y-auto border-t border-border bg-card p-3 sm:p-4 lg:h-full lg:w-[28rem] lg:flex-none lg:border-l lg:border-t-0">
+            <div className="px-1 pt-1">
+              <h1 className="text-xl font-medium tracking-tight text-foreground">Site categorization</h1>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">Classify monitoring sites by their surrounding environment.</p>
+            </div>
+            <Card className={cn("rounded-md border", requestTheme.detailPanel)}>
+              <CardHeader className="pb-1"><CardTitle className="text-base font-medium">Request Settings</CardTitle></CardHeader>
               <CardContent className="space-y-4 pt-1">
-                <div className={cn("flex items-center justify-between gap-3 rounded-xl border p-3", requestTheme.detailCard)}>
+                <div className={cn("flex items-center justify-between gap-3 rounded-md border p-3", requestTheme.detailCard)}>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className={cn("h-2.5 w-2.5 rounded-full", requestTheme.dot)} />
@@ -755,83 +699,69 @@ function SiteCategoryContent() {
                     className={requestTheme.switch}
                   />
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-600">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
                   <span>Current mode</span>
-                  <span className={cn("rounded-full px-2.5 py-1 font-semibold", requestTheme.badge)}>{requestTheme.tone}</span>
+                  <Badge variant="accent" className={cn("font-semibold", requestTheme.badge)}>{requestTheme.tone}</Badge>
                 </div>
-                <Button onClick={downloadCSV} disabled={sites.length === 0} className={cn("w-full rounded-xl text-white", includeSatellite ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-600 hover:bg-slate-700")}><Download className="mr-2 h-4 w-4" />Download CSV</Button>
+                <Button onClick={downloadCSV} disabled={sites.length === 0} className="w-full"><Download className="mr-2 h-4 w-4" />Download CSV</Button>
                 {sites.length === 0 && <FileUpload onUpload={processLocations} />}
               </CardContent>
             </Card>
-            <Card className="rounded-2xl">
-              <CardHeader className="pb-3">
-                <button
-                  type="button"
-                  onClick={() => setIsManualSectionOpen((prev) => !prev)}
-                  className="flex w-full items-center justify-between text-left"
-                >
-                  <CardTitle className="text-lg">Add Multiple Locations</CardTitle>
-                  <ChevronDown
-                    className={cn(
-                      "h-5 w-5 text-slate-500 transition-transform",
-                      isManualSectionOpen ? "rotate-180" : "rotate-0",
-                    )}
-                  />
-                </button>
-              </CardHeader>
-              {isManualSectionOpen && (
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-slate-500">Enter one `latitude,longitude` pair per line.</p>
-                  <Textarea value={manualInput} onChange={(e) => setManualInput(e.target.value)} placeholder="0.3178311,32.5899529&#10;0.318058,32.590206" className="min-h-28 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white" />
-                  <Button onClick={handleManualSubmit} disabled={!manualInput.trim() || loading} className="w-full rounded-xl bg-blue-500 text-white hover:bg-blue-600">Process Coordinates</Button>
-                </CardContent>
-              )}
+            <Card className="rounded-md border-0 shadow-none bg-transparent">
+              <Accordion>
+                <AccordionItem title="Add Multiple Locations" className="rounded-md border border-border bg-card">
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">Enter one `latitude,longitude` pair per line.</p>
+                    <Textarea value={manualInput} onChange={(e) => setManualInput(e.target.value)} placeholder="0.3178311,32.5899529&#10;0.318058,32.590206" className="min-h-28" />
+                    <Button onClick={handleManualSubmit} disabled={!manualInput.trim() || loading} className="w-full">Process Coordinates</Button>
+                  </div>
+                </AccordionItem>
+              </Accordion>
             </Card>
-            <Card className="rounded-2xl">
-              <CardHeader className="pb-3"><CardTitle className="text-lg">Results</CardTitle></CardHeader>
+            <Card className="rounded-md">
+              <CardHeader className="pb-3"><CardTitle className="text-base font-medium">Results</CardTitle></CardHeader>
               <CardContent className="space-y-2">
-                {sites.length === 0 ? <p className="text-sm text-slate-500">Click the map, upload a CSV, or paste coordinates to fetch source metadata.</p> : visibleSites.map((site) => renderResultCard(site))}
+                {sites.length === 0 ? <p className="text-sm text-muted-foreground">Click the map, upload a CSV, or paste coordinates to fetch source metadata.</p> : visibleSites.map((site) => renderResultCard(site))}
               </CardContent>
             </Card>
             {selectedSite && (
               <>
                 <div ref={selectedPreviewRef} className="space-y-2">
-                  <p className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Result</p>
+                  <p className="px-1 text-xs font-medium text-muted-foreground">Selected Result</p>
                   {renderResultCard(selectedSite, true)}
                 </div>
-                <Card ref={metadataRef} className="overflow-hidden rounded-2xl border-slate-200">
-                <div className="bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950 p-4 text-white sm:p-5">
+                <Card ref={metadataRef} className="overflow-hidden rounded-md border-border">
+                <div className="border-b border-border bg-muted/50 p-4 text-foreground sm:p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">
-                        <Sparkles className="h-4 w-4" />
+                      <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
                         Classification profile
                       </div>
-                      <h2 className="text-xl font-bold tracking-tight sm:text-2xl">{displayValue(selectedSite.category)}</h2>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-300">
+                      <h2 className="text-xl font-medium tracking-tight sm:text-2xl">{displayValue(selectedSite.category)}</h2>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{resultTitle(selectedSite)}</span>
                         <span>{selectedSite.lat.toFixed(5)}, {selectedSite.lng.toFixed(5)}</span>
                       </div>
                     </div>
-                    <div className="self-start rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-center backdrop-blur sm:shrink-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-200">Confidence</p>
-                      <p className="mt-1 text-xl font-bold">
+                    <div className="self-start rounded-md border border-border bg-card px-4 py-3 text-center sm:shrink-0">
+                      <p className="text-xs font-medium text-muted-foreground">Confidence</p>
+                      <p className="mt-1 text-xl font-medium">
                         {confidenceLabel(selectedSite.site_category?.classification_confidence)}
                       </p>
                     </div>
                   </div>
                   <div className="mt-4 grid grid-cols-1 gap-2 min-[360px]:grid-cols-3">
-                    <div className="rounded-xl bg-white/10 p-2.5">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-300">Primary source</p>
-                      <p className="mt-1 truncate text-sm font-semibold">{sourceLabel(selectedSite.primary_source)}</p>
+                    <div className="rounded-md border border-border bg-card p-2.5">
+                      <p className="text-[10px] text-muted-foreground">Primary source</p>
+                      <p className="mt-1 truncate text-sm font-medium">{sourceLabel(selectedSite.primary_source)}</p>
                     </div>
-                    <div className="rounded-xl bg-white/10 p-2.5">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-300">Method</p>
-                      <p className="mt-1 truncate text-sm font-semibold">{sourceLabel(selectedSite.site_category?.classification_method)}</p>
+                    <div className="rounded-md border border-border bg-card p-2.5">
+                      <p className="text-[10px] text-muted-foreground">Method</p>
+                      <p className="mt-1 truncate text-sm font-medium">{sourceLabel(selectedSite.site_category?.classification_method)}</p>
                     </div>
-                    <div className="rounded-xl bg-white/10 p-2.5">
-                      <p className="text-[10px] uppercase tracking-wide text-slate-300">Nearest evidence</p>
-                      <p className="mt-1 text-sm font-semibold">
+                    <div className="rounded-md border border-border bg-card p-2.5">
+                      <p className="text-[10px] text-muted-foreground">Nearest evidence</p>
+                      <p className="mt-1 text-sm font-medium">
                         {selectedSite.site_category?.distance_to_matched_feature_m == null
                           ? "N/A"
                           : `${selectedSite.site_category.distance_to_matched_feature_m.toFixed(0)} m`}
@@ -846,17 +776,17 @@ function SiteCategoryContent() {
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
                           {sourceVisualization === "donut"
-                            ? <PieChart className="h-4 w-4 text-blue-700" />
-                            : <BarChart3 className="h-4 w-4 text-blue-700" />}
-                          <h3 className="text-sm font-bold text-slate-900">Likely emission sources</h3>
+                            ? <PieChart className="h-4 w-4 text-primary" />
+                            : <BarChart3 className="h-4 w-4 text-primary" />}
+                          <h3 className="text-sm font-medium text-foreground">Likely emission sources</h3>
                         </div>
-                        <div className="flex rounded-lg bg-slate-100 p-1">
+                        <div className="flex rounded-lg bg-muted p-1">
                           <button
                             type="button"
                             onClick={() => setSourceVisualization("donut")}
                             className={cn(
                               "rounded-md px-2.5 py-1 text-xs font-semibold transition",
-                              sourceVisualization === "donut" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500",
+                              sourceVisualization === "donut" ? "bg-card text-primary shadow-sm" : "text-muted-foreground",
                             )}
                           >
                             Donut
@@ -866,7 +796,7 @@ function SiteCategoryContent() {
                             onClick={() => setSourceVisualization("bars")}
                             className={cn(
                               "rounded-md px-2.5 py-1 text-xs font-semibold transition",
-                              sourceVisualization === "bars" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500",
+                              sourceVisualization === "bars" ? "bg-card text-primary shadow-sm" : "text-muted-foreground",
                             )}
                           >
                             Bars
@@ -874,7 +804,7 @@ function SiteCategoryContent() {
                         </div>
                       </div>
                       {sourceVisualization === "donut" ? (
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+                        <div className="rounded-md border border-border bg-muted/40 p-3 sm:p-4">
                           <div className="grid items-center gap-4 sm:grid-cols-[150px_minmax(0,1fr)]">
                             <div className="relative mx-auto h-[140px] w-[140px] sm:h-[150px] sm:w-[150px]">
                               <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90 overflow-visible" aria-label="Interactive source contribution donut chart">
@@ -924,14 +854,14 @@ function SiteCategoryContent() {
                                 })}
                               </svg>
                               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                                <span className="text-xs font-semibold text-slate-500">
+                                <span className="text-xs font-medium text-muted-foreground">
                                   {activeSourceIndex === 0 ? "Primary" : "Selected"}
                                 </span>
-                                <span className="max-w-[84px] text-sm font-bold leading-tight text-slate-900">
+                                <span className="max-w-[84px] text-sm font-medium leading-tight text-foreground">
                                   {sourceLabel(activeSource?.source_type)}
                                 </span>
                                 <span
-                                  className="mt-1 text-xs font-bold"
+                                  className="mt-1 text-xs font-medium"
                                   style={{ color: sourceHexColors[activeSourceIndex % sourceHexColors.length] }}
                                 >
                                   {confidenceLabel(activeSource?.confidence)}
@@ -949,10 +879,10 @@ function SiteCategoryContent() {
                                   onBlur={() => setHoveredSourceIndex(null)}
                                   onClick={() => setSelectedSourceIndex(index)}
                                   className={cn(
-                                    "flex w-full items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2 text-left transition",
+                                    "flex w-full items-center justify-between gap-3 rounded-md border bg-card px-3 py-2 text-left transition",
                                     activeSourceIndex === index
-                                      ? "border-blue-300 shadow-sm ring-2 ring-blue-100"
-                                      : "border-slate-200 hover:border-slate-300",
+                                      ? "border-primary ring-1 ring-primary/20"
+                                      : "border-border hover:border-border",
                                   )}
                                 >
                                   <div className="flex min-w-0 items-center gap-2">
@@ -960,10 +890,10 @@ function SiteCategoryContent() {
                                       className="h-3 w-3 shrink-0 rounded-full"
                                       style={{ backgroundColor: sourceHexColors[index % sourceHexColors.length] }}
                                     />
-                                    <span className="truncate text-xs font-semibold text-slate-800">{sourceLabel(item.source_type)}</span>
+                                    <span className="truncate text-xs font-medium text-foreground">{sourceLabel(item.source_type)}</span>
                                   </div>
                                   <span
-                                    className="shrink-0 text-xs font-bold"
+                                    className="shrink-0 text-xs font-medium"
                                     style={{ color: sourceHexColors[index % sourceHexColors.length] }}
                                   >
                                     {confidenceLabel(item.confidence)}
@@ -974,17 +904,17 @@ function SiteCategoryContent() {
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="space-y-3 rounded-md border border-border bg-muted/40 p-4">
                           {selectedSite.candidate_sources.map((item, index) => (
                             <div key={`${item.source_type}-${item.confidence}`}>
                               <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
-                                <span className="font-semibold text-slate-800">{sourceLabel(item.source_type)}</span>
-                                <span className="font-bold text-slate-900">{confidenceLabel(item.confidence)}</span>
+                                <span className="font-semibold text-foreground">{sourceLabel(item.source_type)}</span>
+                                <span className="font-medium text-foreground">{confidenceLabel(item.confidence)}</span>
                               </div>
-                              <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                              <div className="h-2 overflow-hidden rounded-full bg-muted">
                                 <div
-                                  className={cn("h-full rounded-full", sourceBarColor(index))}
-                                  style={{ width: `${Math.max(item.confidence * 100, 2)}%` }}
+                                  className="h-full rounded-full"
+                                  style={{ width: `${Math.max(item.confidence * 100, 2)}%`, backgroundColor: sourceHexColors[index % sourceHexColors.length] }}
                                 />
                               </div>
                             </div>
@@ -997,16 +927,16 @@ function SiteCategoryContent() {
                   {selectedSite.site_reasoning.length > 0 ? (
                     <section>
                       <div className="mb-3 flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        <h3 className="text-sm font-bold text-slate-900">Why this classification</h3>
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        <h3 className="text-sm font-medium text-foreground">Why this classification</h3>
                       </div>
                       <div className="space-y-2">
                         {selectedSite.site_reasoning.map((item, index) => (
-                          <div key={item} className="flex gap-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white">
+                          <div key={item} className="flex gap-3 rounded-md border border-border bg-muted/40 p-3">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-medium text-primary-foreground">
                               {index + 1}
                             </span>
-                            <p className="text-sm leading-5 text-slate-700">{item}</p>
+                            <p className="text-sm leading-5 text-muted-foreground">{item}</p>
                           </div>
                         ))}
                       </div>
@@ -1016,17 +946,17 @@ function SiteCategoryContent() {
                   {(selectedSite.matched_feature || contextFields.length > 0 || nearbyFeatureEntries.length > 0) ? (
                     <section>
                       <div className="mb-3 flex items-center gap-2">
-                        <Network className="h-4 w-4 text-violet-700" />
-                        <h3 className="text-sm font-bold text-slate-900">Mapped context within 500 m</h3>
+                        <Network className="h-4 w-4 text-primary" />
+                        <h3 className="text-sm font-medium text-foreground">Mapped context within 500 m</h3>
                       </div>
                       {selectedSite.matched_feature ? (
-                        <div className="mb-3 rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
+                        <div className="mb-3 rounded-md border border-border bg-muted/40 p-4">
                           <div className="flex items-start gap-3">
-                            <div className="rounded-xl bg-violet-100 p-2 text-violet-700"><Building2 className="h-4 w-4" /></div>
+                            <div className="rounded-md bg-muted p-2 text-primary"><Building2 className="h-4 w-4" /></div>
                             <div className="min-w-0">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Matched OSM feature</p>
-                              <p className="mt-1 font-bold text-slate-900">{displayValue(selectedSite.matched_feature.name)}</p>
-                              <p className="text-xs text-slate-500">
+                              <p className="text-xs font-medium text-muted-foreground">Matched OSM feature</p>
+                              <p className="mt-1 font-medium text-foreground">{displayValue(selectedSite.matched_feature.name)}</p>
+                              <p className="text-xs text-muted-foreground">
                                 {sourceLabel(selectedSite.matched_feature.osm_type)} #{displayValue(selectedSite.matched_feature.osm_id)}
                               </p>
                             </div>
@@ -1034,7 +964,7 @@ function SiteCategoryContent() {
                           {Object.keys(selectedSite.matched_feature.tags).length > 0 ? (
                             <div className="mt-3 flex flex-wrap gap-1.5">
                               {Object.entries(selectedSite.matched_feature.tags).map(([key, value]) => (
-                                <span key={key} className="rounded-full border border-violet-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-600">
+                                <span key={key} className="rounded-full border border-border bg-card px-2 py-1 text-[10px] font-medium text-muted-foreground">
                                   {key}: {value}
                                 </span>
                               ))}
@@ -1045,9 +975,9 @@ function SiteCategoryContent() {
                       {contextFields.length > 0 ? (
                         <div className="mb-3 grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
                           {contextFields.map((field) => (
-                            <div key={field.label} className="rounded-xl border border-slate-200 p-3">
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{field.label}</p>
-                              <p className="mt-1 text-sm font-semibold text-slate-800">{field.value}</p>
+                            <div key={field.label} className="rounded-md border border-border p-3">
+                              <p className="text-[10px] text-muted-foreground">{field.label}</p>
+                              <p className="mt-1 text-sm font-medium text-foreground">{field.value}</p>
                             </div>
                           ))}
                         </div>
@@ -1055,9 +985,9 @@ function SiteCategoryContent() {
                       {nearbyFeatureEntries.length > 0 ? (
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                           {nearbyFeatureEntries.map(([key, value]) => (
-                            <div key={key} className="rounded-xl bg-slate-100 px-2 py-2.5 text-center">
-                              <p className="text-lg font-bold text-slate-900">{value}</p>
-                              <p className="truncate text-[9px] font-semibold uppercase tracking-wide text-slate-500">{key}</p>
+                            <div key={key} className="rounded-md bg-muted/40 px-2 py-2.5 text-center">
+                              <p className="text-lg font-medium text-foreground">{value}</p>
+                              <p className="truncate text-[9px] text-muted-foreground">{key}</p>
                             </div>
                           ))}
                         </div>
@@ -1066,41 +996,41 @@ function SiteCategoryContent() {
                   ) : null}
 
                   {selectedSite.sentinel2_context ? (
-                    <section className="overflow-hidden rounded-2xl border border-cyan-200">
-                      <div className="bg-gradient-to-r from-cyan-950 to-blue-950 p-4 text-white">
+                    <section className="overflow-hidden rounded-md border border-border">
+                      <div className="border-b border-border bg-muted/50 p-4 text-foreground">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="rounded-xl bg-white/10 p-2"><Satellite className="h-5 w-5 text-cyan-200" /></div>
+                            <div className="rounded-md bg-muted p-2 text-primary"><Satellite className="h-5 w-5" /></div>
                             <div>
-                              <p className="font-bold">Sentinel-2 surface context</p>
-                              <p className="text-xs text-cyan-100">{displayValue(selectedSite.sentinel2_context.scene_id)}</p>
+                              <p className="font-medium">Sentinel-2 surface context</p>
+                              <p className="text-xs text-muted-foreground">{displayValue(selectedSite.sentinel2_context.scene_id)}</p>
                             </div>
                           </div>
-                          <span className="rounded-full bg-white/10 px-2 py-1 text-xs font-semibold">
+                          <span className="rounded-full bg-card px-2 py-1 text-xs font-medium text-muted-foreground">
                             {selectedSite.sentinel2_context.cache_hit ? "Cached scene" : "Fresh scene"}
                           </span>
                         </div>
                         <div className="mt-4 grid grid-cols-1 gap-2 text-center min-[360px]:grid-cols-3">
-                          <div className="rounded-xl bg-white/10 p-2">
-                            <p className="text-xs uppercase text-cyan-200">Cloud cover</p>
-                            <p className="mt-1 text-sm font-bold">{metricLabel(selectedSite.sentinel2_context.scene_cloud_cover, 1)}%</p>
+                          <div className="rounded-md border border-border bg-card p-2">
+                            <p className="text-xs text-muted-foreground">Cloud cover</p>
+                            <p className="mt-1 text-sm font-medium">{metricLabel(selectedSite.sentinel2_context.scene_cloud_cover, 1)}%</p>
                           </div>
-                          <div className="rounded-xl bg-white/10 p-2">
-                            <p className="text-xs uppercase text-cyan-200">Aerosol depth</p>
-                            <p className="mt-1 text-sm font-bold">{metricLabel(selectedSite.sentinel2_context.aerosol_optical_thickness, 3)}</p>
+                          <div className="rounded-md border border-border bg-card p-2">
+                            <p className="text-xs text-muted-foreground">Aerosol depth</p>
+                            <p className="mt-1 text-sm font-medium">{metricLabel(selectedSite.sentinel2_context.aerosol_optical_thickness, 3)}</p>
                           </div>
                           <div
-                            className="group relative rounded-xl bg-white/10 p-2 focus:outline-none focus:ring-2 focus:ring-cyan-200"
+                            className="group relative rounded-md border border-border bg-card p-2 focus:outline-none focus:ring-2 focus:ring-ring"
                             tabIndex={0}
                             aria-label={`Scene class ${displayValue(selectedSite.sentinel2_context.scene_classification)}: ${sentinelSceneClassLabel(selectedSite.sentinel2_context.scene_classification)}`}
                           >
-                            <p className="text-xs uppercase text-cyan-200">Scene class</p>
-                            <p className="mt-1 text-sm font-bold">{displayValue(selectedSite.sentinel2_context.scene_classification)}</p>
+                            <p className="text-xs text-muted-foreground">Scene class</p>
+                            <p className="mt-1 text-sm font-medium">{displayValue(selectedSite.sentinel2_context.scene_classification)}</p>
                             <div
                               role="tooltip"
-                              className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 hidden w-52 rounded-xl border border-cyan-200 bg-white p-3 text-left text-xs leading-5 text-slate-700 shadow-xl group-hover:block group-focus:block"
+                              className="pointer-events-none absolute bottom-full right-0 z-20 mb-2 hidden w-52 rounded-md border border-border bg-card p-3 text-left text-xs leading-5 text-muted-foreground shadow-md group-hover:block group-focus:block"
                             >
-                              <p className="font-bold text-cyan-800">
+                              <p className="font-medium text-foreground">
                                 Class {displayValue(selectedSite.sentinel2_context.scene_classification)}
                               </p>
                               <p>{sentinelSceneClassLabel(selectedSite.sentinel2_context.scene_classification)}</p>
@@ -1108,29 +1038,29 @@ function SiteCategoryContent() {
                           </div>
                         </div>
                       </div>
-                      <div className="bg-cyan-50/60 p-4">
+                      <div className="bg-muted/40 p-4">
                         <div className="space-y-2">
                           {sentinelIndexEntries.map(([key, value]) => {
                             const details = sentinelIndexDetails[key]
                             return (
-                              <details key={key} className="group rounded-xl border border-cyan-100 bg-white">
+                              <details key={key} className="group rounded-md border border-border bg-card">
                                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3">
                                   <div className="min-w-0">
-                                    <p className="text-xs font-bold text-cyan-800">{details?.label ?? sourceLabel(key)}</p>
+                                    <p className="text-xs font-medium text-foreground">{details?.label ?? sourceLabel(key)}</p>
                                   </div>
                                   <div className="flex shrink-0 items-center gap-2">
-                                    <div className="rounded-lg bg-cyan-50 px-2.5 py-1.5 text-right">
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600">Value</p>
-                                      <p className="text-base font-bold text-slate-900">{metricLabel(value, 4)}</p>
+                                    <div className="rounded-md bg-muted px-2.5 py-1.5 text-right">
+                                      <p className="text-xs text-muted-foreground">Value</p>
+                                      <p className="text-base font-medium text-foreground">{metricLabel(value, 4)}</p>
                                     </div>
-                                    <ChevronDown className="h-4 w-4 text-cyan-700 transition-transform group-open:rotate-180" />
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
                                   </div>
                                 </summary>
-                                <div className="border-t border-cyan-100 px-3 pb-3 pt-2">
-                                  <p className="text-xs leading-5 text-slate-500">
+                                <div className="border-t border-border px-3 pb-3 pt-2">
+                                  <p className="text-xs leading-5 text-muted-foreground">
                                     {details?.description ?? "Satellite-derived surface index."}
                                   </p>
-                                  <div className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs leading-5 text-slate-700">
+                                  <div className="mt-2 rounded-lg bg-muted px-2.5 py-2 text-xs leading-5 text-muted-foreground">
                                     <span className="font-semibold">Interpretation: </span>
                                     {typeof value === "number" && details
                                       ? details.interpret(value)
@@ -1141,10 +1071,10 @@ function SiteCategoryContent() {
                             )
                           })}
                         </div>
-                        <p className="mt-2 text-xs leading-5 text-slate-500">
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
                           These indices describe surface reflectance patterns. They support contextual interpretation but do not confirm an emission source on their own.
                         </p>
-                        <div className="mt-3 space-y-1 text-xs text-slate-600">
+                        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                           <p><strong>Captured:</strong> {timeLabel(selectedSite.sentinel2_context.scene_datetime)}</p>
                           <p><strong>Provider:</strong> {displayValue(selectedSite.sentinel2_context.provider)}</p>
                           <p><strong>Search window:</strong> {selectedSite.date_range ? `${selectedSite.date_range.start_date} to ${selectedSite.date_range.end_date}` : "N/A"}</p>
@@ -1155,42 +1085,42 @@ function SiteCategoryContent() {
 
                   {pollutantEntries.length > 0 ? (
                     <section>
-                      <h3 className="mb-2 text-sm font-bold text-slate-900">Satellite pollutant means</h3>
+                      <h3 className="mb-2 text-sm font-medium text-foreground">Satellite pollutant means</h3>
                       <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
                         {pollutantEntries.map(([key, value]) => (
-                          <div key={key} className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">{key}</p>
-                            <p className="mt-1 text-sm font-bold text-slate-900">{value == null ? "N/A" : value.toFixed(6)}</p>
+                          <div key={key} className="rounded-md border border-border bg-muted/40 p-3">
+                            <p className="text-[10px] text-muted-foreground">{key}</p>
+                            <p className="mt-1 text-sm font-medium text-foreground">{value == null ? "N/A" : value.toFixed(6)}</p>
                           </div>
                         ))}
                       </div>
                     </section>
                   ) : null}
 
-                  <section className={cn("rounded-2xl border p-4", selectedTheme.detailCard)}>
+                  <section className={cn("rounded-md border p-4", selectedTheme.detailCard)}>
                     <div className="mb-3 flex items-center gap-2">
-                      <Database className="h-4 w-4 text-slate-600" />
-                      <h3 className="text-sm font-bold text-slate-900">Provenance and runtime</h3>
+                      <Database className="h-4 w-4 text-muted-foreground" />
+                      <h3 className="text-sm font-medium text-foreground">Provenance and runtime</h3>
                     </div>
                     <div className="grid grid-cols-1 gap-2 text-xs min-[360px]:grid-cols-2">
-                      <div className="rounded-xl bg-white/80 p-3">
-                        <Clock3 className="mb-1.5 h-4 w-4 text-slate-500" />
-                        <p className="text-slate-500">Computed</p>
-                        <p className="mt-1 font-semibold text-slate-800">{selectedSite.satellite_enabled ? timeLabel(selectedSite.computed_at_utc) : localComputedAt}</p>
+                      <div className="rounded-md border border-border bg-card p-3">
+                        <Clock3 className="mb-1.5 h-4 w-4 text-muted-foreground" />
+                        <p className="text-muted-foreground">Computed</p>
+                        <p className="mt-1 font-semibold text-foreground">{selectedSite.satellite_enabled ? timeLabel(selectedSite.computed_at_utc) : localComputedAt}</p>
                       </div>
-                      <div className="rounded-xl bg-white/80 p-3">
-                        <Gauge className="mb-1.5 h-4 w-4 text-slate-500" />
-                        <p className="text-slate-500">API runtime</p>
-                        <p className="mt-1 font-semibold text-slate-800">{selectedSite.elapsed_ms == null ? "N/A" : `${selectedSite.elapsed_ms.toFixed(0)} ms`}</p>
+                      <div className="rounded-md border border-border bg-card p-3">
+                        <Gauge className="mb-1.5 h-4 w-4 text-muted-foreground" />
+                        <p className="text-muted-foreground">API runtime</p>
+                        <p className="mt-1 font-semibold text-foreground">{selectedSite.elapsed_ms == null ? "N/A" : `${selectedSite.elapsed_ms.toFixed(0)} ms`}</p>
                       </div>
                     </div>
-                    <div className="mt-3 space-y-2 text-xs leading-5 text-slate-600">
+                    <div className="mt-3 space-y-2 text-xs leading-5 text-muted-foreground">
                       <p><strong>Model:</strong> 2.0 </p>
                       {hasUsableSatelliteData ? (
                         <p><strong>Satellite:</strong> {displayValue(selectedSite.satellite_provider)}</p>
                       ) : null}
                       <p><strong>Sources:</strong> {selectedSite.data_sources.length ? selectedSite.data_sources.join(", ") : "N/A"}</p>
-                      <p className="border-t border-slate-200 pt-2 text-[11px]">{displayValue(selectedSite.disclaimer)}</p>
+                      <p className="border-t border-border pt-2 text-[11px]">{displayValue(selectedSite.disclaimer)}</p>
                     </div>
                   </section>
                 </CardContent>
@@ -1199,13 +1129,13 @@ function SiteCategoryContent() {
             )}
           </div>
         </div>
-      </div>
+      </main>
       {showInfo && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
-          <Card className="relative max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-white sm:max-w-lg sm:rounded-2xl">
+          <Card className="relative max-h-[90vh] w-full overflow-y-auto rounded-t-lg bg-card sm:max-w-lg sm:rounded-lg">
             <CardHeader className="pr-12"><CardTitle className="text-xl">How Categorize Works</CardTitle></CardHeader>
-            <CardContent className="space-y-3 text-sm text-slate-600">
-              <Button variant="ghost" className="absolute right-2 top-2 text-slate-500 hover:text-slate-700" onClick={() => setShowInfo(false)}><X className="h-5 w-5" /></Button>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <Button variant="ghost" className="absolute right-2 top-2 text-muted-foreground hover:text-muted-foreground" onClick={() => setShowInfo(false)}><X className="h-5 w-5" /></Button>
               <p>When satellite is on, the page uses `spatial/source_metadata` and combines source probabilities, mapped OSM evidence, and Sentinel-2 surface context.</p>
               <p>When satellite is off, the page switches to `spatial/categorize_site` and shows an OSM-driven grey context-only view based on site category data.</p>
               <p>The confidence values describe model inference, not confirmed emissions. Use the evidence trail and ground validation before making operational decisions.</p>
@@ -1214,7 +1144,7 @@ function SiteCategoryContent() {
           </Card>
         </div>
       )}
-      {loading && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="flex items-center space-x-2 rounded-2xl bg-white p-4 shadow-xl"><Loader2 className="h-4 w-4 animate-spin" /><span className="font-bold text-slate-700">{includeSatellite ? "Processing satellite-enriched source metadata..." : "Processing OSM site categorization..."}</span></div></div>}
+      <LoadingOverlay isVisible={loading} title="Processing source metadata" description={includeSatellite ? "Processing satellite-enriched source metadata..." : "Processing OSM site categorization..."} />
     </div>
   )
 }

@@ -148,11 +148,6 @@ export interface LegacyCategorizeSiteResponse {
   }
 }
 
-export interface GridOption {
-  grid_id: string // Grid identifier
-  grid_name: string // Name of the grid
-}
-
 export interface AirQualityReportPayload {
   grid_id: string // Grid identifier
   start_time: string // Start time for the report
@@ -194,19 +189,6 @@ export interface AirQualityReportResponse {
     monthly_data: MonthlyData[] // Monthly data for the report
     report: string // Textual report
   }
-}
-
-export interface SatelliteDataPayload {
-  latitude: number // Latitude for satellite data
-  longitude: number // Longitude for satellite data
-  timestamp: string // Timestamp for satellite data
-}
-
-export interface SatelliteDataResponse {
-  latitude: number // Latitude
-  longitude: number // Longitude
-  pm2_5_prediction: number // PM2.5 prediction value
-  timestamp: string // Timestamp
 }
 
 export interface Grid {
@@ -281,18 +263,6 @@ export interface Filters {
   city: string[]
   district: string[]
   category: string[]
-}
-
-export interface AqiMapData {
-  mapimage: {
-    bounds: [[number, number], [number, number]]
-    image: string
-    message: string
-  }
-}
-
-export interface MapProps {
-  map: any
 }
 
 export interface DataDownloadRequest {

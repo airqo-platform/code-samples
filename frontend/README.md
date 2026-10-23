@@ -79,7 +79,7 @@ The parent website's CSP must also allow the frontend origin in `frame-src`.
 
 ### Prerequisites
 
-- Node.js (v14 or later)
+- Node.js (v24.x)
 - npm or yarn
 
 ### Installation
@@ -186,6 +186,36 @@ To set up continuous deployment:
 3. Push changes to your repository, and Vercel will automatically build and deploy your updates.
 
 For more detailed information about deploying Next.js applications on Vercel, check out the [Next.js deployment documentation](https://nextjs.org/docs/deployment).
+
+## Project Structure
+
+```
+src/
+├── app/                  # Next.js App Router pages, layouts, route handlers, loading
+├── components/
+│   ├── ui/               # shadcn UI primitives
+│   ├── layout/           # app shell, sections, footer, loader
+│   ├── marketing/        # feature pages and cards
+│   ├── navigation/       # main navigation
+│   ├── controls/         # search, file upload, priority location
+│   ├── mapping/          # Leaflet maps, layer controls
+│   ├── reports/          # report modals, pickers, loading
+│   ├── charts/           # air-quality visualizations
+│   ├── billboard/        # public billboard display
+│   ├── analytics/        # analytics integration
+│   └── app/              # data warmup helpers
+├── hooks/                # shared React hooks
+├── lib/                  # API clients, map config, utilities
+├── styles/               # global CSS and tokens
+└── types/                # shared TypeScript types
+```
+
+The app uses a single light theme (no dark mode toggle). Lint and build:
+
+```
+npm run lint
+npm run build
+```
 
 ## Technologies Used
 

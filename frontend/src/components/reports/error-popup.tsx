@@ -1,0 +1,87 @@
+"use client"
+
+import Image from "next/image"
+import { RefreshCw } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+
+type ErrorPopupProps = {
+  isOpen: boolean
+  message: string
+  onClose: () => void
+  onTryAgain?: () => void
+  isRetrying?: boolean
+  title?: string
+}
+
+export default function ErrorPopup({
+  isOpen,
+  message,
+  onClose,
+  onTryAgain,
+  isRetrying = false,
+  title = "Oops, try again",
+}: ErrorPopupProps) {
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-lg overflow-hidden rounded-lg border border-border bg-card p-0 shadow-lg">
+        <div className="h-1.5 bg-destructive" />
+        <div className="px-4 pb-5 pt-6 sm:px-5 sm:pb-6">
+          <div className="relative aspect-[3/1] overflow-hidden rounded-md bg-muted">
+            <Image
+              src="/images/report-recovery-robot.png"
+              alt="A recovery robot repairing a file service"
+              fill
+              priority
+              sizes="(max-width: 640px) calc(100vw - 48px), 480px"
+              className="object-cover"
+            />
+          </div>
+
+          <DialogHeader className="mt-4 items-center text-center sm:text-center">
+            <DialogTitle className="text-xl font-medium tracking-tight text-foreground">{title}</DialogTitle>
+            <DialogDescription className="max-w-md text-base leading-6 text-muted-foreground">
+              {message}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="mt-5 flex-row justify-center gap-2 space-x-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="min-w-28"
+            >
+              Close
+            </Button>
+            {onTryAgain && (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={onTryAgain}
+                disabled={isRetrying}
+                className="min-w-32"
+              >
+                {isRetrying ? (
+                  <Spinner size="sm" className="mr-2" aria-hidden="true" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                {isRetrying ? "Trying again..." : "Try again"}
+              </Button>
+            )}
+          </DialogFooter>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { useEffect, useState, useRef, useMemo } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   ArrowDown,
   ArrowUp,
@@ -14,7 +14,6 @@ import {
   Globe,
   HeartPulse,
   Layers,
-  LoaderCircle,
   MapPin,
   MapPinned,
   Minus,
@@ -26,8 +25,10 @@ import {
 } from "lucide-react"
 import Navigation from "@/components/navigation/navigation"
 import type { ReactNode } from "react"
-import { getReportData, loadHistoricalReportData } from "@/services/apiService"
-import { Button } from "@/ui/button"
+import { getReportData, loadHistoricalReportData } from "@/lib/api-service"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Spinner } from "@/components/ui/spinner"
 import type { SiteData, Filters, ReportDataOptions, ReportDateRange } from "@/lib/types"
 import {
   REPORT_LANGUAGES,
@@ -46,18 +47,19 @@ import {
   getAqiCategoryForPm25,
   getAqiPeriodBucket,
   type ReportTimelineGrouping,
-} from "@/components/charts/AirQualityChart"
-import { Input } from "@/ui/input"
-import { Checkbox } from "@/ui/checkbox"
-import { Popover, PopoverContent, PopoverTrigger } from "@/ui/popover"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
-import ReportDataModal from "@/components/reports/ReportDataModal"
-import ErrorPopup from "@/components/reports/ErrorPopup"
-import ReportLoadingScreen from "@/components/reports/ReportLoadingScreen"
-import NexusDateRangePicker, { createDefaultReportDateRange } from "@/components/reports/NexusDateRangePicker"
-import { PM25CalendarPlot } from "@/components/reports/PM25CalendarPlot"
+} from "@/components/charts/air-quality-chart"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import ReportDataModal from "@/components/reports/report-data-modal"
+import ErrorPopup from "@/components/reports/error-popup"
+import ReportLoadingScreen from "@/components/reports/report-loading-screen"
+import NexusDateRangePicker, { createDefaultReportDateRange } from "@/components/reports/nexus-date-range-picker"
+import { PM25CalendarPlot } from "@/components/reports/pm25-calendar-plot"
 import { translateAqiCategory, translateSiteCategory } from "@/lib/report-chart-translations"
 import { REPORT_REQUEST_RETRIES, REPORT_RETRY_DELAY_MS, retryReportRequest } from "@/lib/report-retry"
+import { getMapTileConfig } from "@/lib/map-config"
 import "leaflet/dist/leaflet.css"
 
 const GoodAir = "/images/GoodAir.png"
@@ -70,8 +72,8 @@ const Invalid = "/images/Invalid.png"
 const REPORT_LOAD_MAX_ATTEMPTS = REPORT_REQUEST_RETRIES + 1
 const MAX_RANDOM_SITE_SELECTION = 20
 
-import { Switch } from "@/ui/switch"
-import { Label } from "@/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts"
 
 // Dynamic map components for report map preview
@@ -108,9 +110,11 @@ const getRandomSiteSelection = (sites: SiteData[], limit = MAX_RANDOM_SITE_SELEC
 
 export default function ReportPage() {
   return (
-    <div className="reports-theme flex min-h-screen flex-col bg-gray-100 text-slate-950">
+    <div className="flex min-h-screen flex-col bg-muted/40 text-foreground">
       <Navigation />
-      <ReportContent />
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        <ReportContent />
+      </main>
     </div>
   )
 }
@@ -350,11 +354,11 @@ function ReportContent() {
 
   const getChangeIcon = (trend: number): ReactNode => {
     if (trend < 0) {
-      return <ArrowDown className="text-green-500 w-8 h-8" />
+      return <ArrowDown className="text-success w-8 h-8" />
     } else if (trend > 0) {
-      return <ArrowUp className="text-red-500 w-8 h-8" />
+      return <ArrowUp className="text-destructive w-8 h-8" />
     } else {
-      return <Minus className="text-gray-500 w-8 h-8" />
+      return <Minus className="text-muted-foreground w-8 h-8" />
     }
   }
 
@@ -1109,28 +1113,11 @@ function ReportContent() {
     }
   }, [mapSites])
 
-  const mapTile = useMemo(() => {
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
-    if (token) {
-      return {
-        url: `https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=${token}`,
-        attribution:
-          '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        tileSize: 512 as const,
-        zoomOffset: -1 as const,
-      }
-    }
-    return {
-      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      tileSize: 256 as const,
-      zoomOffset: 0 as const,
-    }
-  }, [])
+  const mapTile = useMemo(() => getMapTileConfig("streets"), [])
 
   const leafletInstance = useMemo(() => {
     if (typeof window === "undefined") return null
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- intentional lazy require: keeps Leaflet off the SSR path
     const leaflet = require("leaflet") as typeof import("leaflet")
     leaflet.Icon.Default.mergeOptions({
       iconRetinaUrl: "/leaflet/marker-icon-2x.png",
@@ -1275,23 +1262,23 @@ function ReportContent() {
         onTryAgain={() => void generatePDF()}
         isRetrying={isGeneratingPDF}
       />
-      <header className="mb-8 border-b border-slate-200 px-1 pb-6 text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">Air Quality Reports</h1>
-        <p className="mx-auto mt-2 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
+      <header className="mb-8 border-b border-border px-1 pb-6 text-center">
+        <h1 className="text-2xl font-medium tracking-tight text-foreground">Air Quality Reports</h1>
+        <p className="mx-auto mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
           Compare recent air quality conditions across monitoring sites and build a focused report for the locations that matter.
         </p>
       </header>
 
       {/* Filters */}
-      <div className="mb-8 rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-blue-50/50 p-5 shadow-lg shadow-slate-200/50 sm:p-6">
+      <div className="mb-8 rounded-lg border border-border bg-card p-5 shadow-sm sm:p-6">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-bold text-slate-950">Filter report visuals</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <h2 className="text-base font-medium text-foreground">Filter report visuals</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
               Use one date range and geographic selection across every chart, map, summary, and recommendation.
             </p>
           </div>
-          <Button variant="outline" onClick={resetFilters} disabled={!siteData.length} className="w-full rounded-xl border-slate-300 bg-white md:w-auto">
+          <Button variant="outline" onClick={resetFilters} disabled={!siteData.length} className="w-full md:w-auto">
             Reset Filters
           </Button>
         </div>
@@ -1355,19 +1342,17 @@ function ReportContent() {
 
       {isReportDataLoading && (
         <div
-          className="mb-8 overflow-hidden rounded-3xl border border-blue-100 bg-white p-6 shadow-lg shadow-blue-100/50"
+          className="mb-8 overflow-hidden rounded-lg border border-border bg-card p-6 shadow-sm"
           role="status"
           aria-live="polite"
         >
           <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 ring-8 ring-blue-50/60">
-              <LoaderCircle className="h-7 w-7 animate-spin text-blue-600" aria-hidden="true" />
-            </div>
+            <Spinner size="md" className="text-primary" />
             <div className="flex-1">
-              <p className="font-semibold text-slate-900">Preparing your air quality overview</p>
-              <p className="mt-1 text-sm text-slate-500">Loading monitoring sites, recent readings, and report filters.</p>
-              <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-blue-600 to-cyan-400" />
+              <p className="font-medium text-foreground">Preparing your air quality overview</p>
+              <p className="mt-1 text-sm text-muted-foreground">Loading monitoring sites, recent readings, and report filters.</p>
+              <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
               </div>
             </div>
           </div>
@@ -1377,10 +1362,10 @@ function ReportContent() {
       {siteData.length > 0 ? (
         <>
       {/* Filter summary */}
-      <div className="mb-8 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-cyan-50/60 p-4 shadow-sm">
+      <div className="mb-8 rounded-md border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-xs font-bold uppercase tracking-[0.14em] text-blue-700">Active filters</span>
+          <span className="mr-1 text-xs font-medium text-muted-foreground">Active filters</span>
           {hasActiveFilters ? (
             <>
               {(["country", "city", "district", "category"] as (keyof Filters)[]).map((key) =>
@@ -1389,22 +1374,20 @@ function ReportContent() {
                     type="button"
                     key={`${key}-${value}`}
                     onClick={() => removeFilterValue(key, value)}
-                    className="group flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-800 transition hover:bg-blue-100"
+                    className="group inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent"
                   >
                     <span className="capitalize">{key}:</span> {value}
                     <X className="h-3 w-3 opacity-70 group-hover:opacity-100" />
                   </button>
                 )),
               )}
-              <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                Most Common AQI Category: {mostCommonCategory || "N/A"}
-              </span>
+              <Badge variant="secondary">Most Common AQI Category: {mostCommonCategory || "N/A"}</Badge>
             </>
           ) : (
-            <span className="text-sm text-slate-500">None selected, showing the complete network.</span>
+            <span className="text-sm text-muted-foreground">None selected, showing the complete network.</span>
           )}
           </div>
-          <div className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white">
+          <div className="rounded-md bg-muted px-3 py-1.5 text-sm font-medium text-foreground">
             Showing {filteredData.length} of {(customReportData ?? siteData).length} sites
           </div>
         </div>
@@ -1412,15 +1395,15 @@ function ReportContent() {
 
       {/* Selected Devices Counter */}
       {selectedDevices.length > 0 && (
-        <div className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-600 p-5 text-white shadow-lg shadow-blue-900/15">
+        <div className="mb-8 rounded-lg border border-border bg-card p-5 shadow-sm">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <div className="bg-white text-blue-600 rounded-full w-12 h-12 flex items-center justify-center text-xl font-bold mr-4">
+              <div className="mr-3 flex items-center justify-center rounded-md bg-primary/10 px-3 py-2 text-lg font-medium text-primary">
                 {selectedDevices.length}
               </div>
               <div>
-                <h3 className="text-xl font-bold">Devices Selected</h3>
-                <p className="text-blue-100">
+                <h3 className="text-base font-medium text-foreground">Devices Selected</h3>
+                <p className="text-sm text-muted-foreground">
                   {selectedDevices.length === 1
                     ? "1 device selected for reporting"
                     : `${selectedDevices.length} devices selected for reporting`}
@@ -1431,7 +1414,7 @@ function ReportContent() {
               <Button
                 variant="outline"
                 onClick={clearDeviceSelection}
-                className="rounded-xl border-white bg-transparent text-white hover:bg-blue-700"
+                className=""
               >
                 Clear All
               </Button>
@@ -1446,26 +1429,26 @@ function ReportContent() {
                 if (selectedCount === 0) return null
 
                 return (
-                  <div key={`selected-${category}`} className="rounded-xl bg-blue-700 p-2 text-center">
-                    <div className="text-sm text-blue-200">{category}</div>
-                    <div className="text-lg font-bold">{selectedCount} selected</div>
+                  <div key={`selected-${category}`} className="min-w-0 rounded-md bg-muted p-2 text-center">
+                    <div className="break-words text-xs text-muted-foreground">{category}</div>
+                    <div className="text-sm font-medium text-foreground">{selectedCount} selected</div>
                   </div>
                 )
               })}
             </div>
           )}
 
-          <div className="mt-4 pt-4 border-t border-blue-500">
+          <div className="mt-4 pt-4 border-t border-border">
             <div className="flex justify-between items-center">
-              <p className="text-blue-100">Generate a report with your selected devices</p>
+              <p className="text-sm text-muted-foreground">Generate a report with your selected devices</p>
               <Button
                 onClick={() => handleGenerateReport()}
                 disabled={!hasRequiredReportScope || reportGenerating}
-                className="rounded-xl bg-white text-blue-600 hover:bg-blue-50"
+                className="disabled:opacity-60"
               >
                 {reportGenerating ? (
                   <>
-                    <div className="animate-spin mr-2 h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                    <Spinner size="sm" className="mr-2" />
                     Generating...
                   </>
                 ) : (
@@ -1478,15 +1461,14 @@ function ReportContent() {
       )}
 
       {/* Device Search and Selection */}
-      <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-8 rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-col md:flex-row justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold mb-2 md:mb-0">Device Selection</h2>
+          <h2 className="text-base font-medium mb-2 md:mb-0">Device Selection</h2>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={selectAllDevices} size="sm" 
-            className="rounded-xl border-blue-700 bg-blue-500 text-white hover:bg-blue-600">
+            <Button variant="outline" onClick={selectAllDevices} size="sm">
               {filteredData.length > MAX_RANDOM_SITE_SELECTION ? "Select Random 20" : "Select All"}
             </Button>
-            <Button variant="outline" onClick={clearDeviceSelection} size="sm" className="rounded-xl">
+            <Button variant="outline" onClick={clearDeviceSelection} size="sm">
               Clear All
             </Button>
           </div>
@@ -1498,16 +1480,16 @@ function ReportContent() {
               placeholder="Search devices by name, city, or country"
               value={deviceSearch}
               onChange={(e) => handleDeviceSearch(e.target.value)}
-              className="h-11 flex-1 rounded-xl border-slate-300 bg-slate-50 focus-visible:bg-white"
+              className="flex-1"
             />
             <Button
               onClick={() => handleGenerateReport()}
               disabled={!hasRequiredReportScope || reportGenerating}
-              className="rounded-xl bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap"
+              className="whitespace-nowrap"
             >
               {reportGenerating ? (
                 <>
-                  <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  <Spinner size="sm" className="mr-2" />
                   Generating...
                 </>
               ) : (
@@ -1520,7 +1502,7 @@ function ReportContent() {
             {getFilteredDevices()
               .slice(0, 9)
               .map((site) => (
-                <div key={getSiteSelectionId(site)} className="flex items-center space-x-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                <div key={getSiteSelectionId(site)} className="flex items-center space-x-2 rounded-md border border-border bg-muted/40 p-2.5">
                   <Checkbox
                     id={getSiteCheckboxId(site)}
                     checked={selectedDevices.includes(getSiteSelectionId(site))}
@@ -1528,34 +1510,34 @@ function ReportContent() {
                   />
                   <label htmlFor={getSiteCheckboxId(site)} className="text-sm flex-1 cursor-pointer truncate">
                     {site.siteDetails.name || site.siteDetails.formatted_name || "Unknown Site"}
-                    <span className="text-xs text-gray-500 ml-1">({site.siteDetails.city || "Unknown"})</span>
+                    <span className="text-xs text-muted-foreground ml-1">({site.siteDetails.city || "Unknown"})</span>
                   </label>
                 </div>
               ))}
           </div>
 
           {getFilteredDevices().length > 9 && (
-            <div className="text-center text-sm text-blue-600">
+            <div className="text-center text-sm text-primary">
               {getFilteredDevices().length - 9} more devices available. Refine your search to see more.
             </div>
           )}
 
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-muted-foreground">
             {selectedDevices.length} of {filteredData.length} devices selected
           </div>
         </div>
       </div>
 
       {/* Report Action Buttons */}
-      <div className={`mb-4 rounded-2xl border px-4 py-3 ${
+      <div className={`mb-4 rounded-md border px-4 py-3 ${
         hasRequiredReportScope
-          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-          : "border-amber-200 bg-amber-50 text-amber-900"
+          ? "border-success/30 bg-success/5 text-foreground"
+          : "border-warning/30 bg-warning/5 text-foreground"
       }`}>
         <div className="flex items-start gap-3">
-          <div className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${hasRequiredReportScope ? "bg-emerald-500" : "bg-amber-500"}`} />
+          <div className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${hasRequiredReportScope ? "bg-success" : "bg-warning"}`} />
           <div>
-            <p className="text-sm font-bold">{hasRequiredReportScope ? "Report scope ready" : "Choose a report area"}</p>
+            <p className="text-sm font-medium">{hasRequiredReportScope ? "Report scope ready" : "Choose a report area"}</p>
             <p className="mt-0.5 text-xs leading-5 opacity-80">
               {hasRequiredReportScope
                 ? `The report will use ${filters.district.length ? "district" : "city"}-level data for the selected date range.`
@@ -1578,7 +1560,6 @@ function ReportContent() {
             handleGenerateReport()
           }}
           disabled={(!showReportOnPage && !hasRequiredReportScope) || reportGenerating}
-          className="bg-green-600 text-white hover:bg-green-700"
         >
           {reportGenerating
             ? "Generating report..."
@@ -1591,7 +1572,7 @@ function ReportContent() {
         <Button
           onClick={() => setIsReportDataModalOpen(true)}
           disabled={!hasRequiredReportScope || reportGenerating}
-          className="bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+          variant="outline"
         >
           <CalendarRange className="mr-2 h-4 w-4" />
           Customize data & sites
@@ -1607,7 +1588,7 @@ function ReportContent() {
                 setFilteredData(filterSites(siteData, filters))
               }
             }}
-            className="bg-gray-600 text-white hover:bg-gray-700"
+            variant="outline"
           >
             {customReportData ? "Use Latest Data" : "Back to All Data"}
           </Button>
@@ -1615,10 +1596,10 @@ function ReportContent() {
       </div>
 
       {showReportOnPage && (
-        <div id="report-section" className="mb-8 bg-white rounded-lg shadow-lg p-6 border border-gray-200">
-          <div className="mb-5 flex w-full flex-wrap items-stretch justify-end gap-2.5 border-b border-slate-100 pb-4 lg:flex-nowrap">
-            <div className="group order-last flex h-12 w-fit max-w-full flex-none items-center gap-2.5 rounded-xl border border-slate-300 bg-white px-4 text-slate-600 shadow-sm transition hover:border-slate-400 hover:shadow-md focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 lg:ml-auto">
-              <Globe className="h-6 w-6 shrink-0 stroke-[1.7] text-slate-600" />
+        <div id="report-section" className="mb-8 rounded-lg border border-border bg-card p-6 shadow-sm">
+          <div className="mb-5 flex w-full flex-wrap items-stretch justify-end gap-2.5 border-b border-border pb-4 lg:flex-nowrap">
+            <div className="group order-last flex h-12 w-fit max-w-full flex-none items-center gap-2.5 rounded-md border border-border bg-card px-4 text-muted-foreground shadow-sm lg:ml-auto">
+              <Globe className="h-6 w-6 shrink-0 stroke-[1.7] text-muted-foreground" />
               <span className="whitespace-nowrap text-sm font-medium sm:text-base">{t("reportLanguage")}:</span>
               <Select
                 value={reportLanguage}
@@ -1626,20 +1607,20 @@ function ReportContent() {
               >
                 <SelectTrigger
                   aria-label={t("reportLanguage")}
-                  className="h-9 w-auto min-w-[108px] gap-2 border-0 bg-transparent p-0 text-sm font-bold text-slate-950 shadow-none ring-offset-0 hover:text-blue-700 focus:ring-0 focus:ring-offset-0 sm:text-base [&>svg]:h-4 [&>svg]:w-4 [&>svg]:text-slate-500 [&>svg]:opacity-100"
+                  className="h-9 w-auto min-w-[108px] gap-2 border-0 bg-transparent p-0 text-sm font-medium text-foreground shadow-none ring-offset-0 hover:text-primary focus:ring-0 focus:ring-offset-0 sm:text-base [&>svg]:h-4 [&>svg]:w-4 [&>svg]:text-muted-foreground [&>svg]:opacity-100"
                 >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent
                   align="end"
                   sideOffset={10}
-                  className="min-w-[190px] rounded-xl border-slate-200 bg-white p-1.5 shadow-xl"
+                  className="min-w-[190px] rounded-md border-border bg-card p-1.5 shadow-lg"
                 >
                   {REPORT_LANGUAGES.map((language) => (
                     <SelectItem
                       key={language.value}
                       value={language.value}
-                      className="cursor-pointer rounded-lg py-2.5 pl-9 pr-3 text-sm font-medium text-slate-700 focus:bg-blue-50 focus:text-blue-800"
+                      className="cursor-pointer rounded-lg py-2.5 pl-9 pr-3 text-sm font-medium text-muted-foreground focus:bg-accent focus:text-primary"
                     >
                       {language.label}
                     </SelectItem>
@@ -1650,18 +1631,18 @@ function ReportContent() {
             <Button
               variant="outline"
               onClick={() => setIsReportDataModalOpen(true)}
-              className="h-12 flex-1 rounded-xl border-0 bg-slate-100 px-4 text-sm font-semibold text-slate-600 shadow-none hover:bg-slate-200 hover:text-slate-800 sm:flex-none sm:text-base"
+              className="h-12 flex-1 sm:flex-none sm:text-base"
             >
-              <MapPinned className="mr-1.5 h-5 w-5 shrink-0 stroke-[1.7] text-slate-600" />
+              <MapPinned className="mr-1.5 h-5 w-5 shrink-0 stroke-[1.7] text-muted-foreground" />
               {t("changeSites")}
             </Button>
             <Button
               onClick={generatePDF}
               disabled={isGeneratingPDF}
-              className="h-12 flex-1 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg disabled:translate-y-0 sm:flex-none sm:text-base"
+              className="h-12 flex-1 sm:flex-none sm:text-base"
             >
               {isGeneratingPDF ? (
-                <><div className="mr-1.5 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />{t("preparingPdf")}</>
+                <><Spinner size="sm" className="mr-1.5" />{t("preparingPdf")}</>
               ) : (
                 <><CloudDownload className="mr-1.5 h-5 w-5 shrink-0 stroke-[1.8]" />{t("downloadPdf")}</>
               )}
@@ -1672,25 +1653,26 @@ function ReportContent() {
                   variant="outline"
                   aria-label={t("moreActions")}
                   title={t("moreActions")}
-                  className="h-12 w-12 shrink-0 rounded-full border-slate-300 bg-white p-0 text-slate-500 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 hover:text-slate-700 hover:shadow-md"
+                  className="h-12 w-12 shrink-0"
+                  size="icon"
                 >
                   <MoreHorizontal className="h-6 w-6" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-72 rounded-xl border-slate-200 p-2 shadow-xl">
+              <PopoverContent align="end" className="w-72 rounded-lg border-border p-2 shadow-lg">
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-slate-50"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-accent"
                 >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Printer className="h-4 w-4" /></span>
-                  <span><span className="block text-sm font-semibold text-slate-800">Print report</span><span className="block text-xs text-slate-500">Open the browser print dialog</span></span>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Printer className="h-4 w-4" /></span>
+                  <span><span className="block text-sm font-semibold text-foreground">Print report</span><span className="block text-xs text-muted-foreground">Open the browser print dialog</span></span>
                 </button>
-                <div className="my-1 border-t border-slate-100" />
+                <div className="my-1 border-t border-border" />
                 <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600"><BrainCircuit className="h-4 w-4" /></span>
-                    <div><Label htmlFor="advanced-mode" className="cursor-pointer text-sm font-semibold text-slate-800">Advanced analysis</Label><p className="text-xs text-slate-500">Spatial statistics and clusters</p></div>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground"><BrainCircuit className="h-4 w-4" /></span>
+                    <div><Label htmlFor="advanced-mode" className="cursor-pointer text-sm font-medium text-foreground">Advanced analysis</Label><p className="text-xs text-muted-foreground">Spatial statistics and clusters</p></div>
                   </div>
                   <Switch id="advanced-mode" checked={showAdvancedAnalysis} onCheckedChange={setShowAdvancedAnalysis} />
                 </div>
@@ -1701,27 +1683,27 @@ function ReportContent() {
           <div ref={reportRef} lang={reportLanguage} className="space-y-6">
             {/* Report Header */}
             <div className="text-center mb-6 border-b pb-6">
-              <h2 className="text-2xl font-bold text-gray-800">{getReportTitle()}</h2>
-              <p className="text-gray-600 mt-2">
+              <h2 className="text-xl font-medium text-foreground">{getReportTitle()}</h2>
+              <p className="text-muted-foreground mt-2">
                 {getLocationInfo().city}, {getLocationInfo().country}
               </p>
               {reportDateRange && (
-                <p className="mt-1 font-medium text-blue-700">
+                <p className="mt-1 font-medium text-primary">
                   {t("dataPeriod")}: {formatReportDate(reportDateRange.startDate)}
                   {` ${t("to")} `}
                   {formatReportDate(reportDateRange.endDate)}
                 </p>
               )}
-              <p className="text-gray-500 mt-1">{t("reportGenerated")}: {formatReportDateForLanguage(new Date(), reportLanguage)}</p>
+              <p className="text-muted-foreground mt-1">{t("reportGenerated")}: {formatReportDateForLanguage(new Date(), reportLanguage)}</p>
             </div>
 
             {/* Map snapshot of selected area */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
-              <Card className="h-full border-blue-100 shadow-sm">
+              <Card className="h-full border-border shadow-sm">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base text-blue-800">{t("areaSnapshot")}</CardTitle>
+                  <CardTitle className="text-base text-primary">{t("areaSnapshot")}</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm text-gray-700">
+                <CardContent className="space-y-2 text-sm text-muted-foreground">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{t("country")}</span>
                     <span>{formatSelectionList(filters.country, t("allCountries"))}</span>
@@ -1738,13 +1720,13 @@ function ReportContent() {
                     <span className="font-medium">{t("sitesMapped")}</span>
                     <span>{mapSites.length}</span>
                   </div>
-                  <div className="pt-2 border-t text-xs text-blue-700">
+                  <div className="pt-2 border-t text-xs text-primary">
                     {t("mapContextNote")}
                   </div>
                 </CardContent>
               </Card>
 
-              <div className="md:col-span-2 h-[320px] rounded-xl overflow-hidden border border-blue-100 shadow">
+              <div className="md:col-span-2 h-[320px] rounded-md overflow-hidden border border-border shadow-sm">
                 {mapSites.length > 0 ? (
                   <MapContainer
                     key={mapSites.length}
@@ -1770,7 +1752,7 @@ function ReportContent() {
                         >
                           <Popup>
                             <div className="min-w-[200px] space-y-2">
-                              <div className="font-semibold text-sm text-gray-900">
+                              <div className="font-semibold text-sm text-foreground">
                                 {site.siteDetails.name || site.siteDetails.formatted_name || "Unknown Site"}
                               </div>
                               <div className="flex items-center gap-2 text-sm">
@@ -1780,10 +1762,10 @@ function ReportContent() {
                                 />
                                 <span className="font-medium">{meta.label}</span>
                               </div>
-                              <div className="text-sm text-gray-700">
+                              <div className="text-sm text-muted-foreground">
                                 PM₂.₅: {(site.pm2_5?.value ?? 0).toFixed(1)} µg/m³
                               </div>
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-muted-foreground">
                                 {site.siteDetails.city || "Unknown City"}, {site.siteDetails.country || "Unknown"}
                               </div>
                             </div>
@@ -1800,7 +1782,7 @@ function ReportContent() {
                     )}
                   </MapContainer>
                 ) : (
-                  <div className="h-full w-full bg-blue-50 text-blue-700 flex items-center justify-center text-sm">
+                  <div className="h-full w-full bg-muted text-muted-foreground flex items-center justify-center text-sm">
                     No mappable coordinates for the current selection
                   </div>
                 )}
@@ -1808,12 +1790,12 @@ function ReportContent() {
             </div>
 
             {/* Introduction */}
-            <section className="pdf-keep-together mb-8 overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50/80 via-white to-cyan-50/60">
-              <div className="border-b border-blue-100 px-5 py-4 sm:px-6">
-                <h3 className="mt-1 text-xl font-semibold text-slate-900">{t("introduction")}</h3>
+            <section className="pdf-keep-together mb-8 overflow-hidden rounded-lg border border-border bg-card">
+              <div className="border-b border-border px-5 py-4 sm:px-6">
+                <h3 className="mt-1 text-lg font-medium text-foreground">{t("introduction")}</h3>
               </div>
 
-              <div className="space-y-4 px-5 py-5 text-sm leading-7 text-slate-700 sm:px-6 sm:py-6 sm:text-base">
+              <div className="space-y-4 px-5 py-5 text-sm leading-7 text-muted-foreground sm:px-6 sm:py-6 sm:text-base">
                 {reportLanguage !== "en" ? (
                   <>
                     <p>{t("introOne", {
@@ -1858,10 +1840,10 @@ function ReportContent() {
             </section>
             {/* AQI Index Visualization */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">
+              <h3 className="text-lg font-medium text-foreground mb-3">
                 {reportDateRange ? t("averageStatus") : t("currentStatus")}
               </h3>
-              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+              <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
                 <AQIIndexVisual
                   language={reportLanguage}
                   aqiCategory={selectedSite ? selectedSite.aqi_category || "Unknown" : avgAQICategory}
@@ -1872,27 +1854,27 @@ function ReportContent() {
 
             {/* Results Section with Charts */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">{t("results")}</h3>
+              <h3 className="text-lg font-medium text-foreground mb-3">{t("results")}</h3>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <h4 className="font-semibold text-gray-700 mb-1">{t("sitesAnalyzed")}</h4>
+                <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
+                  <h4 className="font-semibold text-muted-foreground mb-1">{t("sitesAnalyzed")}</h4>
                   <p className="text-2xl font-bold">{filteredData.length}</p>
                 </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <h4 className="font-semibold text-gray-700 mb-1">{t("averagePm25")}</h4>
+                <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
+                  <h4 className="font-semibold text-muted-foreground mb-1">{t("averagePm25")}</h4>
                   <p className="text-2xl font-bold">{calculateAveragePM25(filteredData).toFixed(1)} µg/m³</p>
                 </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <h4 className="font-semibold text-gray-700 mb-1">{comparisonPeriod === "monthly" ? t("monthly") : t("weekly")} {t("change")}</h4>
+                <div className="bg-card p-4 rounded-lg border border-border shadow-sm">
+                  <h4 className="font-semibold text-muted-foreground mb-1">{comparisonPeriod === "monthly" ? t("monthly") : t("weekly")} {t("change")}</h4>
                   <p className="text-2xl font-bold flex items-center">
                     {calculateAveragePercentageChange(filteredData).toFixed(2)}%
                     {calculateAveragePercentageChange(filteredData) < 0 ? (
-                      <ArrowDown className="ml-1 w-5 h-5 text-green-500" />
+                      <ArrowDown className="ml-1 w-5 h-5 text-success" />
                     ) : calculateAveragePercentageChange(filteredData) > 0 ? (
                       <ArrowUp className="ml-1 w-5 h-5 text-red-500" />
                     ) : (
-                      <Minus className="ml-1 w-5 h-5 text-gray-500" />
+                      <Minus className="ml-1 w-5 h-5 text-muted-foreground" />
                     )}
                   </p>
                 </div>
@@ -1923,9 +1905,9 @@ function ReportContent() {
               </div>
 
               {/* Device comparison follows the AQI Category Distribution period selection. */}
-              <section className="pdf-keep-together mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+              <section className="pdf-keep-together mt-6 overflow-hidden rounded-md border border-border bg-card shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-3 pb-2 pt-3 sm:px-4">
-                  <h4 className="text-base font-semibold text-slate-950">{t("deviceComparison")}</h4>
+                  <h4 className="text-base font-semibold text-foreground">{t("deviceComparison")}</h4>
                   {!pdfMode && (
                     <div className="flex flex-wrap items-center gap-2">
                       <Input
@@ -1940,14 +1922,14 @@ function ReportContent() {
                         value={effectiveComparisonAqiFilter}
                         onChange={(event) => setComparisonAqiFilter(event.target.value)}
                         aria-label="Filter by AQI category"
-                        className="h-7 max-w-[210px] rounded-md border border-slate-300 bg-white px-2 text-xs font-medium text-slate-700"
+                        className="h-7 max-w-[210px] rounded-md border border-border bg-card px-2 text-xs font-medium text-muted-foreground"
                       >
                         <option value="all">All AQI categories</option>
                         {comparisonAqiOptions.map((category) => (
                           <option key={category} value={category}>{translateAqiCategory(category, reportLanguage)}</option>
                         ))}
                       </select>
-                      <span className="text-xs font-medium text-slate-600">Show rows:</span>
+                      <span className="text-xs font-medium text-muted-foreground">Show rows:</span>
                       {([5, 10] as const).map((rowCount) => (
                         <button
                           key={rowCount}
@@ -1955,8 +1937,8 @@ function ReportContent() {
                           onClick={() => setComparisonRowsShown(rowCount)}
                           className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition ${
                             comparisonRowsShown === rowCount
-                              ? "border-blue-600 bg-blue-600 text-white"
-                              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-card text-muted-foreground hover:bg-accent"
                           }`}
                           aria-pressed={comparisonRowsShown === rowCount}
                         >
@@ -1972,7 +1954,7 @@ function ReportContent() {
                         className="h-7 gap-1.5 rounded-md px-2.5 text-xs"
                       >
                         {isDownloadingComparisonPng ? (
-                          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                          <Spinner size="sm" />
                         ) : (
                           <Download className="h-3.5 w-3.5" />
                         )}
@@ -1983,15 +1965,15 @@ function ReportContent() {
                 </div>
                 <div
                   data-comparison-table-scroll
-                  className="overflow-auto border-t border-slate-100"
+                  className="overflow-auto border-t border-border"
                   style={{ maxHeight: pdfMode ? "none" : comparisonRowsShown === 5 ? "236px" : "436px" }}
                 >
                   <table
                     ref={comparisonTableRef}
                     data-device-comparison-table
-                    className="w-full min-w-[760px] border-collapse bg-white text-left text-xs text-slate-800"
+                    className="w-full min-w-[760px] border-collapse bg-card text-left text-xs text-foreground"
                   >
-                    <thead className="sticky top-0 z-10 bg-slate-50 text-slate-700">
+                    <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
                       <tr>
                         <th scope="col" className="w-[38%] px-3 py-2 font-medium">{t("deviceName")}</th>
                         <th scope="col" className="w-[16%] px-3 py-2 font-medium">{t("category")}</th>
@@ -2011,13 +1993,13 @@ function ReportContent() {
                         return (
                           <tr
                             key={`comparison-${getSiteSelectionId(site)}`}
-                            className={`border-t border-slate-100 ${index % 2 === 0 ? "bg-blue-50/70" : "bg-white"}`}
+                            className={`border-t border-border ${index % 2 === 0 ? "bg-accent/70" : "bg-card"}`}
                           >
-                            <th scope="row" className="px-3 py-2 font-semibold text-slate-950">
+                            <th scope="row" className="px-3 py-2 font-semibold text-foreground">
                               {site.siteDetails?.name || site.siteDetails?.formatted_name || "Unknown Device"}
                             </th>
                             <td className="px-3 py-2">{translateSiteCategory(displayCategory, reportLanguage)}</td>
-                            <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-950">
+                            <td className="whitespace-nowrap px-3 py-2 font-semibold text-foreground">
                               {typeof pm25Value === "number" ? `${pm25Value.toFixed(1)} \u00b5g/m\u00b3` : "N/A"}
                             </td>
                             <td className="px-3 py-2">
@@ -2036,7 +2018,7 @@ function ReportContent() {
                       })}
                       {filteredComparisonTableRows.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="px-3 py-8 text-center text-sm text-slate-500">
+                          <td colSpan={5} className="px-3 py-8 text-center text-sm text-muted-foreground">
                             No devices match the selected table filters.
                           </td>
                         </tr>
@@ -2046,14 +2028,14 @@ function ReportContent() {
                 </div>
               </section>
 
-              <div className="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <h4 className="font-semibold text-gray-700 mb-2">{t("keyFindings")}</h4>
+              <div className="mt-6 bg-muted p-4 rounded-lg border border-border">
+                <h4 className="font-semibold text-muted-foreground mb-2">{t("keyFindings")}</h4>
                 {reportLanguage !== "en" ? (
-                  <ul className="list-disc list-inside space-y-2 text-gray-700">
+                  <ul className="list-disc list-inside space-y-2 text-muted-foreground">
                     {localizedKeyFindings.map((finding, index) => <li key={index}>{finding}</li>)}
                   </ul>
                 ) : (
-                <ul className="list-disc list-inside space-y-2 text-gray-700">
+                <ul className="list-disc list-inside space-y-2 text-muted-foreground">
                   <li>
                     The average PM<sub>2.5</sub> concentration is{" "}
                     <strong>{calculateAveragePM25(filteredData).toFixed(1)} µg/m³</strong>, which is classified as{" "}
@@ -2135,19 +2117,19 @@ function ReportContent() {
 
             {/* Conclusion */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">{t("conclusion")}</h3>
-              <p className="text-gray-700 mb-4">{getConclusion(selectedSite, filters, filteredData)}</p>
+              <h3 className="text-lg font-medium text-foreground mb-3">{t("conclusion")}</h3>
+              <p className="text-muted-foreground mb-4">{getConclusion(selectedSite, filters, filteredData)}</p>
 
-              <p className="text-gray-700">{getRegionalInsights(filters, filteredData)}</p>
+              <p className="text-muted-foreground">{getRegionalInsights(filters, filteredData)}</p>
             </div>
 
             {/* Recommendations */}
             <div className="mb-8">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">{t("recommendations")}</h3>
+              <h3 className="text-lg font-medium text-foreground mb-3">{t("recommendations")}</h3>
 
-              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                <h4 className="font-semibold text-yellow-800 mb-2">{t("healthRecommendations")}</h4>
-                <ul className="list-disc list-inside text-yellow-700 space-y-2">
+              <div className="rounded-md border border-warning/30 bg-warning/5 p-4">
+                <h4 className="font-medium text-warning-foreground mb-2">{t("healthRecommendations")}</h4>
+                <ul className="list-disc list-inside text-foreground space-y-2">
                   {getHealthRecommendations(
                     selectedSite ? selectedSite.aqi_category : getAverageAQICategory(filteredData),
                   ).map((rec, index) => (
@@ -2160,14 +2142,14 @@ function ReportContent() {
 
             {/* Jump to Categories Button */}
             {!pdfMode && (
-              <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-cyan-50 p-4 text-left sm:flex-row sm:items-center sm:justify-between sm:p-5">
+              <div className="mt-8 flex flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-sm text-left sm:flex-row sm:items-center sm:justify-between sm:p-5">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-200">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                     <Layers className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900">Explore individual monitoring sites</p>
-                    <p className="mt-0.5 text-sm text-slate-500">Browse devices grouped by their surrounding environment.</p>
+                    <p className="font-semibold text-foreground">Explore individual monitoring sites</p>
+                    <p className="mt-0.5 text-sm text-muted-foreground">Browse devices grouped by their surrounding environment.</p>
                   </div>
                 </div>
                 <Button
@@ -2177,7 +2159,7 @@ function ReportContent() {
                       categoriesElement.scrollIntoView({ behavior: "smooth" })
                     }
                   }}
-                  className="h-11 shrink-0 rounded-xl bg-blue-600 px-5 text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg"
+                  className="h-11 shrink-0"
                 >
                   View device categories
                   <ArrowDown className="ml-2 h-4 w-4" />
@@ -2189,24 +2171,24 @@ function ReportContent() {
       )}
 
       {/* Summary Cards */}
-      <section className="mb-8 rounded-[2rem] border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-blue-50/70 p-4 shadow-sm sm:p-6">
+      <section className="mb-8 rounded-lg border border-border bg-card p-4 shadow-sm sm:p-6">
         <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">At a glance</p>
-            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Network snapshot</h2>
+            <p className="text-xs font-medium text-muted-foreground">At a glance</p>
+            <h2 className="mt-1 text-xl font-medium text-foreground">Network snapshot</h2>
           </div>
-          <p className="text-sm text-slate-500">Based on your current report filters</p>
+          <p className="text-sm text-muted-foreground">Based on your current report filters</p>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <SummaryCard
             title="Total Monitoring Sites"
             value={filteredData.length.toString()}
-            icon={<Globe className="h-7 w-7 text-blue-500" />}
+            icon={<Globe className="h-7 w-7 text-muted-foreground" />}
           />
           <SummaryCard
             title="Average PM₂.₅"
             value={`${calculateAveragePM25(filteredData).toFixed(1)} \u00B5g/m\u00B3`}
-            icon={<BarChart3 className="h-7 w-7 text-emerald-500" />}
+            icon={<BarChart3 className="h-7 w-7 text-muted-foreground" />}
           />
           <SummaryCard
             title="Weekly Change"
@@ -2218,11 +2200,11 @@ function ReportContent() {
       </section>
       {/* No results message */}
       {filteredData.length === 0 && (
-        <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-6 text-center mb-8">
-          <h3 className="text-xl font-semibold text-yellow-800 mb-2">No sites match your filters</h3>
-          <p className="text-yellow-700">
+        <div className="rounded-md border border-warning/30 bg-warning/5 p-6 text-center mb-8">
+          <h3 className="text-lg font-medium text-foreground mb-2">No sites match your filters</h3>
+          <p className="text-muted-foreground">
             Try adjusting your filter criteria or{" "}
-            <button onClick={resetFilters} className="text-blue-600 underline">
+            <button onClick={resetFilters} className="text-primary underline">
               reset all filters
             </button>
             .
@@ -2231,15 +2213,15 @@ function ReportContent() {
       )}
 
       {/* Categories Controls */}
-      <div id="categories-section" className="mb-5 flex scroll-mt-6 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <div id="categories-section" className="mb-5 flex scroll-mt-6 flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-md shadow-blue-200">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-primary/10 p-3 text-primary">
             <Layers className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">Explore the network</p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Device Categories</h2>
-            <p className="mt-1 text-sm text-slate-500">Review monitoring sites grouped by their surrounding environment.</p>
+            <p className="text-xs font-medium text-muted-foreground">Explore the network</p>
+            <h2 className="mt-1 text-xl font-medium text-foreground">Device Categories</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Review monitoring sites grouped by their surrounding environment.</p>
           </div>
         </div>
         <Button
@@ -2265,7 +2247,7 @@ function ReportContent() {
               setCollapsedCategories(collapsed)
             }
           }}
-          className="h-10 shrink-0 rounded-xl border-blue-200 bg-blue-50/60 px-4 font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-100"
+          className="h-10 shrink-0"
         >
           {Object.keys(sitesByCategory).every((category) => collapsedCategories[category] !== false)
             ? "Expand All Categories"
@@ -2277,21 +2259,21 @@ function ReportContent() {
       {Object.entries(sitesByCategory).map(([category, sites]) => (
         <div
           key={category}
-          className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-300 ease-in-out hover:shadow-md"
+          className="mb-5 overflow-hidden rounded-md border border-border bg-card shadow-sm"
         >
-          <div className="flex cursor-pointer flex-col gap-3 bg-gradient-to-r from-blue-50 via-white to-cyan-50/50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex cursor-pointer flex-col gap-3 bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div className="flex items-center">
-              <div onClick={() => toggleCategoryCollapse(category)} className="flex items-center cursor-pointer">
-                <h2 className="text-2xl font-bold text-gray-800">{category} Sites</h2>
-                <div className="ml-3 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+              <div onClick={() => toggleCategoryCollapse(category)} className="flex min-w-0 flex-wrap items-center gap-2 cursor-pointer">
+                <h2 className="text-lg font-medium text-foreground break-words">{category} Sites</h2>
+                <div className="shrink-0 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
                   {sites.length} {sites.length === 1 ? "device" : "devices"}
                 </div>
-                <div className="ml-3 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                <div className="shrink-0 rounded-md bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
                   {sites.filter((site) => selectedDevices.includes(getSiteSelectionId(site))).length} selected
                 </div>
               </div>
             </div>
-            <div className="flex items-center">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -2317,7 +2299,6 @@ function ReportContent() {
                     setSelectedDevices(newSelectedDevices)
                   }
                 }}
-                className="mr-2 text-blue-600 border-blue-200 hover:bg-blue-50"
               >
                 {sites.every((site) => selectedDevices.includes(getSiteSelectionId(site))) ? "Deselect All" : "Select All"}
               </Button>
@@ -2335,7 +2316,7 @@ function ReportContent() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="text-blue-500"
+                  className="text-muted-foreground"
                 >
                   <path d="m18 15-6-6-6 6" />
                 </svg>
@@ -2371,9 +2352,9 @@ function ReportContent() {
 
       {/* Health Tips Section */}
       {!pdfMode && (
-        <Card className="w-full shadow-lg border border-blue-100 bg-white mt-8">
-          <CardHeader className="text-center bg-blue-500 text-white rounded-t-lg">
-            <CardTitle className="text-2xl font-bold flex items-center justify-center space-x-2">
+        <Card className="w-full rounded-md border border-border bg-card mt-8">
+          <CardHeader className="text-center bg-muted rounded-t-md px-5 py-4">
+            <CardTitle className="text-lg font-medium flex items-center justify-center space-x-2">
               <HeartPulse className="w-6 h-6" />
               <span>Health Recommendations</span>
             </CardTitle>
@@ -2454,16 +2435,16 @@ function FilterMultiSelect({
 
   return (
     <div
-      className={`rounded-2xl border p-3 transition ${
+      className={`rounded-md border p-3 transition ${
         values.length
-          ? "border-blue-200 bg-blue-50/60 shadow-[0_0_0_1px_rgba(37,99,235,0.04)]"
-          : "border-slate-200 bg-white"
+          ? "border-primary/30 bg-card"
+          : "border-border bg-card"
       }`}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <label className="block text-xs font-bold uppercase tracking-[0.12em] text-slate-600">{label}</label>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-          values.length ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-500"
+        <label className="block text-xs font-medium text-muted-foreground">{label}</label>
+        <span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${
+          values.length ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
         }`}>
           {values.length || "All"}
         </span>
@@ -2474,19 +2455,19 @@ function FilterMultiSelect({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className={`min-h-12 h-auto w-full justify-between rounded-xl px-3 py-2 text-left ${
+            className={`min-h-12 h-auto w-full justify-between rounded-md px-3 py-2 text-left ${
               values.length
-                ? "border-blue-200 bg-white hover:bg-white"
-                : "border-slate-300 bg-slate-50 hover:bg-slate-100"
+                ? "border-primary/30 bg-card hover:bg-card"
+                : "border-border bg-card hover:bg-muted"
             }`}
             disabled={disabled}
           >
-            <span className={`min-w-0 flex-1 ${values.length ? "text-slate-900" : "text-slate-500"}`}>
+            <span className={`min-w-0 flex-1 ${values.length ? "text-foreground" : "text-muted-foreground"}`}>
               {values.length ? (
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-sm font-semibold">{values.slice(0, 2).join(", ")}</span>
+                  <span className="truncate text-sm font-medium">{values.slice(0, 2).join(", ")}</span>
                   {values.length > 2 && (
-                    <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                    <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                       +{values.length - 2}
                     </span>
                   )}
@@ -2495,19 +2476,19 @@ function FilterMultiSelect({
                 placeholder
               )}
             </span>
-            <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
+            <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-72 rounded-2xl border-slate-200 p-3 shadow-xl">
+        <PopoverContent align="start" className="w-72 rounded-lg border-border p-3 shadow-lg">
           <div className="mb-3 flex items-center gap-2">
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={`Search ${label.toLowerCase()}`}
-              className="h-10 rounded-xl border-slate-300 bg-slate-50"
+              className="h-10"
             />
             {values.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearAll} className="text-blue-700 hover:text-blue-900">
+              <Button variant="ghost" size="sm" onClick={clearAll} className="text-primary hover:text-primary">
                 Clear
               </Button>
             )}
@@ -2517,29 +2498,29 @@ function FilterMultiSelect({
               filteredOptions.map((option) => (
                 <label
                   key={option}
-                  className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 transition ${
+                  className={`flex cursor-pointer items-center gap-2 rounded-md border p-2.5 transition ${
                     values.includes(option)
-                      ? "border-blue-200 bg-blue-50 text-blue-900"
-                      : "border-transparent hover:bg-slate-50"
+                      ? "border-primary/20 bg-primary/5 text-foreground"
+                      : "border-transparent hover:bg-muted"
                   }`}
                 >
                   <Checkbox checked={values.includes(option)} onCheckedChange={() => toggleValue(option)} />
-                  <span className="text-sm text-gray-800">{option}</span>
+                  <span className="text-sm text-foreground">{option}</span>
                 </label>
               ))
             ) : (
-              <div className="text-xs text-gray-500 px-1 py-2">No options match your search.</div>
+              <div className="text-xs text-muted-foreground px-1 py-2">No options match your search.</div>
             )}
           </div>
-          <div className="flex items-center justify-between text-xs text-gray-500 mt-3 pt-2 border-t">
+          <div className="flex items-center justify-between text-xs text-muted-foreground mt-3 pt-2 border-t">
             <span>{values.length} selected</span>
-            <Button variant="link" size="sm" className="px-0 text-blue-600" onClick={clearAll}>
+            <Button variant="link" size="sm" className="px-0 text-primary" onClick={clearAll}>
               Clear all
             </Button>
           </div>
         </PopoverContent>
       </Popover>
-      {helperText && <p className="mt-2 min-h-8 text-xs leading-4 text-slate-500">{helperText}</p>}
+      {helperText && <p className="mt-2 min-h-8 text-xs leading-4 text-muted-foreground">{helperText}</p>}
     </div>
   )
 }
@@ -2575,99 +2556,96 @@ function SiteCard({
     switch (category.toLowerCase()) {
       case "good":
         return {
-          accent: "bg-emerald-500",
+          accent: "bg-border",
           badge: "border-emerald-200 bg-emerald-100 text-emerald-800",
-          card: "border-emerald-200 bg-gradient-to-br from-white via-white to-emerald-50/80",
-          metric: "text-emerald-700",
-          soft: "bg-emerald-50 text-emerald-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       case "moderate":
         return {
-          accent: "bg-amber-400",
+          accent: "bg-border",
           badge: "border-amber-200 bg-amber-100 text-amber-800",
-          card: "border-amber-200 bg-gradient-to-br from-white via-white to-amber-50/90",
-          metric: "text-amber-700",
-          soft: "bg-amber-50 text-amber-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       case "unhealthy for sensitive groups":
         return {
-          accent: "bg-orange-500",
+          accent: "bg-border",
           badge: "border-orange-200 bg-orange-100 text-orange-800",
-          card: "border-orange-200 bg-gradient-to-br from-white via-white to-orange-50/90",
-          metric: "text-orange-700",
-          soft: "bg-orange-50 text-orange-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       case "unhealthy":
         return {
-          accent: "bg-red-500",
+          accent: "bg-border",
           badge: "border-red-200 bg-red-100 text-red-800",
-          card: "border-red-200 bg-gradient-to-br from-white via-white to-red-50/90",
-          metric: "text-red-700",
-          soft: "bg-red-50 text-red-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       case "very unhealthy":
         return {
-          accent: "bg-purple-500",
+          accent: "bg-border",
           badge: "border-purple-200 bg-purple-100 text-purple-800",
-          card: "border-purple-200 bg-gradient-to-br from-white via-white to-purple-50/90",
-          metric: "text-purple-700",
-          soft: "bg-purple-50 text-purple-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       case "hazardous":
         return {
-          accent: "bg-rose-800",
+          accent: "bg-border",
           badge: "border-rose-300 bg-rose-100 text-rose-900",
-          card: "border-rose-300 bg-gradient-to-br from-white via-white to-rose-100/80",
-          metric: "text-rose-900",
-          soft: "bg-rose-100 text-rose-900",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
       default:
         return {
-          accent: "bg-slate-400",
+          accent: "bg-border",
           badge: "border-slate-200 bg-slate-100 text-slate-700",
-          card: "border-slate-200 bg-gradient-to-br from-white via-white to-slate-50",
-          metric: "text-slate-800",
-          soft: "bg-slate-100 text-slate-700",
+          card: "border-border bg-card",
+          metric: "text-foreground",
+          soft: "bg-muted text-muted-foreground",
         }
     }
   }
 
   const theme = getCategoryTheme(aqiCategory)
   const trendTone = percentChange < 0
-    ? "bg-emerald-50 text-emerald-700"
+    ? "bg-success/10 text-success"
     : percentChange > 0
-      ? "bg-red-50 text-red-700"
-      : "bg-slate-100 text-slate-600"
-  const wasJustSelected = getSiteSelectionId(site) === lastSelectedId
+      ? "bg-destructive/10 text-destructive"
+      : "bg-muted text-muted-foreground"
 
   return (
     <Card
-      className={`group relative w-full overflow-hidden rounded-2xl border shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${theme.card} ${
-        isSelected ? "ring-2 ring-blue-500 ring-offset-2" : ""
-      } ${isCheckboxSelected ? "shadow-blue-200/60 ring-2 ring-blue-400/70" : ""} ${
-        wasJustSelected ? "-translate-y-1 shadow-xl" : ""
-      }`}
+      className={`group relative w-full overflow-hidden rounded-md border shadow-sm ${theme.card} ${
+        isSelected ? "ring-1 ring-primary" : ""
+      } ${isCheckboxSelected ? "ring-1 ring-primary" : ""}`}
     >
       <div className={`absolute inset-x-0 top-0 h-1.5 ${theme.accent}`} />
       <CardContent className="p-4 pt-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate text-base font-bold text-slate-950">{siteName}</h3>
+              <h3 className="truncate text-base font-medium text-foreground">{siteName}</h3>
               {isCheckboxSelected && (
-                <span className="rounded-full bg-blue-600 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                <span className="rounded-md bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground">
                   Selected
                 </span>
               )}
             </div>
-            <p className="mt-0.5 text-xs font-medium text-slate-600">{areaName}</p>
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+            <p className="mt-0.5 text-xs font-medium text-muted-foreground">{areaName}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{city}, {country}</span>
             </p>
           </div>
           {onCheckboxChange && (
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white/90 shadow-sm">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card/90 shadow-sm">
               <Checkbox
                 checked={isCheckboxSelected}
                 aria-label={`Select ${siteName} for reporting`}
@@ -2679,27 +2657,27 @@ function SiteCard({
         </div>
 
         <div className="mt-3 grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)] gap-2">
-          <div className="rounded-xl border border-white/80 bg-white/80 p-3 shadow-sm backdrop-blur">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Current PM₂.₅</p>
-            <p className={`mt-0.5 text-2xl font-bold tracking-tight ${theme.metric}`}>
-              {pm25Value.toFixed(1)} <span className="text-sm font-semibold">µg/m³</span>
+          <div className="rounded-md border border-border bg-card p-3 shadow-none">
+            <p className="text-[10px] font-medium text-muted-foreground">Current PM₂.₅</p>
+            <p className={`mt-0.5 text-2xl font-medium tracking-tight ${theme.metric}`}>
+              {pm25Value.toFixed(1)} <span className="text-sm font-medium">µg/m³</span>
             </p>
           </div>
-          <div className="flex flex-col justify-between rounded-xl border border-white/80 bg-white/70 p-3 shadow-sm backdrop-blur">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">AQI status</p>
-            <span className={`mt-1.5 w-fit rounded-full border px-2 py-0.5 text-[11px] font-bold ${theme.badge}`}>
+          <div className="flex flex-col justify-between rounded-md border border-border bg-card p-3 shadow-none">
+            <p className="text-[10px] font-medium text-muted-foreground">AQI status</p>
+            <span className={`mt-1.5 w-fit rounded-md border px-2 py-0.5 text-[11px] font-medium ${theme.badge}`}>
               {aqiCategory}
             </span>
           </div>
         </div>
 
-        <div className="mt-2 rounded-xl border border-slate-200/80 bg-white/90 p-3 shadow-sm">
+        <div className="mt-2 rounded-md border border-border bg-card p-3 shadow-none">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-bold text-slate-800">Weekly comparison</p>
-              <p className="text-[10px] text-slate-500">Weekly average · µg/m³</p>
+              <p className="text-sm font-medium text-foreground">Weekly comparison</p>
+              <p className="text-[10px] text-muted-foreground">Weekly average · µg/m³</p>
             </div>
-            <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${trendTone}`}>
+            <div className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${trendTone}`}>
               {percentChange < 0 ? (
                 <ArrowDown className="h-3.5 w-3.5" />
               ) : percentChange > 0 ? (
@@ -2713,16 +2691,16 @@ function SiteCard({
 
           <div className="mt-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Previous</p>
-              <p className="text-sm font-bold text-slate-700">{previousWeek.toFixed(1)}</p>
+              <p className="text-[10px] font-medium text-muted-foreground">Previous</p>
+              <p className="text-sm font-medium text-muted-foreground">{previousWeek.toFixed(1)}</p>
               <p className="hidden">µg/m³</p>
             </div>
-            <div className={`flex h-8 w-8 items-center justify-center rounded-full ${theme.soft}`}>
+            <div className={`flex h-8 w-8 items-center justify-center rounded-md ${theme.soft}`}>
               {percentChange < 0 ? <ArrowDown className="h-4 w-4" /> : percentChange > 0 ? <ArrowUp className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Current</p>
-              <p className="text-sm font-bold text-slate-900">{currentWeek.toFixed(1)}</p>
+              <p className="text-[10px] font-medium text-muted-foreground">Current</p>
+              <p className="text-sm font-medium text-foreground">{currentWeek.toFixed(1)}</p>
               <p className="hidden">µg/m³</p>
             </div>
           </div>
@@ -2737,11 +2715,7 @@ function SiteCard({
               e.stopPropagation()
               onSelect()
             }}
-            className={`mt-3 h-9 w-full rounded-lg text-xs font-semibold transition ${
-              isSelected
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "border-blue-200 bg-white/80 text-blue-700 hover:border-blue-300 hover:bg-blue-50"
-            }`}
+            className="mt-3 h-9 w-full"
           >
             {reportDisabled ? "Select a city or district first" : isSelected ? "Selected for report" : "View detailed report"}
           </Button>
@@ -2763,18 +2737,17 @@ function SummaryCard({
   trend?: number
 }) {
   return (
-    <Card className="group relative w-full overflow-hidden rounded-2xl border-slate-200 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-400" />
+    <Card className="group relative w-full overflow-hidden rounded-md border border-border bg-card shadow-sm">
       <CardContent className="p-5 sm:p-6">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{title}</h3>
-            <div className="mt-2 flex items-center text-3xl font-bold tracking-tight text-slate-950">
+            <h3 className="text-xs font-medium text-muted-foreground">{title}</h3>
+            <div className="mt-2 flex items-center text-2xl font-medium tracking-tight text-foreground">
               {value}
               {trend !== undefined && (
                 <span
-                  className={`ml-2 rounded-full px-2 py-1 text-xs font-bold ${
-                    trend < 0 ? "bg-emerald-50 text-emerald-700" : trend > 0 ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"
+                  className={`ml-2 rounded-md px-2 py-1 text-xs font-medium ${
+                    trend < 0 ? "bg-success/10 text-success" : trend > 0 ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {trend < 0 ? "↓" : trend > 0 ? "↑" : "−"}
@@ -2782,7 +2755,7 @@ function SummaryCard({
               )}
             </div>
           </div>
-          <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 p-3.5 ring-1 ring-blue-100 transition-transform group-hover:scale-105">{icon}</div>
+          <div className="rounded-md bg-muted p-3 text-muted-foreground">{icon}</div>
         </div>
       </CardContent>
     </Card>
@@ -2791,9 +2764,9 @@ function SummaryCard({
 
 function HealthTipBox({ title, description }: { title: string; description: string }) {
   return (
-    <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-      <h3 className="text-lg font-semibold text-blue-800 mb-2">{title}</h3>
-      <p className="text-blue-700 text-sm">{description}</p>
+    <div className="rounded-md border border-border bg-muted/40 p-4">
+      <h3 className="text-sm font-medium text-foreground mb-2">{title}</h3>
+      <p className="text-sm text-muted-foreground">{description}</p>
     </div>
   )
 }
@@ -3011,9 +2984,9 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
   // Render the Moran's I analysis section
   const renderMoranAnalysis = () => (
     <div className="space-y-4">
-      <div className="bg-blue-50 p-4 rounded-lg">
-        <h4 className="font-semibold text-blue-800 mb-2">About Local Moran&apos;s I</h4>
-        <p className="text-blue-700 text-sm">
+      <div className="bg-accent p-4 rounded-lg">
+        <h4 className="font-semibold text-primary mb-2">About Local Moran&apos;s I</h4>
+        <p className="text-primary text-sm">
           Local Moran&apos;s I is a spatial autocorrelation statistic that identifies clusters and spatial outliers. It
           helps identify areas with similar values clustered together (HH, LL) and areas that are different from their
           neighbors (HL, LH).
@@ -3070,7 +3043,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
                     <div className="font-medium text-sm">
                       {item.type}: {item.count} sites
                     </div>
-                    <div className="text-xs text-gray-600">{item.description}</div>
+                    <div className="text-xs text-muted-foreground">{item.description}</div>
                   </div>
                 </div>
               ))}
@@ -3079,9 +3052,9 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
         </Card>
       </div>
 
-      <div className="bg-white p-4 rounded-lg border border-gray-200">
-        <h4 className="font-semibold text-gray-700 mb-2">Key Insights from Local Moran&apos;s I Analysis</h4>
-        <ul className="list-disc list-inside space-y-1 text-gray-700 text-sm">
+      <div className="bg-card p-4 rounded-lg border border-border">
+        <h4 className="font-semibold text-muted-foreground mb-2">Key Insights from Local Moran&apos;s I Analysis</h4>
+        <ul className="list-disc list-inside space-y-1 text-muted-foreground text-sm">
           <li>
             <strong>High-High Clusters:</strong> {moranData[0].count} sites show high PM₂.₅ values clustered together,
             indicating potential pollution hotspots that require immediate attention.
@@ -3115,16 +3088,16 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
                 {item.devices && item.devices.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-1 mt-1">
                     {item.devices.slice(0, 4).map((device, idx) => (
-                      <div key={idx} className="text-xs bg-gray-50 p-1 rounded">
+                      <div key={idx} className="text-xs bg-muted p-1 rounded">
                         {device}
                       </div>
                     ))}
                     {item.devices.length > 4 && (
-                      <div className="text-xs text-gray-500">+{item.devices.length - 4} more devices</div>
+                      <div className="text-xs text-muted-foreground">+{item.devices.length - 4} more devices</div>
                     )}
                   </div>
                 ) : (
-                  <div className="text-xs text-gray-500">No devices in this category</div>
+                  <div className="text-xs text-muted-foreground">No devices in this category</div>
                 )}
               </div>
             ))}
@@ -3137,9 +3110,9 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
   // Render the Getis-Ord analysis section
   const renderGetisOrdAnalysis = () => (
     <div className="space-y-4">
-      <div className="bg-blue-50 p-4 rounded-lg">
-        <h4 className="font-semibold text-blue-800 mb-2">About Getis-Ord Gi* (Hot Spot Analysis)</h4>
-        <p className="text-blue-700 text-sm">
+      <div className="bg-accent p-4 rounded-lg">
+        <h4 className="font-semibold text-primary mb-2">About Getis-Ord Gi* (Hot Spot Analysis)</h4>
+        <p className="text-primary text-sm">
           Getis-Ord Gi* is a spatial statistic that identifies statistically significant hot spots (high values) and
           cold spots (low values) in your data. The analysis shows where features with high or low values cluster
           spatially, with different confidence levels (90%, 95%, 99%).
@@ -3196,7 +3169,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
                     <div className="font-medium text-sm">
                       {item.type}: {item.count} sites
                     </div>
-                    <div className="text-xs text-gray-600">{item.description}</div>
+                    <div className="text-xs text-muted-foreground">{item.description}</div>
                   </div>
                 </div>
               ))}
@@ -3205,9 +3178,9 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
         </Card>
       </div>
 
-      <div className="bg-white p-4 rounded-lg border border-gray-200">
-        <h4 className="font-semibold text-gray-700 mb-2">Key Insights from Getis-Ord Gi* Analysis</h4>
-        <ul className="list-disc list-inside space-y-1 text-gray-700 text-sm">
+      <div className="bg-card p-4 rounded-lg border border-border">
+        <h4 className="font-semibold text-muted-foreground mb-2">Key Insights from Getis-Ord Gi* Analysis</h4>
+        <ul className="list-disc list-inside space-y-1 text-muted-foreground text-sm">
           <li>
             <strong>Significant Hot Spots:</strong>{" "}
             {getisOrdData[0].count + getisOrdData[1].count + getisOrdData[2].count} sites are identified as
@@ -3243,16 +3216,16 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
                 {item.devices && item.devices.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-1 mt-1">
                     {item.devices.slice(0, 4).map((device, idx) => (
-                      <div key={idx} className="text-xs bg-gray-50 p-1 rounded">
+                      <div key={idx} className="text-xs bg-muted p-1 rounded">
                         {device}
                       </div>
                     ))}
                     {item.devices.length > 4 && (
-                      <div className="text-xs text-gray-500">+{item.devices.length - 4} more devices</div>
+                      <div className="text-xs text-muted-foreground">+{item.devices.length - 4} more devices</div>
                     )}
                   </div>
                 ) : (
-                  <div className="text-xs text-gray-500">No devices in this category</div>
+                  <div className="text-xs text-muted-foreground">No devices in this category</div>
                 )}
               </div>
             ))}
@@ -3265,7 +3238,7 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-semibold text-gray-800">Advanced Spatial Analysis</h3>
+        <h3 className="text-xl font-semibold text-foreground">Advanced Spatial Analysis</h3>
         {effectiveTab !== "both" && (
           <div className="flex space-x-2">
             <Button
@@ -3292,11 +3265,11 @@ function AdvancedAnalysisSection({ sites, activeTab = "moran" }: { sites: SiteDa
       {effectiveTab === "both" ? (
         <>
           <div className="mb-8">
-            <h3 className="text-2xl font-semibold text-blue-800 mb-4">Local Moran&apos;s I Analysis</h3>
+            <h3 className="text-2xl font-semibold text-primary mb-4">Local Moran&apos;s I Analysis</h3>
             {renderMoranAnalysis()}
           </div>
-          <div className="pt-8 border-t border-gray-200">
-            <h3 className="text-2xl font-semibold text-blue-800 mb-4">Getis-Ord Gi* Analysis</h3>
+          <div className="pt-8 border-t border-border">
+            <h3 className="text-2xl font-semibold text-primary mb-4">Getis-Ord Gi* Analysis</h3>
             {renderGetisOrdAnalysis()}
           </div>
         </>
