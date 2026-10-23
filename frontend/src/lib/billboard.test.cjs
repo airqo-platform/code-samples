@@ -12,6 +12,15 @@ function load(path, globals = {}) {
     require: name => { if (name === '@/lib/airqo-api-config') return load('airqo-api-config.ts'); if (name === '@/lib/billboard') return load('billboard.ts'); if (name === '@/lib/airqo-grid-cache') return { getCachedGridResponse: async url => { const response = await globals.fetch(new URL(url), {}); if (!response.ok) throw Error('upstream unavailable'); return { body: await response.text(), status: response.status }; } }; throw Error(`Unexpected import: ${name}`) }, ...globals })
   return module.exports
 }
+test('map coordinates fall back to forecast metadata and preserve zero', () => {
+  const { billboardCoordinates } = load('billboard.ts')
+  const forecast = { site_details: { site_id: 'a', site_latitude: 0, site_longitude: 32 }, forecasts: [] }
+  assert.equal(JSON.stringify(billboardCoordinates({}, forecast)), '[0,32]')
+  assert.equal(JSON.stringify(billboardCoordinates({ siteDetails: { latitude: '1.5', longitude: '33' } }, forecast)), '[1.5,33]')
+  assert.equal(JSON.stringify(billboardCoordinates({ siteDetails: { latitude: 999, longitude: 33 } }, forecast)), '[0,32]')
+  assert.equal(billboardCoordinates({ siteDetails: { latitude: null, longitude: '' } }), null)
+})
+
 test('unknown pollution values are never classified as good air', () => {
   const { category } = load('billboard.ts')
   for (const n of [null, undefined, NaN, -1]) assert.equal(category(n).label, 'Unavailable')
@@ -59,7 +68,7 @@ test('default load fetches weekly data only and compacts readings without creden
       calls.push(url)
       if (url.pathname.includes('measurements')) {
         const second = url.searchParams.get('skip') === '80'
-        return Response.json({ measurements: Array.from({ length: second ? 1 : 80 }, () => ({ site_id: 'one-site', time: second ? '2026-10-19T12:00:00Z' : '2026-10-18T12:00:00Z', pm2_5: { value: second ? 15 : 10 }, unused_large_field: 'omit this' })), meta: { total: 81 } })
+        return Response.json({ measurements: Array.from({ length: second ? 1 : 80 }, () => ({ site_id: 'one-site', time: second ? '2026-10-19T12:00:00Z' : '2026-10-18T12:00:00Z', pm2_5: { value: second ? 15 : 10 }, siteDetails: { approximate_latitude: 0, approximate_longitude: 32, latitude: 1, longitude: 33 }, unused_large_field: 'omit this' })), meta: { total: 81 } })
       }
       if (url.pathname.includes('hourly')) return new Response('', { status: 403 })
       return Response.json([{ success: true, data: [{ forecasts: [] }] }])
@@ -69,6 +78,8 @@ test('default load fetches weekly data only and compacts readings without creden
   const body = await response.json()
   assert.equal(body.measurements.length, 1)
   assert.equal(body.measurements[0].pm2_5.value, 15)
+  assert.equal(body.measurements[0].siteDetails.latitude, 0)
+  assert.equal(body.measurements[0].siteDetails.longitude, 32)
   assert.equal(body.measurements[0].unused_large_field, undefined)
   assert.equal(body.warnings.length, 0)
   assert.equal(body.hourly, undefined)

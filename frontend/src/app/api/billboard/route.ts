@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       const data = await get("predict/daily-forecasting", { ...scope, limit: "100", page: String(page) })
       for (const site of data.forecasts || []) {
         if (!site.site_details?.site_id) continue
-        rows.push({ site_details: { site_id: site.site_details.site_id, site_name: site.site_details.site_name }, forecasts: (site.forecasts || []).slice(0, 7).map((p: ForecastSite["forecasts"][number]) => ({
+        rows.push({ site_details: { site_id: site.site_details.site_id, site_name: site.site_details.site_name, site_latitude: site.site_details.site_latitude, site_longitude: site.site_details.site_longitude }, forecasts: (site.forecasts || []).slice(0, 7).map((p: ForecastSite["forecasts"][number]) => ({
           ...(p.date ? { date: p.date } : {}), ...(p.timestamp ? { timestamp: p.timestamp } : {}),
           forecast: { pm2_5_mean: p.forecast?.pm2_5_mean ?? null },
           aqi: { aqi_category: p.aqi?.aqi_category, label: p.aqi?.label },
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
   }
   const results = await Promise.allSettled([measurements(), forecasts()])
   const warnings = results.flatMap((r, i) => r.status === "rejected" ? [i === 0 ? "Current readings could not be loaded." : "Daily forecasts unavailable. Forecasts require Premium access."] : [])
-  const compactReadings = results[0].status === "fulfilled" ? Array.from(latestReadings(results[0].value), ([site_id, r]) => ({ site_id, time: r.time, pm2_5: { value: r.pm2_5?.value ?? null }, siteDetails: { name: r.siteDetails?.description || r.siteDetails?.name } })) : []
+  const compactReadings = results[0].status === "fulfilled" ? Array.from(latestReadings(results[0].value), ([site_id, r]) => ({ site_id, time: r.time, pm2_5: { value: r.pm2_5?.value ?? null }, siteDetails: { name: r.siteDetails?.description || r.siteDetails?.name, latitude: r.siteDetails?.approximate_latitude ?? r.siteDetails?.latitude, longitude: r.siteDetails?.approximate_longitude ?? r.siteDetails?.longitude } })) : []
   const body = JSON.stringify({ measurements: compactReadings, daily: results[1].status === "fulfilled" ? results[1].value : [], warnings })
   // Reserve room for the page shell and assets within the 2 MB display budget.
   if (new TextEncoder().encode(body).byteLength > 1000000) return Response.json({ message: "This network is too large for the lightweight billboard. Choose a smaller grid or cohort." }, { status: 413 })
