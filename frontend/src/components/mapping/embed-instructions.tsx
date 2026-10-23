@@ -26,7 +26,7 @@ export default function EmbedInstructions() {
   const snippet = `<iframe
   src="${origin}/website-map-integration?grid_id=${id}"
   title="Air Quality Map"
-  style="width:100%;height:800px;border:0;display:block;"
+  style="width:100%;height:500px;border:0;display:block;"
   loading="lazy"
 ></iframe>`
 

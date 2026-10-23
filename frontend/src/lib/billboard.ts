@@ -31,7 +31,7 @@ export function categoryImage(value: number | null | undefined) {
 export function category(value: number | null | undefined) {
   if (value == null || !Number.isFinite(value) || value < 0) return { label: "Unavailable", color: "#64748b", action: "Check back for a recent reading.", indoors: true }
   if (value <= 9.1) return { label: "Good", color: "#15803d", action: "Enjoy your usual outdoor activities.", indoors: false }
-  if (value <= 35.49) return { label: "Moderate", color: "#a16207", action: "If you are sensitive to air pollution, consider reducing prolonged outdoor exertion.", indoors: false }
+  if (value <= 35.49) return { label: "Moderate", color: "#FDD64B", action: "If you are sensitive to air pollution, consider reducing prolonged outdoor exertion.", indoors: false }
   if (value <= 55.49) return { label: "Unhealthy for sensitive groups", color: "#c2410c", action: "Sensitive groups should reduce prolonged or heavy outdoor exertion.", indoors: true }
   if (value <= 125.49) return { label: "Unhealthy", color: "#dc2626", action: "Reduce prolonged or heavy outdoor exertion. Choose a cleaner indoor space when possible.", indoors: true }
   return { label: value <= 225.49 ? "Very unhealthy" : "Hazardous", color: "#7e225c", action: "Avoid outdoor exertion and seek a cleaner indoor space. Follow local health advice.", indoors: true }
