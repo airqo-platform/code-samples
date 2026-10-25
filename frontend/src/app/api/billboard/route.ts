@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     let response
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        if (refresh && path === "predict/daily-forecasting") {
+        if (refresh) {
           const fresh = await fetchAirQo(url, { headers: { Accept: "application/json" } })
           response = { body: await fresh.text(), status: fresh.status, contentType: "application/json" }
           if (!fresh.ok) throw new UncachedGridResponse(response)

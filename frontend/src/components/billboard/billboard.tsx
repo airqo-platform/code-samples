@@ -46,7 +46,7 @@ export default function Billboard() {
   const gridId = params.get("grid_id"), cohortId = params.get("cohort_id")
   const display = Boolean(gridId || cohortId)
   const [mapIntroDone, setMapIntroDone] = useState(false)
-  useEffect(() => { setMapIntroDone(false) }, [gridId, cohortId])
+  useEffect(() => { setMapIntroDone(false); setIndex(0); setDay(0); setRotate(true) }, [gridId, cohortId])
   const [scope, setScope] = useState("grid")
   const [id, setId] = useState("")
   const [countryId, setCountryId] = useState("")
@@ -280,7 +280,7 @@ export default function Billboard() {
         {error && <p role="alert" className="mb-5 rounded-md bg-red-50 p-4 text-red-800">{error} {data ? "Previously loaded data is shown below." : ""}</p>}
         {data && <>
           <div className="mb-5 flex flex-wrap items-center gap-3"><label htmlFor="location" className="font-semibold">Monitoring location</label><select id="location" className={`${field} !w-auto max-w-full`} value={site?.siteId || ""} onChange={e => { setIndex(sites.findIndex(s => s.siteId === e.target.value)); setDay(0); setRotate(false) }}>{sites.map(s => <option key={s.siteId} value={s.siteId}>{s.name}</option>)}</select>{sites.length > 1 && <button onClick={() => setRotate(!rotate)} className={button}>{rotate ? <Pause size={16} /> : <Play size={16} />}{rotate ? "Pause rotation" : "Resume rotation"}</button>}<span className="text-sm text-muted-foreground">{sites.length} locations with available data</span></div>
-          {!sites.length && <p className="rounded-md bg-card p-8">No monitoring data is available for this selection.</p>}
+          {!sites.length && <div className="rounded-md bg-card p-8"><p>{data.warnings.some(w => w.startsWith("Current readings")) ? "Monitoring readings could not be loaded. Try refreshing this selection." : "No valid PM2.5 monitoring readings are available for this selection."}</p><Button type="button" variant="outline" className="mt-4" disabled={refreshing} aria-busy={refreshing} onClick={() => void refreshForecasts.current?.()}>{refreshing ? "Refreshing data..." : "Refresh data"}</Button></div>}
           {sites.length > 0 && <>
             <div ref={billboardRef} data-theme={theme} aria-label="Air Quality Live" tabIndex={-1} className={`billboard-surface ${presentation ? "is-presenting" : ""} overflow-hidden rounded-md bg-[var(--billboard-bg)] text-[var(--billboard-text)] shadow-xl shadow-slate-300/40`} style={{ border: `1px solid ${current.color}80` }}>
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--billboard-line)] px-6 py-4">

@@ -204,6 +204,7 @@ test('manual refresh bypasses forecast server cache and returns an uncached resp
     fetch: async url => { assert.ok(url.pathname.includes('measurements')); return Response.json({ measurements: [] }) },
     freshFetch: async url => {
       freshCalls++
+      if (url.pathname.includes('measurements')) return Response.json({ measurements: [] })
       assert.ok(url.pathname.includes('daily-forecasting'))
       assert.equal(url.searchParams.get('days'), '7')
       assert.equal(url.searchParams.has('refresh'), false)
@@ -211,7 +212,7 @@ test('manual refresh bypasses forecast server cache and returns an uncached resp
     },
   })
   const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=gulu&refresh=1') })
-  assert.equal(freshCalls, 1)
+  assert.equal(freshCalls, 2)
   assert.equal(response.headers.get('Cache-Control'), 'no-store, max-age=0')
   assert.equal((await response.json()).daily.length, 1)
 })

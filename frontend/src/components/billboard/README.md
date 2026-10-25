@@ -36,3 +36,5 @@ Action playback uses CSS sprite steps with no canvas, animation loop, or animati
 Optional activity scenes, the country/grid picker and QR component load in separate chunks when rendered. The global data warmup dynamically imports map/report services only on routes that use them. Grid filtering, weekly forecast selection and timezone suggestions avoid repeating work on unrelated UI updates.
 
 The Refresh forecasts button bypasses the browser, CDN and upstream forecast caches for a manual fetch, with the same bounded retry policy. It keeps the current display visible while refreshing and replaces the hourly browser cache with the new response. Automatic refresh remains hourly.
+
+Switching city resets location rotation and the selected forecast day. The empty display distinguishes a failed readings request from no valid PM2.5 readings, and provides Refresh data. Manual refresh bypasses the server cache for both readings and forecasts, retaining the hourly browser cache policy.
