@@ -4,8 +4,10 @@ import { latestReadings } from "@/lib/billboard"
 import { AIRQO_API_URL, unwrapForecastPayload } from "@/lib/airqo-api-config"
 import { getCachedGridResponse, UncachedGridResponse } from "@/lib/airqo-grid-cache"
 import { delay, RETRYABLE_API_STATUSES } from "@/lib/api-shared"
+import { fetchAirQo } from "@/lib/airqo-server-transport"
 
 export async function GET(request: NextRequest) {
+  const refresh = request.nextUrl.searchParams.get("refresh") === "1"
   const grid = request.nextUrl.searchParams.get("grid_id")
   const cohort = request.nextUrl.searchParams.get("cohort_id")
   const id = grid || cohort
@@ -18,7 +20,11 @@ export async function GET(request: NextRequest) {
     let response
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        response = await getCachedGridResponse(url.toString())
+        if (refresh && path === "predict/daily-forecasting") {
+          const fresh = await fetchAirQo(url, { headers: { Accept: "application/json" } })
+          response = { body: await fresh.text(), status: fresh.status, contentType: "application/json" }
+          if (!fresh.ok) throw new UncachedGridResponse(response)
+        } else response = await getCachedGridResponse(url.toString())
         break
       } catch (error) {
         const status = error instanceof UncachedGridResponse ? error.response.status : null
@@ -80,5 +86,5 @@ export async function GET(request: NextRequest) {
   const body = JSON.stringify({ measurements: compactReadings, daily: results[1].status === "fulfilled" ? results[1].value : [], warnings })
   // Reserve room for the page shell and assets within the 2 MB display budget.
   if (new TextEncoder().encode(body).byteLength > 1000000) return Response.json({ message: "This network is too large for the lightweight billboard. Choose a smaller grid or cohort." }, { status: 413 })
-  return new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": warnings.length ? "no-store, max-age=0" : "public, s-maxage=300, stale-while-revalidate=3600" } })
+  return new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": refresh || warnings.length ? "no-store, max-age=0" : "public, s-maxage=300, stale-while-revalidate=3600" } })
 }

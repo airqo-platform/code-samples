@@ -12,7 +12,7 @@ function load(path, globals = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
   vm.runInNewContext(code, { module, exports: module.exports, Map, Set, URL, Response, AbortSignal, TextEncoder,
-    require: name => { if (name === '@/lib/airqo-api-config') return load('airqo-api-config.ts'); if (name === '@/lib/billboard') return load('billboard.ts'); if (name === '@/lib/api-shared') return { delay: async () => {}, RETRYABLE_API_STATUSES: new Set([429, 500, 502, 503, 504]) }; if (name === '@/lib/airqo-grid-cache') return { UncachedGridResponse, getCachedGridResponse: async url => { const response = await globals.fetch(new URL(url), {}); if (!response.ok) throw new UncachedGridResponse({ status: response.status }); return { body: await response.text(), status: response.status }; } }; throw Error(`Unexpected import: ${name}`) }, ...globals })
+    require: name => { if (name === '@/lib/airqo-api-config') return load('airqo-api-config.ts'); if (name === '@/lib/billboard') return load('billboard.ts'); if (name === '@/lib/airqo-server-transport') return { fetchAirQo: async url => globals.freshFetch(new URL(url)) }; if (name === '@/lib/api-shared') return { delay: async () => {}, RETRYABLE_API_STATUSES: new Set([429, 500, 502, 503, 504]) }; if (name === '@/lib/airqo-grid-cache') return { UncachedGridResponse, getCachedGridResponse: async url => { const response = await globals.fetch(new URL(url), {}); if (!response.ok) throw new UncachedGridResponse({ status: response.status }); return { body: await response.text(), status: response.status }; } }; throw Error(`Unexpected import: ${name}`) }, ...globals })
   return module.exports
 }
 test('map coordinates fall back to forecast metadata and preserve zero', () => {
@@ -195,4 +195,23 @@ test('a temporary forecast failure recovers on retry', async () => {
   assert.equal(body.daily[0].forecasts[0].date, '2026-10-25')
   assert.equal(body.daily[0].forecasts[6].date, '2026-10-31')
   assert.equal(body.daily[0].forecasts[3].forecast.pm2_5_mean, null)
+})
+
+test('manual refresh bypasses forecast server cache and returns an uncached response', async () => {
+  let freshCalls = 0
+  const { GET } = load('../app/api/billboard/route.ts', {
+    process: { env: { API_TOKEN: 'test' } },
+    fetch: async url => { assert.ok(url.pathname.includes('measurements')); return Response.json({ measurements: [] }) },
+    freshFetch: async url => {
+      freshCalls++
+      assert.ok(url.pathname.includes('daily-forecasting'))
+      assert.equal(url.searchParams.get('days'), '7')
+      assert.equal(url.searchParams.has('refresh'), false)
+      return Response.json({ forecasts: [{ site_details: { site_id: 'a' }, forecasts: [] }] })
+    },
+  })
+  const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=gulu&refresh=1') })
+  assert.equal(freshCalls, 1)
+  assert.equal(response.headers.get('Cache-Control'), 'no-store, max-age=0')
+  assert.equal((await response.json()).daily.length, 1)
 })

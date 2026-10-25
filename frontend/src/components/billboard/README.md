@@ -34,3 +34,5 @@ Credential handling: server callers and persistent cache keys use clean URLs. `f
 Action playback uses CSS sprite steps with no canvas, animation loop, or animation library, avoiding ghosted outlines from overlapping poses. Continuous strides/pedalling loop forward; gestures play forward and back to avoid abrupt resets. Scene changes use a brief 120ms entrance fade with no fade-out. True high-frame-rate character animation requires richer source artwork.
 
 Optional activity scenes, the country/grid picker and QR component load in separate chunks when rendered. The global data warmup dynamically imports map/report services only on routes that use them. Grid filtering, weekly forecast selection and timezone suggestions avoid repeating work on unrelated UI updates.
+
+The Refresh forecasts button bypasses the browser, CDN and upstream forecast caches for a manual fetch, with the same bounded retry policy. It keeps the current display visible while refreshing and replaces the hourly browser cache with the new response. Automatic refresh remains hourly.

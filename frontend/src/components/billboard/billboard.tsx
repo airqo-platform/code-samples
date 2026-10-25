@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import "./billboard.css"
 import dynamic from "next/dynamic"
 import { AppLoader } from "@/components/layout/app-loader"
+import { Button } from "@/components/ui/button"
 import QuickPlaces, { useFavourites } from "./quick-places"
 import { gridsWithinCountry, loadBillboardGrids, type BillboardGrid } from "@/lib/billboard-grids"
 import Link from "next/link"
@@ -58,6 +59,8 @@ export default function Billboard() {
   const [gridError, setGridError] = useState("")
   const [data, setData] = useState<BillboardData | null>(null)
   const [loading, setLoading] = useState(display)
+  const [refreshing, setRefreshing] = useState(false)
+  const refreshForecasts = useRef<(() => Promise<void>) | null>(null)
   const [error, setError] = useState("")
   const [status, setStatus] = useState("")
   const [origin, setOrigin] = useState("")
@@ -154,30 +157,34 @@ export default function Billboard() {
     setData(null)
     setError("")
     let busy = false
-    async function load() {
+    async function load(force = false) {
       if (busy) return
       busy = true
+      if (force) setRefreshing(true)
       try {
         const search = new URLSearchParams()
         if (gridId) search.set("grid_id", gridId)
         if (cohortId) search.set("cohort_id", cohortId)
         const cacheKey = `billboard:${search}`
         const cached = await readBrowserApiCache<BrowserApiCacheEntry<BillboardData>>(cacheKey)
-        if (isBrowserApiCacheFresh(cached, BILLBOARD_REFRESH_MS)) {
+        if (!force && isBrowserApiCacheFresh(cached, BILLBOARD_REFRESH_MS)) {
           if (!controller.signal.aborted) { setData(cached.data); setError(""); setNow(Date.now()) }
           return
         }
-        const response = await fetch(`/api/billboard?${search}`, { signal: controller.signal })
+        if (force) search.set("refresh", "1")
+        const response = await fetch(`/api/billboard?${search}`, { signal: controller.signal, ...(force ? { cache: "no-store" as const } : {}) })
         const body = await response.json()
         if (!response.ok) throw Error(body.message || "Unable to load billboard.")
         await writeBrowserApiCache(cacheKey, body)
         if (!controller.signal.aborted) { setData(body); setError(""); setNow(Date.now()) }
       } catch (e) { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Unable to refresh data.") }
-      finally { busy = false; if (!controller.signal.aborted) setLoading(false) }
+      finally { busy = false; if (!controller.signal.aborted) { setLoading(false); setRefreshing(false) } }
     }
+    setRefreshing(false)
+    refreshForecasts.current = () => load(true)
     void load()
     const timer = setInterval(() => { setNow(Date.now()); void load() }, BILLBOARD_REFRESH_MS)
-    return () => { controller.abort(); clearInterval(timer) }
+    return () => { refreshForecasts.current = null; controller.abort(); clearInterval(timer) }
   }, [display, gridId, cohortId])
   useEffect(() => {
     if (!display || loading || !data || mapIntroDone || !rotate) return
@@ -306,6 +313,7 @@ export default function Billboard() {
                 </div>
               </div>
               <section className="billboard-week mx-4 mb-4 rounded-md border border-[var(--billboard-line)] bg-[var(--billboard-panel)] p-4 md:mx-6">
+                <Button type="button" variant="outline" disabled={refreshing} aria-busy={refreshing} onClick={() => void refreshForecasts.current?.()} className="mb-3 border-[var(--billboard-line)] bg-transparent text-[var(--billboard-text)] hover:bg-[var(--billboard-hover)] hover:text-[var(--billboard-text)]">{refreshing ? "Refreshing forecasts…" : "Refresh forecasts"}</Button>
                 <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-bold">Your week ahead</h2><span className="text-xs text-[var(--billboard-muted)]">PM₂.₅ forecast · Select a day for weather</span></div>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">{daily.map((p, i) => <button key={p.date} aria-pressed={selected === p} onClick={() => setDay(i)} className={`rounded-md border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--billboard-accent)] ${selected === p ? "border-[var(--billboard-accent)] bg-[var(--billboard-selected)]" : "border-transparent bg-[var(--billboard-card)] hover:bg-[var(--billboard-hover)]"}`}>
                   <p className="text-xs font-semibold text-[var(--billboard-muted)]">{new Date(`${p.date}T12:00:00`).toLocaleDateString([], { weekday: "short", day: "numeric" })}</p>
