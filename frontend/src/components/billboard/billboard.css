@@ -1,4 +1,5 @@
 .billboard-surface {
+  --heading: 0 0% 100%;
   --billboard-bg: #061b33;
   --billboard-text: #ffffff;
   --billboard-muted: #cbd5e1;
@@ -11,6 +12,7 @@
   --billboard-selected: #67e8f91a;
 }
 .billboard-surface[data-theme="light"] {
+  --heading: 217 43% 11%;
   --billboard-bg: #ffffff;
   --billboard-text: #0f172a;
   --billboard-muted: #475569;
