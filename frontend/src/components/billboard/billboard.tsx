@@ -181,7 +181,7 @@ export default function Billboard() {
   }, [display, gridId, cohortId])
   useEffect(() => {
     if (!display || loading || !data || mapIntroDone || !rotate) return
-    const timer = setTimeout(() => { setIndex(0); setDay(0); setMapIntroDone(true) }, 15000)
+    const timer = setTimeout(() => { setIndex(0); setDay(0); setMapIntroDone(true) }, 8000)
     return () => clearTimeout(timer)
   }, [display, loading, data, mapIntroDone, rotate])
   const readings = useMemo(() => new Map(Array.from(latestReadings(data?.measurements || [])).filter(([, reading]) => hasPm25(reading.pm2_5?.value))), [data])
@@ -206,9 +206,7 @@ export default function Billboard() {
   const reading = site ? readings.get(site.siteId) : undefined
   const stale = !reading?.time || now - Date.parse(reading.time) > 3 * 3600000
   const current = category(reading?.pm2_5?.value)
-  const today = new Date(now || Date.now())
-  const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
-  const daily = useMemo(() => (data?.daily.find(s => s.site_details?.site_id === site?.siteId)?.forecasts || []).filter(p => p.date && p.date >= localDate && hasPm25(p.forecast?.pm2_5_mean)).sort((a,b) => a.date!.localeCompare(b.date!)).slice(0,7), [data, site?.siteId, localDate])
+  const daily = useMemo(() => (data?.daily.find(s => s.site_details?.site_id === site?.siteId)?.forecasts || []).filter(p => p.date).sort((a,b) => a.date!.localeCompare(b.date!)).slice(0,7), [data, site?.siteId])
 
   const selected = daily[day] || daily[0]
   const met = selected?.met
@@ -287,7 +285,7 @@ export default function Billboard() {
                 <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
                   <h2 className="font-semibold">{params.get("title") || "Your monitoring locations"}</h2>
                   <button className={button} onClick={() => { setIndex(0); setDay(0); setMapIntroDone(true) }}>Skip to air quality</button>
-                  <p className="w-full text-sm text-[var(--billboard-muted)]">{rotate ? "Map, then each location for 15 seconds. Repeats automatically." : "Rotation paused."}</p>
+                  <p className="w-full text-sm text-[var(--billboard-muted)]">{rotate ? "Map for 8 seconds, then each location for 15 seconds. Repeats automatically." : "Rotation paused."}</p>
                 </div>
                 <BillboardMap measurements={data.measurements} daily={data.daily} visible={!mapIntroDone} />
               </section>

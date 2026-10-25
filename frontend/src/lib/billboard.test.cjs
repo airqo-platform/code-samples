@@ -3,13 +3,16 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
 const ts = require('typescript')
+class UncachedGridResponse extends Error {
+  constructor(response) { super('upstream unavailable'); this.response = response }
+}
 function load(path, globals = {}) {
   const module = { exports: {} }
   const code = ts.transpileModule(fs.readFileSync(`${__dirname}/${path}`, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText
   vm.runInNewContext(code, { module, exports: module.exports, Map, Set, URL, Response, AbortSignal, TextEncoder,
-    require: name => { if (name === '@/lib/airqo-api-config') return load('airqo-api-config.ts'); if (name === '@/lib/billboard') return load('billboard.ts'); if (name === '@/lib/airqo-grid-cache') return { getCachedGridResponse: async url => { const response = await globals.fetch(new URL(url), {}); if (!response.ok) throw Error('upstream unavailable'); return { body: await response.text(), status: response.status }; } }; throw Error(`Unexpected import: ${name}`) }, ...globals })
+    require: name => { if (name === '@/lib/airqo-api-config') return load('airqo-api-config.ts'); if (name === '@/lib/billboard') return load('billboard.ts'); if (name === '@/lib/api-shared') return { delay: async () => {}, RETRYABLE_API_STATUSES: new Set([429, 500, 502, 503, 504]) }; if (name === '@/lib/airqo-grid-cache') return { UncachedGridResponse, getCachedGridResponse: async url => { const response = await globals.fetch(new URL(url), {}); if (!response.ok) throw new UncachedGridResponse({ status: response.status }); return { body: await response.text(), status: response.status }; } }; throw Error(`Unexpected import: ${name}`) }, ...globals })
   return module.exports
 }
 test('map coordinates fall back to forecast metadata and preserve zero', () => {
@@ -124,4 +127,72 @@ test('activity scenes reserve vigorous sports for good air', () => {
   assert.equal(activityForAir(180, 'football'), 'resting')
   assert.equal(activityForAir(280, 'football'), 'window')
   assert.equal(activityForAir(null), 'unavailable')
+})
+
+for (const status of [401, 403, 503]) {
+  test(`forecast HTTP ${status} has accurate warnings, bounded retries and no CDN caching`, async () => {
+    let calls = 0
+    const { GET } = load('../app/api/billboard/route.ts', {
+      process: { env: { API_TOKEN: 'test' } },
+      fetch: async url => {
+        if (!url.pathname.includes('daily')) return Response.json({ measurements: [] })
+        calls++
+        return new Response('', { status })
+      },
+    })
+    const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=gulu') })
+    const body = await response.json()
+    assert.equal(calls, status === 503 ? 3 : 1)
+    assert.equal(response.headers.get('Cache-Control'), 'no-store, max-age=0')
+    assert.match(body.warnings[0], status === 503 ? /temporarily/ : /token/)
+    if (status === 503) assert.doesNotMatch(body.warnings[0], /Premium/)
+  })
+}
+
+test('forecasts survive a later page failure', async () => {
+  const { GET } = load('../app/api/billboard/route.ts', {
+    process: { env: { API_TOKEN: 'test' } },
+    fetch: async url => {
+      if (!url.pathname.includes('daily')) return Response.json({ measurements: [] })
+      if (url.searchParams.get('page') === '2') return new Response('', { status: 502 })
+      return Response.json({ total_pages: 2, forecasts: [{ site_details: { site_id: 'a' }, forecasts: [{ date: '2026-10-25', forecast: { pm2_5_mean: 0 } }] }] })
+    },
+  })
+  const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=gulu') })
+  const body = await response.json()
+  assert.equal(body.daily.length, 1)
+  assert.equal(body.daily[0].forecasts[0].forecast.pm2_5_mean, 0)
+  assert.match(body.warnings[0], /Some daily/)
+})
+
+test('a temporary forecast failure recovers on retry', async () => {
+  let calls = 0
+  const { GET } = load('../app/api/billboard/route.ts', {
+    process: { env: { API_TOKEN: 'test' } },
+    fetch: async url => {
+      if (!url.pathname.includes('daily')) return Response.json({ measurements: [] })
+      if (++calls === 1) return new Response('', { status: 503 })
+      return Response.json({ forecasts: [] })
+    },
+  })
+  const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=gulu') })
+  assert.equal(calls, 2)
+  assert.deepEqual((await response.json()).warnings, [])
+  assert.match(response.headers.get('Cache-Control'), /s-maxage=300/)
+})
+
+ test('billboard explicitly requests seven days and retains dated days with missing PM2.5', async () => {
+  const { GET } = load('../app/api/billboard/route.ts', {
+    process: { env: { API_TOKEN: 'test' } },
+    fetch: async url => {
+      if (!url.pathname.includes('daily')) return Response.json({ measurements: [] })
+      assert.equal(url.searchParams.get('days'), '7')
+      return Response.json({ forecasts: [{ site_details: { site_id: 'a' }, forecasts: Array.from({ length: 7 }, (_, i) => ({ date: `2026-10-${25+i}`, forecast: { pm2_5_mean: i === 3 ? null : i } })).reverse() }] })
+    },
+  })
+  const body = await (await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=gulu') })).json()
+  assert.equal(body.daily[0].forecasts.length, 7)
+  assert.equal(body.daily[0].forecasts[0].date, '2026-10-25')
+  assert.equal(body.daily[0].forecasts[6].date, '2026-10-31')
+  assert.equal(body.daily[0].forecasts[3].forecast.pm2_5_mean, null)
 })
