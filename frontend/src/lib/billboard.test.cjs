@@ -142,13 +142,32 @@ for (const status of [401, 403, 503]) {
     })
     const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=gulu') })
     const body = await response.json()
-    assert.equal(calls, status === 503 ? 3 : 1)
+    assert.equal(calls, status === 503 ? 3 : 2)
     assert.equal(response.headers.get('Cache-Control'), 'no-store, max-age=0')
     assert.match(body.warnings[0], status === 503 ? /temporarily/ : /token/)
     if (status === 503) assert.doesNotMatch(body.warnings[0], /Premium/)
   })
 }
 
+test('billboard falls back to the map forecast collection after scoped authorization failure', async () => {
+  const { GET } = load('../app/api/billboard/route.ts', {
+    process: { env: { API_TOKEN: 'test' } },
+    fetch: async url => {
+      if (!url.pathname.includes('daily')) return Response.json({ measurements: [{ site_id: 'matching-site', time: '2026-10-25T12:00:00Z', pm2_5: { value: 12 }, siteDetails: {} }] })
+      if (url.searchParams.has('grid_id')) return new Response('', { status: 403 })
+      return Response.json({ forecasts: [
+        { site_details: { site_id: 'matching-site' }, forecasts: [{ date: '2026-10-26', forecast: { pm2_5_mean: 14 } }] },
+        { site_details: { site_id: 'other-site' }, forecasts: [{ date: '2026-10-26', forecast: { pm2_5_mean: 20 } }] },
+      ] })
+    },
+  })
+  const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=gulu') })
+  const body = await response.json()
+  assert.deepEqual(body.warnings, [])
+  assert.equal(body.daily.length, 1)
+  assert.equal(body.daily[0].site_details.site_id, 'matching-site')
+  assert.match(response.headers.get('Cache-Control'), /s-maxage=300/)
+})
 test('forecasts survive a later page failure', async () => {
   const { GET } = load('../app/api/billboard/route.ts', {
     process: { env: { API_TOKEN: 'test' } },
