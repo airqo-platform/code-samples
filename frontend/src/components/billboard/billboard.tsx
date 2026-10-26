@@ -7,7 +7,6 @@ import { AppLoader } from "@/components/layout/app-loader"
 import QuickPlaces, { useFavourites } from "./quick-places"
 import { gridsWithinCountry, loadBillboardGrids, type BillboardGrid } from "@/lib/billboard-grids"
 import Link from "next/link"
-import { isBrowserApiCacheFresh, readBrowserApiCache, writeBrowserApiCache, type BrowserApiCacheEntry } from "@/lib/browser-api-cache"
 import { useSearchParams } from "next/navigation"
 import { ArrowLeft, Copy, Maximize, Monitor, Pause, Play } from "lucide-react"
 import { BILLBOARD_REFRESH_MS, billboardScanUrl, category, categoryImage, hasPm25, latestReadings, type BillboardData, type Period } from "@/lib/billboard"
@@ -161,16 +160,9 @@ export default function Billboard() {
         const search = new URLSearchParams()
         if (gridId) search.set("grid_id", gridId)
         if (cohortId) search.set("cohort_id", cohortId)
-        const cacheKey = `billboard:${search}`
-        const cached = await readBrowserApiCache<BrowserApiCacheEntry<BillboardData>>(cacheKey)
-        if (isBrowserApiCacheFresh(cached, BILLBOARD_REFRESH_MS)) {
-          if (!controller.signal.aborted) { setData(cached.data); setError(""); setNow(Date.now()) }
-          return
-        }
         const response = await fetch(`/api/billboard?${search}`, { signal: controller.signal })
         const body = await response.json()
         if (!response.ok) throw Error(body.message || "Unable to load billboard.")
-        await writeBrowserApiCache(cacheKey, body)
         if (!controller.signal.aborted) { setData(body); setError(""); setNow(Date.now()) }
       } catch (e) { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Unable to refresh data.") }
       finally { busy = false; if (!controller.signal.aborted) setLoading(false) }
