@@ -39,10 +39,45 @@ export async function GET(request: NextRequest) {
     if (status === 401 || status === 403) return "Daily forecasts unavailable. The server API token does not have forecast access. Check its credentials and Premium permissions."
     return "Daily forecasts are temporarily unavailable. Please try again shortly."
   }
+  async function mapReadingsForGrid(): Promise<Reading[]> {
+    const siteIds = new Set<string>()
+    let skip = 0
+    for (let page = 0; page < 20; page++) {
+      const data = await get("devices/grids/summary", { limit: "30", skip: String(skip) })
+      const grids = data.grids || []
+      const selected = grids.find((candidate: { _id?: string }) => candidate._id === id)
+      if (selected) {
+        for (const site of selected.sites || []) if (site._id) siteIds.add(site._id)
+        break
+      }
+      const limit = Number(data.meta?.limit) > 0 ? Number(data.meta.limit) : 30
+      skip += limit
+      if (!grids.length || (data.meta?.total != null && skip >= Number(data.meta.total)) || grids.length < limit) break
+    }
+    if (!siteIds.size) return []
+    const data = await get("devices/readings/map", {})
+    return (data.measurements || []).filter((reading: Reading) => reading.site_id && siteIds.has(reading.site_id))
+  }
   async function measurements(): Promise<Reading[]> {
     const rows: Reading[] = []
     for (let page = 0; page < 10; page++) {
-      const data = await get(`devices/measurements/${grid ? "grids" : "cohorts"}/${id}`, { limit: "80", skip: String(page * 80) })
+      let data
+      try {
+        const path = "devices/measurements/" + (grid ? "grids" : "cohorts") + "/" + id
+        data = await get(path, { limit: "80", skip: String(page * 80) })
+      } catch (error) {
+        if (rows.length) {
+          warnings.push("Some current readings could not be loaded. Available locations are shown.")
+          return rows
+        }
+        if (grid) {
+          try {
+            const fallback = await mapReadingsForGrid()
+            if (fallback.length) return fallback
+          } catch {}
+        }
+        throw error
+      }
       const batch = data.measurements || []
       rows.push(...batch)
       if (batch.length < 80 || (data.meta?.total != null && rows.length >= data.meta.total)) return rows

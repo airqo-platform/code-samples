@@ -93,6 +93,44 @@ test('default load fetches weekly data only and compacts readings without creden
 })
 
 
+test('a later measurement page failure preserves readings already loaded', async () => {
+  const { GET } = load('../app/api/billboard/route.ts', {
+    process: { env: { API_TOKEN: 'test' } },
+    fetch: async url => {
+      if (url.pathname.includes('measurements')) {
+        if (url.searchParams.get('skip') === '80') return new Response('', { status: 503 })
+        return Response.json({ measurements: Array.from({ length: 80 }, () => ({ site_id: 'nairobi-site', time: '2026-10-25T12:00:00Z', pm2_5: { value: 18 }, siteDetails: {} })), meta: { total: 160 } })
+      }
+      return Response.json({ forecasts: [] })
+    },
+  })
+  const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=nairobi') })
+  const body = await response.json()
+  assert.equal(body.measurements.length, 1)
+  assert.equal(body.measurements[0].site_id, 'nairobi-site')
+  assert.match(body.warnings[0], /Some current readings/)
+})
+
+test('a first-page grid failure falls back to map readings using grid site membership', async () => {
+  const { GET } = load('../app/api/billboard/route.ts', {
+    process: { env: { API_TOKEN: 'test' } },
+    fetch: async url => {
+      if (url.pathname.includes('/measurements/grids/')) return new Response('', { status: 403 })
+      if (url.pathname.endsWith('/devices/grids/summary')) return Response.json({ grids: [{ _id: 'nairobi', sites: [{ _id: 'matching-site' }] }], meta: { total: 1, limit: 30 } })
+      if (url.pathname.endsWith('/devices/readings/map')) return Response.json({ measurements: [
+        { site_id: 'matching-site', time: '2026-10-25T12:00:00Z', pm2_5: { value: 16 }, siteDetails: {} },
+        { site_id: 'other-site', time: '2026-10-25T12:00:00Z', pm2_5: { value: 22 }, siteDetails: {} },
+      ] })
+      return Response.json({ forecasts: [] })
+    },
+  })
+  const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=nairobi') })
+  const body = await response.json()
+  assert.deepEqual(body.warnings, [])
+  assert.equal(body.measurements.length, 1)
+  assert.equal(body.measurements[0].site_id, 'matching-site')
+  assert.match(response.headers.get('Cache-Control'), /s-maxage=300/)
+})
 test('daily forecast failures do not hide available readings', async () => {
   const { GET } = load('../app/api/billboard/route.ts', {
     process: { env: { API_TOKEN: 'test' } },
