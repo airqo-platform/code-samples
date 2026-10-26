@@ -31,12 +31,10 @@ export async function GET(request: NextRequest) {
     if (body.success === false) throw new Error("AirQo data unavailable")
     return { ...body, ...(body.data ? unwrapForecastPayload(body.data) : {}) }
   }
-  const scope: Record<string, string> = grid ? { grid_id: id } : { cohort_id: id }
   const warnings: string[] = []
-  let usedGlobalForecastFallback = false
   function forecastWarning(error: unknown) {
     const status = error instanceof UncachedGridResponse ? error.response.status : null
-    if (status === 401 || status === 403) return "Daily forecasts unavailable. The server API token does not have forecast access. Check its credentials and Premium permissions."
+    if (status === 401 || status === 403) return "Daily forecasts unavailable, refresh"
     return "Daily forecasts are temporarily unavailable. Please try again shortly."
   }
   async function mapReadingsForGrid(): Promise<Reading[]> {
@@ -85,36 +83,16 @@ export async function GET(request: NextRequest) {
     return rows
   }
   async function forecasts(): Promise<ForecastSite[]> {
+    const data = await get("predict/daily-forecasting", {})
     const rows: ForecastSite[] = []
-    function addForecasts(data: any) {
-      for (const site of data.forecasts || []) {
-        if (!site.site_details?.site_id) continue
-        rows.push({ site_details: { site_id: site.site_details.site_id, site_name: site.site_details.site_name, site_latitude: site.site_details.site_latitude, site_longitude: site.site_details.site_longitude }, forecasts: (site.forecasts || []).filter((p: ForecastSite["forecasts"][number]) => p.date).sort((a: ForecastSite["forecasts"][number], b: ForecastSite["forecasts"][number]) => a.date!.localeCompare(b.date!)).slice(0, 7).map((p: ForecastSite["forecasts"][number]) => ({
-          ...(p.date ? { date: p.date } : {}), ...(p.timestamp ? { timestamp: p.timestamp } : {}),
-          forecast: { pm2_5_mean: p.forecast?.pm2_5_mean ?? null },
-          aqi: { aqi_category: p.aqi?.aqi_category, label: p.aqi?.label },
-          met: p.met ? { air_temperature: p.met.air_temperature, precipitation_amount: p.met.precipitation_amount, wind_speed: p.met.wind_speed, wind_direction_compass: p.met.wind_direction_compass, relative_humidity: p.met.relative_humidity } : null,
-        })) })
-      }
-    }
-    for (let page = 1; page <= 10; page++) {
-      let data
-      try {
-        data = await get("predict/daily-forecasting", { ...scope, days: "7", limit: "100", page: String(page) })
-      } catch (error) {
-        const status = error instanceof UncachedGridResponse ? error.response.status : null
-        if (!rows.length && (status === 401 || status === 403)) {
-          data = await get("predict/daily-forecasting", {})
-          usedGlobalForecastFallback = true
-          addForecasts(data)
-          return rows
-        }
-        if (!rows.length) throw error
-        warnings.push("Some daily forecasts could not be loaded. Available forecasts are shown.")
-        return rows
-      }
-      addForecasts(data)
-      if (page >= (data.total_pages || 1)) return rows
+    for (const site of data.forecasts || []) {
+      if (!site.site_details?.site_id) continue
+      rows.push({ site_details: { site_id: site.site_details.site_id, site_name: site.site_details.site_name, site_latitude: site.site_details.site_latitude, site_longitude: site.site_details.site_longitude }, forecasts: (site.forecasts || []).filter((p: ForecastSite["forecasts"][number]) => p.date).sort((a: ForecastSite["forecasts"][number], b: ForecastSite["forecasts"][number]) => a.date!.localeCompare(b.date!)).slice(0, 7).map((p: ForecastSite["forecasts"][number]) => ({
+        ...(p.date ? { date: p.date } : {}), ...(p.timestamp ? { timestamp: p.timestamp } : {}),
+        forecast: { pm2_5_mean: p.forecast?.pm2_5_mean ?? null },
+        aqi: { aqi_category: p.aqi?.aqi_category, label: p.aqi?.label },
+        met: p.met ? { air_temperature: p.met.air_temperature, precipitation_amount: p.met.precipitation_amount, wind_speed: p.met.wind_speed, wind_direction_compass: p.met.wind_direction_compass, relative_humidity: p.met.relative_humidity } : null,
+      })) })
     }
     return rows
   }
@@ -124,7 +102,7 @@ export async function GET(request: NextRequest) {
   })
   const compactReadings = results[0].status === "fulfilled" ? Array.from(latestReadings(results[0].value), ([site_id, r]) => ({ site_id, time: r.time, pm2_5: { value: r.pm2_5?.value ?? null }, siteDetails: { name: r.siteDetails?.description || r.siteDetails?.name, latitude: r.siteDetails?.approximate_latitude ?? r.siteDetails?.latitude, longitude: r.siteDetails?.approximate_longitude ?? r.siteDetails?.longitude } })) : []
   const measuredSiteIds = new Set(compactReadings.map(reading => reading.site_id))
-  const daily = results[1].status === "fulfilled" ? (usedGlobalForecastFallback ? results[1].value.filter(site => measuredSiteIds.has(site.site_details.site_id)) : results[1].value) : []
+  const daily = results[1].status === "fulfilled" ? results[1].value.filter(site => measuredSiteIds.has(site.site_details.site_id)) : []
   const body = JSON.stringify({ measurements: compactReadings, daily, warnings })
   // Reserve room for the page shell and assets within the 2 MB display budget.
   if (new TextEncoder().encode(body).byteLength > 1000000) return Response.json({ message: "This network is too large for the lightweight billboard. Choose a smaller grid or cohort." }, { status: 413 })

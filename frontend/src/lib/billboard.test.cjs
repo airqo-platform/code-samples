@@ -151,7 +151,7 @@ test('any valid cohort ID is forwarded without a local allowlist', async () => {
   const result = await GET({ nextUrl: new URL('https://example.test/api/billboard?cohort_id=organisation-network') })
   assert.equal(result.status, 200)
   assert.ok(calls.some(url => url.pathname.endsWith('/cohorts/organisation-network')))
-  assert.ok(calls.some(url => url.searchParams.get('cohort_id') === 'organisation-network'))
+  assert.ok(calls.filter(url => url.pathname.includes('daily-forecasting')).every(url => url.search === ''))
 })
 
 test('activity scenes reserve vigorous sports for good air', () => {
@@ -180,19 +180,19 @@ for (const status of [401, 403, 503]) {
     })
     const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=gulu') })
     const body = await response.json()
-    assert.equal(calls, status === 503 ? 3 : 2)
+    assert.equal(calls, status === 503 ? 3 : 1)
     assert.equal(response.headers.get('Cache-Control'), 'no-store, max-age=0')
-    assert.match(body.warnings[0], status === 503 ? /temporarily/ : /token/)
-    if (status === 503) assert.doesNotMatch(body.warnings[0], /Premium/)
+    assert.match(body.warnings[0], status === 503 ? /temporarily/ : /Daily forecasts unavailable, refresh/)
+    assert.doesNotMatch(body.warnings[0], /token|Premium/)
   })
 }
 
-test('billboard falls back to the map forecast collection after scoped authorization failure', async () => {
+test('billboard reuses the unfiltered map forecast collection and keeps measured sites only', async () => {
   const { GET } = load('../app/api/billboard/route.ts', {
     process: { env: { API_TOKEN: 'test' } },
     fetch: async url => {
       if (!url.pathname.includes('daily')) return Response.json({ measurements: [{ site_id: 'matching-site', time: '2026-10-25T12:00:00Z', pm2_5: { value: 12 }, siteDetails: {} }] })
-      if (url.searchParams.has('grid_id')) return new Response('', { status: 403 })
+      assert.equal(url.search, '')
       return Response.json({ forecasts: [
         { site_details: { site_id: 'matching-site' }, forecasts: [{ date: '2026-10-26', forecast: { pm2_5_mean: 14 } }] },
         { site_details: { site_id: 'other-site' }, forecasts: [{ date: '2026-10-26', forecast: { pm2_5_mean: 20 } }] },
@@ -206,22 +206,6 @@ test('billboard falls back to the map forecast collection after scoped authoriza
   assert.equal(body.daily[0].site_details.site_id, 'matching-site')
   assert.match(response.headers.get('Cache-Control'), /s-maxage=300/)
 })
-test('forecasts survive a later page failure', async () => {
-  const { GET } = load('../app/api/billboard/route.ts', {
-    process: { env: { API_TOKEN: 'test' } },
-    fetch: async url => {
-      if (!url.pathname.includes('daily')) return Response.json({ measurements: [] })
-      if (url.searchParams.get('page') === '2') return new Response('', { status: 502 })
-      return Response.json({ total_pages: 2, forecasts: [{ site_details: { site_id: 'a' }, forecasts: [{ date: '2026-10-25', forecast: { pm2_5_mean: 0 } }] }] })
-    },
-  })
-  const response = await GET({ nextUrl: new URL('https://example.test/api/billboard?grid_id=gulu') })
-  const body = await response.json()
-  assert.equal(body.daily.length, 1)
-  assert.equal(body.daily[0].forecasts[0].forecast.pm2_5_mean, 0)
-  assert.match(body.warnings[0], /Some daily/)
-})
-
 test('a temporary forecast failure recovers on retry', async () => {
   let calls = 0
   const { GET } = load('../app/api/billboard/route.ts', {
@@ -238,12 +222,12 @@ test('a temporary forecast failure recovers on retry', async () => {
   assert.match(response.headers.get('Cache-Control'), /s-maxage=300/)
 })
 
- test('billboard explicitly requests seven days and retains dated days with missing PM2.5', async () => {
+test('billboard uses the unfiltered map forecast request and retains seven dated days', async () => {
   const { GET } = load('../app/api/billboard/route.ts', {
     process: { env: { API_TOKEN: 'test' } },
     fetch: async url => {
-      if (!url.pathname.includes('daily')) return Response.json({ measurements: [] })
-      assert.equal(url.searchParams.get('days'), '7')
+      if (!url.pathname.includes('daily')) return Response.json({ measurements: [{ site_id: 'a', time: '2026-10-25T12:00:00Z', pm2_5: { value: 10 }, siteDetails: {} }] })
+      assert.equal(url.search, '')
       return Response.json({ forecasts: [{ site_details: { site_id: 'a' }, forecasts: Array.from({ length: 7 }, (_, i) => ({ date: `2026-10-${25+i}`, forecast: { pm2_5_mean: i === 3 ? null : i } })).reverse() }] })
     },
   })

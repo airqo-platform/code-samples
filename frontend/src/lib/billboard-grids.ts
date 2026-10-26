@@ -27,12 +27,19 @@ export function gridsWithinCountry(grids: BillboardGrid[], country: BillboardGri
   })
 }
 
+type MapReading = { site_id?: string; pm2_5?: { value?: number | null } }
+
+export function gridsWithCurrentData(grids: BillboardGrid[], readings: MapReading[]) {
+  const activeSiteIds = new Set(readings.filter(reading => typeof reading.pm2_5?.value === "number" && Number.isFinite(reading.pm2_5.value) && reading.pm2_5.value >= 0).map(reading => reading.site_id).filter((id): id is string => Boolean(id)))
+  return grids.filter(grid => grid.sites?.some(site => site._id && activeSiteIds.has(site._id)))
+}
+
 export async function loadBillboardGrids(signal?: AbortSignal): Promise<BillboardGrid[]> {
   const grids = new Map<string, BillboardGrid>()
   let skip = 0
   for (let page = 0; page < 20; page++) {
     // Build local pagination URLs; upstream nextPage links can contain credentials.
-    const response = await fetch(`/api/airqo/devices/grids/summary?limit=30&skip=${skip}`, { signal })
+    const response = await fetch("/api/airqo/devices/grids/summary?limit=30&skip=" + skip, { signal })
     if (!response.ok) throw new Error("Could not load places.")
     const body = await response.json()
     const data = body.data || body
@@ -42,10 +49,18 @@ export async function loadBillboardGrids(signal?: AbortSignal): Promise<Billboar
     const meta = data.meta || body.meta || {}
     const limit = Number(meta.limit) > 0 ? Number(meta.limit) : 30
     const next = skip + limit
-    if (!rows.length || (Number.isFinite(Number(meta.total)) ? next >= Number(meta.total) : rows.length < limit)) {
-      return Array.from(grids.values()).sort((a, b) => (a.long_name || a.name).localeCompare(b.long_name || b.name))
-    }
+    if (!rows.length || (Number.isFinite(Number(meta.total)) ? next >= Number(meta.total) : rows.length < limit)) break
     skip = next
   }
-  return Array.from(grids.values()).sort((a, b) => (a.long_name || a.name).localeCompare(b.long_name || b.name))
+  const sorted = Array.from(grids.values()).sort((a, b) => (a.long_name || a.name).localeCompare(b.long_name || b.name))
+  try {
+    const response = await fetch("/api/airqo/devices/readings/map", { signal })
+    if (!response.ok) return sorted
+    const body = await response.json()
+    const data = body.data || body
+    return Array.isArray(data.measurements) ? gridsWithCurrentData(sorted, data.measurements) : sorted
+  } catch (error) {
+    if (signal?.aborted) throw error
+    return sorted
+  }
 }

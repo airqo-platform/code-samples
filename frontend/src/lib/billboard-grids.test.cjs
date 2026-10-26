@@ -19,8 +19,31 @@ test('loads later pages containing Kenya, Nairobi and Kisumu without following u
   const grids = await loadBillboardGrids()
   assert.equal(grids.length, 33)
   for (const name of ['Kenya','Nairobi','Kisumu']) assert.ok(grids.some(g => g.name === name))
-  assert.equal(calls.length, 2)
+  assert.equal(calls.length, 3)
   assert.ok(calls.every(url => url.startsWith('/api/airqo/') && !url.includes('token')))
+})
+test('countries and grids without valid current PM2.5 readings are hidden', () => {
+  const { gridsWithCurrentData } = load(() => {})
+  const grids = [
+    { _id: 'kenya', name: 'Kenya', admin_level: 'country', sites: [{ _id: 'nairobi-site' }] },
+    { _id: 'nairobi', name: 'Nairobi', sites: [{ _id: 'nairobi-site' }] },
+    { _id: 'burundi', name: 'Burundi', admin_level: 'country', sites: [{ _id: 'burundi-site' }] },
+    { _id: 'empty', name: 'No sites' },
+  ]
+  const readings = [
+    { site_id: 'nairobi-site', pm2_5: { value: 12 } },
+    { site_id: 'burundi-site', pm2_5: { value: null } },
+  ]
+  assert.deepEqual(Array.from(gridsWithCurrentData(grids, readings), grid => grid._id), ['kenya', 'nairobi'])
+})
+
+test('availability request failures keep the complete grid list', async () => {
+  const { loadBillboardGrids } = load(async url => url.includes('readings/map')
+    ? { ok: false }
+    : { ok: true, json: async () => ({ grids: [{ _id: 'burundi', name: 'Burundi', sites: [{ _id: 'site' }] }], meta: { total: 1, limit: 30 } }) })
+  const grids = await loadBillboardGrids()
+  assert.equal(grids.length, 1)
+  assert.equal(grids[0].name, 'Burundi')
 })
 test('a later page failure is reported instead of silently presenting an incomplete list', async () => {
   let page = 0
