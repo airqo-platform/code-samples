@@ -56,8 +56,8 @@ export default function Index() {
     } catch (error) {
       console.error("Submit error:", error)
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to submit locations",
+        title: "Could not generate site suggestions",
+        description: "Please try again later.",
         variant: "destructive",
       })
     }
