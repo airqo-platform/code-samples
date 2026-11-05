@@ -230,7 +230,7 @@ export default function Index() {
                   onClick={handleExportCSV}
                   disabled={!hasResults && mustHaveLocations.length === 0}
                   aria-label="Export locations to CSV"
-                  variant="outline"
+                  variant={hasResults ? "default" : "outline"}
                   className="gap-2"
                 >
                   <Download className="h-4 w-4" />
