@@ -36,6 +36,7 @@ export default function Index() {
   const [showInfo, setShowInfo] = useState(false)
   const [showResultsNotice, setShowResultsNotice] = useState(false)
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
+  const [isBoundaryDownloadOpen, setIsBoundaryDownloadOpen] = useState(false)
 
   const handleSubmit = async (payload: SiteLocatorPayload) => {
     try {
@@ -74,6 +75,28 @@ export default function Index() {
       title: "Priority location added",
       description: `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`,
     })
+  }
+
+  const handleDownloadArea = () => {
+    if (polygon.length < 3) return
+
+    const ring = polygon.map(({ lng, lat }) => [lng, lat])
+    const first = ring[0]
+    const last = ring[ring.length - 1]
+    if (first[0] !== last[0] || first[1] !== last[1]) ring.push([...first])
+
+    const geojson = {
+      type: "Feature",
+      properties: { name: "Selected analysis area" },
+      geometry: { type: "Polygon", coordinates: [ring] },
+    }
+    const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: "application/geo+json" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "analysis-area.geojson"
+    link.click()
+    window.URL.revokeObjectURL(url)
   }
 
   const handleExportCSV = () => {
@@ -145,6 +168,7 @@ export default function Index() {
     setIsDrawing(false)
     setIsSelectingPriority(false)
     setShowResultsNotice(false)
+    setIsBoundaryDownloadOpen(false)
     toast({
       title: "Workspace cleared",
       description: "The boundary, priority locations, and recommendations were removed.",
@@ -268,13 +292,13 @@ export default function Index() {
               isSelectingPriority={isSelectingPriority}
             />
 
-            <div className="pointer-events-none absolute left-4 top-20 z-[1000] hidden items-start justify-between gap-3 sm:flex sm:max-w-md">
-              <div className="pointer-events-auto rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
+            <div className="pointer-events-none absolute left-3 top-20 z-[1000] flex max-w-[calc(100%_-_6rem)] items-start sm:left-4 sm:max-w-md">
+              <div className="pointer-events-auto min-w-0 rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
                 <div className="flex items-center gap-3">
                   <div className={`rounded-md p-2 ${isDrawing ? "bg-amber-50 text-amber-700" : "bg-muted text-primary"}`}>
                     {isDrawing || isSelectingPriority ? <MousePointer2 className="h-5 w-5" /> : <Route className="h-5 w-5" />}
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground">
                       {isDrawing
                         ? "Click the map to trace your boundary"
@@ -294,7 +318,36 @@ export default function Index() {
                           : "Search for an area in the panel or start drawing."}
                     </p>
                   </div>
+                  {boundaryReady ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsBoundaryDownloadOpen((open) => !open)}
+                      aria-label={isBoundaryDownloadOpen ? "Close area download" : "Open area download"}
+                      aria-expanded={isBoundaryDownloadOpen}
+                      aria-controls="boundary-download"
+                      className="h-8 w-8 shrink-0"
+                    >
+                      {isBoundaryDownloadOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                  ) : null}
                 </div>
+                {boundaryReady && isBoundaryDownloadOpen ? (
+                  <div id="boundary-download">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadArea}
+                      aria-label="Download selected analysis area as GeoJSON"
+                      className="mt-3 w-full gap-2"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download polygon area
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             </div>
 
