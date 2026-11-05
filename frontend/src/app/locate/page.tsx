@@ -155,12 +155,12 @@ export default function Index() {
   const hasResults = suggestedLocations.length > 0
 
   return (
-    <div className="flex h-[100svh] flex-col bg-background">
+    <div className="flex min-h-[100svh] flex-col bg-background lg:h-[100svh] lg:min-h-[580px]">
       <Navigation />
 
       <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 px-2 pb-2">
-        <div className="grid h-full min-h-0 grid-cols-1 overflow-y-auto rounded-lg border border-border bg-card shadow-sm lg:grid-cols-[390px_minmax(0,1fr)] lg:overflow-hidden">
-          <aside className="z-10 flex min-h-0 flex-col border-b border-border bg-card lg:border-b-0 lg:border-r">
+        <div className="grid min-w-0 grid-cols-1 overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:h-full lg:min-h-0 lg:grid-cols-[390px_minmax(0,1fr)]">
+          <aside className="order-2 z-10 flex min-w-0 flex-col border-t border-border bg-card lg:order-1 lg:min-h-0 lg:border-r lg:border-t-0">
             <div className="border-b border-border px-5 py-5">
               <div className={`flex items-center justify-between gap-3 ${isHeaderCollapsed ? "" : "mb-2"}`}>
                 <h1 className="text-xl font-medium tracking-tight text-foreground">Locate monitoring sites</h1>
@@ -209,7 +209,7 @@ export default function Index() {
               ) : null}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+            <div className="min-h-0 flex-1 px-5 py-5 lg:overflow-y-auto">
               <ControlPanel
                 onSubmit={handleSubmit}
                 polygon={polygon}
@@ -257,7 +257,7 @@ export default function Index() {
             </div>
           </aside>
 
-          <section className="relative min-h-[420px] overflow-hidden bg-muted lg:min-h-0">
+          <section className="relative order-1 h-[min(65svh,560px)] min-h-[420px] min-w-0 overflow-hidden bg-muted lg:order-2 lg:h-auto lg:min-h-0">
             <MapComponent
               polygon={polygon}
               mustHaveLocations={mustHaveLocations}
@@ -310,7 +310,7 @@ export default function Index() {
               </Button>
             </div>
 
-            <div className="absolute bottom-5 left-5 z-[1000] rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
+            <div className="absolute bottom-5 left-5 z-[1000] hidden rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur sm:block">
               <p className="mb-2 text-xs font-medium text-muted-foreground">Map legend</p>
               <div className="space-y-2 text-xs font-medium text-muted-foreground">
                 <div className="flex items-center gap-2">
@@ -329,7 +329,7 @@ export default function Index() {
             </div>
 
             {hasResults && showResultsNotice ? (
-              <div className="absolute bottom-24 right-3 z-[1000] max-w-xs rounded-md border border-border bg-card p-4 shadow-sm">
+              <div className="absolute bottom-3 left-3 right-[4.25rem] z-[1000] rounded-md border border-border bg-card p-4 shadow-sm sm:bottom-24 sm:left-auto sm:right-3 sm:max-w-xs">
                 <div className="flex items-start gap-3">
                   <div className="rounded-md bg-primary/10 p-2 text-primary">
                     <Info className="h-5 w-5" />

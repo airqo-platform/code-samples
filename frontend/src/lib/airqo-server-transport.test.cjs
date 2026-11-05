@@ -43,6 +43,18 @@ test('request failures discard raw errors and credential-bearing diagnostics', a
     return true
   })
 })
+test('upstream timeout has a safe, distinguishable error', async () => {
+  let timeoutMs
+  const { fetchAirQo } = load(() => {
+    const req = new EventEmitter()
+    req.setTimeout = (ms, callback) => { timeoutMs = ms; req.on('timeout', callback) }
+    req.destroy = () => {}
+    req.end = () => req.emit('timeout')
+    return req
+  })
+  await assert.rejects(fetchAirQo('https://platform.airqo.net/api/v2/spatial/site_location', { timeoutMs: 60000 }), /AirQo upstream timed out/)
+  assert.equal(timeoutMs, 60000)
+})
 test('credentials cannot be sent to a different origin', async () => {
   const { fetchAirQo } = load(() => { throw Error('must not send') })
   await assert.rejects(fetchAirQo('https://example.test/'), /Invalid AirQo upstream/)

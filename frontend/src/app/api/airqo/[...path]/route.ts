@@ -91,7 +91,11 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
       status: upstreamResponse.status,
       headers: responseHeaders,
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "AirQo upstream timed out.") {
+      console.error("AirQo API proxy request timed out.")
+      return Response.json({ message: "The AirQo API request timed out." }, { status: 504 })
+    }
     console.error("AirQo API proxy request failed.")
     return Response.json({ message: "Unable to reach the AirQo API." }, { status: 502 })
   }
