@@ -45,7 +45,10 @@ export async function fetchAirQo(input: string | URL, options: {
         }))
       })
     })
-    req.setTimeout(options.timeoutMs || 30000, () => req.destroy(new Error("AirQo timeout")))
+    req.setTimeout(options.timeoutMs || 30000, () => {
+      req.destroy()
+      reject(new Error("AirQo upstream timed out."))
+    })
     req.on("error", fail)
     if (options.body) req.write(Buffer.from(options.body))
     req.end()

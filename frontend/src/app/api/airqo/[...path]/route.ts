@@ -78,6 +78,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
         method: request.method,
         headers,
         body: requestBody,
+        timeoutMs: path === "spatial/site_location" ? 55000 : undefined,
       })
 
     const upstreamResponse = await fetchUpstream()
@@ -91,13 +92,18 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
       status: upstreamResponse.status,
       headers: responseHeaders,
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "AirQo upstream timed out.") {
+      console.error("AirQo API proxy request timed out.")
+      return Response.json({ message: "The AirQo API request timed out." }, { status: 504 })
+    }
     console.error("AirQo API proxy request failed.")
     return Response.json({ message: "Unable to reach the AirQo API." }, { status: 502 })
   }
 }
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 export const GET = proxyRequest
 export const POST = proxyRequest

@@ -36,6 +36,7 @@ export default function Index() {
   const [showInfo, setShowInfo] = useState(false)
   const [showResultsNotice, setShowResultsNotice] = useState(false)
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
+  const [isBoundaryDownloadOpen, setIsBoundaryDownloadOpen] = useState(false)
 
   const handleSubmit = async (payload: SiteLocatorPayload) => {
     try {
@@ -56,8 +57,8 @@ export default function Index() {
     } catch (error) {
       console.error("Submit error:", error)
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to submit locations",
+        title: "Could not generate site suggestions",
+        description: "Please try again later.",
         variant: "destructive",
       })
     }
@@ -74,6 +75,28 @@ export default function Index() {
       title: "Priority location added",
       description: `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`,
     })
+  }
+
+  const handleDownloadArea = () => {
+    if (polygon.length < 3) return
+
+    const ring = polygon.map(({ lng, lat }) => [lng, lat])
+    const first = ring[0]
+    const last = ring[ring.length - 1]
+    if (first[0] !== last[0] || first[1] !== last[1]) ring.push([...first])
+
+    const geojson = {
+      type: "Feature",
+      properties: { name: "Selected analysis area" },
+      geometry: { type: "Polygon", coordinates: [ring] },
+    }
+    const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: "application/geo+json" })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "analysis-area.geojson"
+    link.click()
+    window.URL.revokeObjectURL(url)
   }
 
   const handleExportCSV = () => {
@@ -145,6 +168,7 @@ export default function Index() {
     setIsDrawing(false)
     setIsSelectingPriority(false)
     setShowResultsNotice(false)
+    setIsBoundaryDownloadOpen(false)
     toast({
       title: "Workspace cleared",
       description: "The boundary, priority locations, and recommendations were removed.",
@@ -155,12 +179,12 @@ export default function Index() {
   const hasResults = suggestedLocations.length > 0
 
   return (
-    <div className="flex h-[100svh] flex-col bg-background">
+    <div className="flex min-h-[100svh] flex-col bg-background lg:h-[100svh] lg:min-h-[580px]">
       <Navigation />
 
       <main id="main-content" tabIndex={-1} className="min-h-0 flex-1 px-2 pb-2">
-        <div className="grid h-full min-h-0 grid-cols-1 overflow-y-auto rounded-lg border border-border bg-card shadow-sm lg:grid-cols-[390px_minmax(0,1fr)] lg:overflow-hidden">
-          <aside className="z-10 flex min-h-0 flex-col border-b border-border bg-card lg:border-b-0 lg:border-r">
+        <div className="grid min-w-0 grid-cols-1 overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:h-full lg:min-h-0 lg:grid-cols-[390px_minmax(0,1fr)]">
+          <aside className="order-2 z-10 flex min-w-0 flex-col border-t border-border bg-card lg:order-1 lg:min-h-0 lg:border-r lg:border-t-0">
             <div className="border-b border-border px-5 py-5">
               <div className={`flex items-center justify-between gap-3 ${isHeaderCollapsed ? "" : "mb-2"}`}>
                 <h1 className="text-xl font-medium tracking-tight text-foreground">Locate monitoring sites</h1>
@@ -209,7 +233,7 @@ export default function Index() {
               ) : null}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+            <div className="min-h-0 flex-1 px-5 py-5 lg:overflow-y-auto">
               <ControlPanel
                 onSubmit={handleSubmit}
                 polygon={polygon}
@@ -230,7 +254,7 @@ export default function Index() {
                   onClick={handleExportCSV}
                   disabled={!hasResults && mustHaveLocations.length === 0}
                   aria-label="Export locations to CSV"
-                  variant="outline"
+                  variant={hasResults ? "default" : "outline"}
                   className="gap-2"
                 >
                   <Download className="h-4 w-4" />
@@ -257,7 +281,7 @@ export default function Index() {
             </div>
           </aside>
 
-          <section className="relative min-h-[420px] overflow-hidden bg-muted lg:min-h-0">
+          <section className="relative order-1 h-[min(65svh,560px)] min-h-[420px] min-w-0 overflow-hidden bg-muted lg:order-2 lg:h-auto lg:min-h-0">
             <MapComponent
               polygon={polygon}
               mustHaveLocations={mustHaveLocations}
@@ -268,13 +292,13 @@ export default function Index() {
               isSelectingPriority={isSelectingPriority}
             />
 
-            <div className="pointer-events-none absolute left-4 top-20 z-[1000] hidden items-start justify-between gap-3 sm:flex sm:max-w-md">
-              <div className="pointer-events-auto rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
+            <div className="pointer-events-none absolute left-3 top-20 z-[1000] flex max-w-[calc(100%_-_6rem)] items-start sm:left-4 sm:max-w-md">
+              <div className="pointer-events-auto min-w-0 rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
                 <div className="flex items-center gap-3">
                   <div className={`rounded-md p-2 ${isDrawing ? "bg-amber-50 text-amber-700" : "bg-muted text-primary"}`}>
                     {isDrawing || isSelectingPriority ? <MousePointer2 className="h-5 w-5" /> : <Route className="h-5 w-5" />}
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground">
                       {isDrawing
                         ? "Click the map to trace your boundary"
@@ -294,7 +318,36 @@ export default function Index() {
                           : "Search for an area in the panel or start drawing."}
                     </p>
                   </div>
+                  {boundaryReady ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsBoundaryDownloadOpen((open) => !open)}
+                      aria-label={isBoundaryDownloadOpen ? "Close area download" : "Open area download"}
+                      aria-expanded={isBoundaryDownloadOpen}
+                      aria-controls="boundary-download"
+                      className="h-8 w-8 shrink-0"
+                    >
+                      {isBoundaryDownloadOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                  ) : null}
                 </div>
+                {boundaryReady && isBoundaryDownloadOpen ? (
+                  <div id="boundary-download">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadArea}
+                      aria-label="Download selected analysis area as GeoJSON"
+                      className="mt-3 w-full gap-2"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download polygon area
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -310,7 +363,7 @@ export default function Index() {
               </Button>
             </div>
 
-            <div className="absolute bottom-5 left-5 z-[1000] rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
+            <div className="absolute bottom-5 left-5 z-[1000] hidden rounded-md border border-border bg-card/95 p-3 shadow-sm backdrop-blur sm:block">
               <p className="mb-2 text-xs font-medium text-muted-foreground">Map legend</p>
               <div className="space-y-2 text-xs font-medium text-muted-foreground">
                 <div className="flex items-center gap-2">
@@ -329,7 +382,7 @@ export default function Index() {
             </div>
 
             {hasResults && showResultsNotice ? (
-              <div className="absolute bottom-24 right-3 z-[1000] max-w-xs rounded-md border border-border bg-card p-4 shadow-sm">
+              <div className="absolute bottom-3 left-3 right-[4.25rem] z-[1000] rounded-md border border-border bg-card p-4 shadow-sm sm:bottom-24 sm:left-auto sm:right-3 sm:max-w-xs">
                 <div className="flex items-start gap-3">
                   <div className="rounded-md bg-primary/10 p-2 text-primary">
                     <Info className="h-5 w-5" />

@@ -110,17 +110,6 @@ export function ControlPanel({
     setIsLoading(true)
     try {
       await onSubmit(payload)
-      toast({
-        title: "Success",
-        description: "Locations submitted successfully",
-      })
-    } catch (error) {
-      console.log(error)
-      toast({
-        title: "Error",
-        description: "Failed to submit locations",
-        variant: "destructive",
-      })
     } finally {
       setIsLoading(false)
     }
