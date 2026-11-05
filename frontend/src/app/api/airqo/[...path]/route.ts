@@ -78,7 +78,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
         method: request.method,
         headers,
         body: requestBody,
-        timeoutMs: path === "spatial/site_location" ? 60000 : undefined,
+        timeoutMs: path === "spatial/site_location" ? 55000 : undefined,
       })
 
     const upstreamResponse = await fetchUpstream()
@@ -103,7 +103,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext) {
 }
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 90
+export const maxDuration = 60
 
 export const GET = proxyRequest
 export const POST = proxyRequest
